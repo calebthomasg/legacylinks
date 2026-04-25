@@ -26,14 +26,14 @@ export default function ProfileForm({
   setIsSaving(true);
   setMessage("");
 
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({
-      first_name: firstName,
-      last_name: lastName,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", userId);
+const { error: profileError } = await supabase
+  .from("profiles")
+  .upsert({
+    id: userId,
+    first_name: firstName,
+    last_name: lastName,
+    updated_at: new Date().toISOString(),
+  });
 
   if (profileError) {
     setMessage(profileError.message);
