@@ -22,28 +22,41 @@ export default function ProfileForm({
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSaving(true);
-    setMessage("");
+  event.preventDefault();
+  setIsSaving(true);
+  setMessage("");
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        first_name: firstName,
-        last_name: lastName,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId);
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({
+      first_name: firstName,
+      last_name: lastName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
 
-    if (error) {
-      setMessage(error.message);
-      setIsSaving(false);
-      return;
-    }
-
-    setMessage("Profile updated.");
+  if (profileError) {
+    setMessage(profileError.message);
     setIsSaving(false);
+    return;
   }
+
+  const { error: authError } = await supabase.auth.updateUser({
+    data: {
+      first_name: firstName,
+      last_name: lastName,
+    },
+  });
+
+  if (authError) {
+    setMessage(authError.message);
+    setIsSaving(false);
+    return;
+  }
+
+  setMessage("Profile updated.");
+  setIsSaving(false);
+}
 
   return (
     <form onSubmit={handleSave} className="mt-6 space-y-5">

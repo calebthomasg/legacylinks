@@ -14,6 +14,16 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const { data: profile } = await supabase
+  .from("profiles")
+  .select("first_name, last_name")
+  .eq("id", user.id)
+  .single();
+
+const fullName = [profile?.first_name, profile?.last_name]
+  .filter(Boolean)
+  .join(" ");
+
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <section className="mx-auto max-w-5xl">
@@ -26,7 +36,7 @@ export default async function DashboardPage() {
               Welcome to LegacyLinks
             </h1>
             <p className="mt-3 text-gray-600">
-              You are logged in as {user.email}
+              You are logged in as {fullName || user.email}
             </p>
           </div>
 
