@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="min-h-screen px-6 py-20">
@@ -16,19 +18,19 @@ export default function Home() {
         </p>
 
         <div className="mt-8 flex gap-4">
-          <a
+          <Link
             href="/signup"
             className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white"
           >
             Create an account
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/login"
             className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-900"
           >
             Log in
-          </a>
+          </Link>
         </div>
       </section>
     </main>
