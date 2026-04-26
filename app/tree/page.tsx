@@ -4,6 +4,26 @@ import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/auth/LogoutButton";
 import FamilyTreeClient from "@/components/family/FamilyTreeClient";
 
+type JournalEntryImage = {
+  id: string;
+  storage_path: string;
+  file_name: string | null;
+};
+
+type JournalEntry = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  journal_entry_images: JournalEntryImage[] | null;
+};
+
+type TaggedMemoryRow = {
+  id: string;
+  person_id: string;
+  journal_entries: JournalEntry | JournalEntry[] | null;
+};
+
 export default async function TreePage() {
   const supabase = await createClient();
 
@@ -37,10 +57,69 @@ export default async function TreePage() {
   // 6. Get all relationships created by this user.
   const { data: relationships } = await supabase
     .from("family_relationships")
-    .select(
-      "id, person_id, related_person_id, relationship_type, nickname"
-    )
+    .select("id, person_id, related_person_id, relationship_type, nickname")
     .eq("created_by_user_id", user.id);
+
+  // 7. Get journal entries tagged to people.
+  const { data: taggedMemoryRows } = await supabase
+    .from("journal_entry_people")
+    .select(`
+      id,
+      person_id,
+      journal_entries (
+        id,
+        title,
+        body,
+        created_at,
+        journal_entry_images (
+          id,
+          storage_path,
+          file_name
+        )
+      )
+    `)
+    .eq("tagged_by_user_id", user.id);
+
+  // 8. Create signed image URLs for tagged memory thumbnails.
+  const taggedMemories = await Promise.all(
+    ((taggedMemoryRows ?? []) as TaggedMemoryRow[]).map(async (tag) => {
+      const entry = Array.isArray(tag.journal_entries)
+        ? tag.journal_entries[0]
+        : tag.journal_entries;
+
+      if (!entry) {
+        return null;
+      }
+
+      const imagesWithUrls = await Promise.all(
+        (entry.journal_entry_images ?? []).map(async (image) => {
+          const { data } = await supabase.storage
+            .from("journal-images")
+            .createSignedUrl(image.storage_path, 60 * 60);
+
+          return {
+            id: image.id,
+            file_name: image.file_name,
+            signedUrl: data?.signedUrl ?? null,
+          };
+        })
+      );
+
+      return {
+        id: tag.id,
+        personId: tag.person_id,
+        entry: {
+          id: entry.id,
+          title: entry.title,
+          body: entry.body,
+          created_at: entry.created_at,
+          images: imagesWithUrls,
+        },
+      };
+    })
+  );
+
+  const cleanTaggedMemories = taggedMemories.filter((memory) => memory !== null);
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -92,6 +171,7 @@ export default async function TreePage() {
             rootPerson={rootPerson}
             people={people}
             relationships={relationships ?? []}
+            taggedMemories={cleanTaggedMemories}
           />
         </div>
       </section>

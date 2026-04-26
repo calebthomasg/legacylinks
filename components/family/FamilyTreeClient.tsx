@@ -26,10 +26,27 @@ type Relationship = {
   nickname: string | null;
 };
 
+type TaggedMemory = {
+  id: string;
+  personId: string;
+  entry: {
+    id: string;
+    title: string;
+    body: string;
+    created_at: string;
+    images: {
+      id: string;
+      file_name: string | null;
+      signedUrl: string | null;
+    }[];
+  };
+};
+
 type FamilyTreeClientProps = {
   rootPerson: Person;
   people: Person[];
   relationships: Relationship[];
+  taggedMemories: TaggedMemory[];
 };
 
 const PARENT_RELATIONSHIP_TYPES = ["father", "mother", "parent"];
@@ -51,10 +68,19 @@ function formatDate(dateString: string | null) {
   });
 }
 
+function getEntryPreview(body: string) {
+  if (body.length <= 120) {
+    return body;
+  }
+
+  return `${body.slice(0, 120)}...`;
+}
+
 export default function FamilyTreeClient({
   rootPerson,
   people,
   relationships,
+  taggedMemories,
 }: FamilyTreeClientProps) {
   const [expandedPersonIds, setExpandedPersonIds] = useState<string[]>([
     rootPerson.id,
@@ -108,6 +134,10 @@ export default function FamilyTreeClient({
     );
   }
 
+  function getTaggedMemoriesForPerson(personId: string) {
+    return taggedMemories.filter((memory) => memory.personId === personId);
+  }
+
   function TreeNode({
     person,
     relationship,
@@ -155,7 +185,9 @@ export default function FamilyTreeClient({
             type="button"
             onClick={() => togglePerson(person.id)}
             className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-            aria-label={isExpanded ? "Hide previous generation" : "Show previous generation"}
+            aria-label={
+              isExpanded ? "Hide previous generation" : "Show previous generation"
+            }
           >
             {isExpanded ? "−" : "↑"}
           </button>
@@ -169,7 +201,9 @@ export default function FamilyTreeClient({
           type="button"
           onClick={() => setSelectedPersonId(person.id)}
           className={`w-56 rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            isSelected ? "border-gray-950 ring-2 ring-gray-950/10" : "border-gray-200"
+            isSelected
+              ? "border-gray-950 ring-2 ring-gray-950/10"
+              : "border-gray-200"
           }`}
         >
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-xl font-bold text-gray-700">
@@ -192,13 +226,20 @@ export default function FamilyTreeClient({
               {getRelationshipLabel(relationship.relationship_type)}
             </p>
           )}
+
+          {getTaggedMemoriesForPerson(person.id).length > 0 && (
+            <p className="mt-3 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+              {getTaggedMemoriesForPerson(person.id).length} tagged memor
+              {getTaggedMemoriesForPerson(person.id).length === 1 ? "y" : "ies"}
+            </p>
+          )}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
       <section className="min-h-[600px] overflow-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
         <div className="flex min-w-[700px] justify-center pb-12 pt-6">
           <TreeNode person={rootPerson} />
@@ -220,6 +261,7 @@ export default function FamilyTreeClient({
             person={selectedPerson}
             relationship={getRelationshipForSelectedPerson(selectedPerson.id)}
             isRoot={selectedPerson.id === rootPerson.id}
+            taggedMemories={getTaggedMemoriesForPerson(selectedPerson.id)}
           />
         )}
       </aside>
@@ -231,10 +273,12 @@ function PersonDetails({
   person,
   relationship,
   isRoot,
+  taggedMemories,
 }: {
   person: Person;
   relationship?: Relationship;
   isRoot: boolean;
+  taggedMemories: TaggedMemory[];
 }) {
   const name = getPersonName(person);
   const birthDate = formatDate(person.birth_date);
@@ -309,15 +353,58 @@ function PersonDetails({
         )}
       </dl>
 
-      <div className="mt-8 rounded-2xl bg-gray-50 p-4">
-        <h3 className="text-sm font-semibold text-gray-950">
-          Tagged memories
-        </h3>
+      <div className="mt-8 border-t border-gray-200 pt-6">
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-lg font-semibold text-gray-950">
+            Tagged memories
+          </h3>
 
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Soon, photos and journal entries tagged with this person will appear
-          here.
-        </p>
+          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+            {taggedMemories.length}
+          </span>
+        </div>
+
+        {taggedMemories.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            No journal entries have been tagged with this person yet.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {taggedMemories.map((memory) => (
+              <article
+                key={memory.id}
+                className="rounded-xl border border-gray-200 p-4"
+              >
+                <p className="text-xs font-medium text-gray-500">
+                  {formatDate(memory.entry.created_at)}
+                </p>
+
+                <h4 className="mt-1 text-sm font-semibold text-gray-950">
+                  {memory.entry.title}
+                </h4>
+
+                <p className="mt-2 text-sm leading-6 text-gray-600">
+                  {getEntryPreview(memory.entry.body)}
+                </p>
+
+                {memory.entry.images.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {memory.entry.images.slice(0, 3).map((image) =>
+                      image.signedUrl ? (
+                        <img
+                          key={image.id}
+                          src={image.signedUrl}
+                          alt={image.file_name ?? "Tagged memory image"}
+                          className="h-20 w-full rounded-lg object-cover"
+                        />
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
