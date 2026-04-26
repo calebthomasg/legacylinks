@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/auth/LogoutButton";
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
+import DeleteJournalEntryButton from "@/components/journal/DeleteJournalEntryButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -240,17 +241,28 @@ export default async function DashboardPage() {
                       key={entry.id}
                       className="rounded-xl border border-gray-200 p-5"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-950">
-                            {entry.title}
-                          </h3>
+                <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-950">
+                    {entry.title}
+                    </h3>
 
-                          <p className="mt-1 text-xs text-gray-500">
-                            {new Date(entry.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                    {new Date(entry.created_at).toLocaleDateString()}
+                    </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                    <Link
+                    href={`/journal/${entry.id}/edit`}
+                    className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                    >
+                    Edit
+                    </Link>
+
+                    <DeleteJournalEntryButton entryId={entry.id} />
+                </div>
+                </div>
 
                       {entry.journal_entry_people &&
                         entry.journal_entry_people.length > 0 && (

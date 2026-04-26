@@ -5,6 +5,8 @@ import LogoutButton from "@/components/auth/LogoutButton";
 import AddPersonForm from "@/components/family/AddPersonForm";
 import AddRelationshipForm from "@/components/family/AddRelationshipForm";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
+import DeletePersonButton from "@/components/family/DeletePersonButton";
+import DeleteRelationshipButton from "@/components/family/DeleteRelationshipButton";
 
 export default async function FamilyPage() {
   const supabase = await createClient();
@@ -23,7 +25,7 @@ export default async function FamilyPage() {
   const { data: people } = await supabase
     .from("people")
     .select(
-      "id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, created_at"
+    "id, linked_user_id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, created_at"
     )
     .eq("created_by_user_id", user.id)
     .order("created_at", { ascending: false });
@@ -176,14 +178,19 @@ export default async function FamilyPage() {
                         )}
                       </div>
 
-                      <div className="mt-5">
-                        <Link
-                          href={`/family/${person.id}/edit`}
-                          className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
-                        >
-                          Edit profile
-                        </Link>
-                      </div>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                    <Link
+                        href={`/family/${person.id}/edit`}
+                        className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                    >
+                        Edit profile
+                    </Link>
+
+                    <DeletePersonButton
+                        personId={person.id}
+                        isLinkedUser={person.linked_user_id === user.id}
+                    />
+                    </div>
                     </article>
                   );
                 })}
@@ -222,26 +229,30 @@ export default async function FamilyPage() {
               <div className="mt-6 space-y-4">
                 {relationships.map((relationship) => (
                   <article
-                    key={relationship.id}
-                    className="rounded-xl border border-gray-200 p-5"
-                  >
-                    <p className="text-sm leading-6 text-gray-700">
-                      <span className="font-semibold text-gray-950">
-                        {getPersonName(relationship.related_person_id)}
-                      </span>{" "}
-                      is{" "}
-                      <span className="font-semibold text-gray-950">
-                        {getPersonName(relationship.person_id)}
-                        {relationship.nickname
-                          ? `’s “${relationship.nickname}”`
-                          : "’s"}
-                      </span>{" "}
-                      — relationship type:{" "}
-                      <span className="font-semibold text-gray-950">
-                        {getRelationshipLabel(relationship.relationship_type)}
-                      </span>
-                    </p>
-                  </article>
+                  key={relationship.id}
+                  className="rounded-xl border border-gray-200 p-5"
+                >
+                  <p className="text-sm leading-6 text-gray-700">
+                    <span className="font-semibold text-gray-950">
+                      {getPersonName(relationship.related_person_id)}
+                    </span>{" "}
+                    is{" "}
+                    <span className="font-semibold text-gray-950">
+                      {getPersonName(relationship.person_id)}
+                      {relationship.nickname
+                        ? `’s “${relationship.nickname}”`
+                        : "’s"}
+                    </span>{" "}
+                    — relationship type:{" "}
+                    <span className="font-semibold text-gray-950">
+                      {getRelationshipLabel(relationship.relationship_type)}
+                    </span>
+                  </p>
+
+                  <div className="mt-4">
+                    <DeleteRelationshipButton relationshipId={relationship.id} />
+                  </div>
+                </article>
                 ))}
               </div>
             )}
