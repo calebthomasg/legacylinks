@@ -4,17 +4,37 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-type JournalEntryFormProps = {
-  userId: string;
+type PersonOption = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  display_name: string | null;
 };
 
-export default function JournalEntryForm({ userId }: JournalEntryFormProps) {
+type JournalEntryFormProps = {
+  userId: string;
+  people: PersonOption[];
+};
+
+function getPersonName(person: PersonOption) {
+  return (
+    person.display_name ||
+    [person.first_name, person.last_name].filter(Boolean).join(" ")
+  );
+}
+
+export default function JournalEntryForm({
+  userId,
+  people,
+}: JournalEntryFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [images, setImages] = useState<File[]>([]);
+  const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
+
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -23,15 +43,21 @@ export default function JournalEntryForm({ userId }: JournalEntryFormProps) {
     setImages(selectedFiles);
   }
 
+  function togglePerson(personId: string) {
+    setSelectedPersonIds((current) =>
+      current.includes(personId)
+        ? current.filter((id) => id !== personId)
+        : [...current, personId]
+    );
+  }
+
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setMessage("");
 
-    const {
-      data: journalEntry,
-      error: journalError,
-    } = await supabase
+    // 1. Save the journal entry first.
+    const { data: journalEntry, error: journalError } = await supabase
       .from("journal_entries")
       .insert({
         user_id: userId,
@@ -47,6 +73,26 @@ export default function JournalEntryForm({ userId }: JournalEntryFormProps) {
       return;
     }
 
+    // 2. Save people tags for this journal entry.
+    if (selectedPersonIds.length > 0) {
+      const tagRows = selectedPersonIds.map((personId) => ({
+        journal_entry_id: journalEntry.id,
+        person_id: personId,
+        tagged_by_user_id: userId,
+      }));
+
+      const { error: tagError } = await supabase
+        .from("journal_entry_people")
+        .insert(tagRows);
+
+      if (tagError) {
+        setMessage(tagError.message);
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    // 3. Upload images, if any were selected.
     if (images.length > 0) {
       const imageRows = [];
 
@@ -90,6 +136,7 @@ export default function JournalEntryForm({ userId }: JournalEntryFormProps) {
     setTitle("");
     setBody("");
     setImages([]);
+    setSelectedPersonIds([]);
     setMessage("Journal entry saved.");
     setIsSaving(false);
 
@@ -124,6 +171,47 @@ export default function JournalEntryForm({ userId }: JournalEntryFormProps) {
           className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 outline-none focus:border-gray-900"
           placeholder="Write a memory, lesson, story, or moment from your life..."
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-900">
+          Who is this memory about?
+        </label>
+
+        {people.length === 0 ? (
+          <p className="mt-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            Add people on your family page before tagging them in journal
+            entries.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {people.map((person) => {
+              const isSelected = selectedPersonIds.includes(person.id);
+
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => togglePerson(person.id)}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                    isSelected
+                      ? "border-gray-950 bg-gray-950 text-white"
+                      : "border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
+                  }`}
+                >
+                  {getPersonName(person)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPersonIds.length > 0 && (
+          <p className="mt-2 text-sm text-gray-600">
+            {selectedPersonIds.length} person
+            {selectedPersonIds.length === 1 ? "" : "s"} tagged.
+          </p>
+        )}
       </div>
 
       <div>

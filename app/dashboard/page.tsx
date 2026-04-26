@@ -28,7 +28,14 @@ export default async function DashboardPage() {
     .filter(Boolean)
     .join(" ");
 
-  // 4. Get this user's journal entries and any connected images.
+  // 4. Get the people this user has created so they can tag them in entries.
+  const { data: people } = await supabase
+    .from("people")
+    .select("id, first_name, last_name, display_name")
+    .eq("created_by_user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  // 5. Get this user's journal entries, connected images, and tagged people.
   const { data: journalEntries } = await supabase
     .from("journal_entries")
     .select(`
@@ -40,12 +47,21 @@ export default async function DashboardPage() {
         id,
         storage_path,
         file_name
+      ),
+      journal_entry_people (
+        id,
+        people (
+          id,
+          first_name,
+          last_name,
+          display_name
+        )
       )
     `)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // 5. Because the image bucket is private, create temporary signed image URLs.
+  // 6. Because the image bucket is private, create temporary signed image URLs.
   const entriesWithImageUrls = await Promise.all(
     (journalEntries ?? []).map(async (entry) => {
       const imagesWithUrls = await Promise.all(
@@ -67,6 +83,34 @@ export default async function DashboardPage() {
       };
     })
   );
+
+  function getTaggedPersonName(tag: {
+    people:
+      | {
+          id: string;
+          first_name: string;
+          last_name: string | null;
+          display_name: string | null;
+        }
+      | {
+          id: string;
+          first_name: string;
+          last_name: string | null;
+          display_name: string | null;
+        }[]
+      | null;
+  }) {
+    const person = Array.isArray(tag.people) ? tag.people[0] : tag.people;
+
+    if (!person) {
+      return "Unknown person";
+    }
+
+    return (
+      person.display_name ||
+      [person.first_name, person.last_name].filter(Boolean).join(" ")
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -104,45 +148,48 @@ export default async function DashboardPage() {
                 profile.
               </p>
             </Link>
+
             <Link
-  href="/gallery"
-  className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
->
-  <h2 className="text-xl font-semibold text-gray-950">
-    View your gallery
-  </h2>
+              href="/family"
+              className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <h2 className="text-xl font-semibold text-gray-950">
+                Build your family
+              </h2>
 
-  <p className="mt-3 text-sm leading-6 text-gray-600">
-    See all images you have added to your journal entries in one place.
-  </p>
-</Link>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                Add family members, ancestors, and loved ones to begin shaping
+                your family tree.
+              </p>
+            </Link>
 
-<Link
-  href="/family"
-  className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
->
-  <h2 className="text-xl font-semibold text-gray-950">
-    Build your family
-  </h2>
+            <Link
+              href="/tree"
+              className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <h2 className="text-xl font-semibold text-gray-950">
+                View your family tree
+              </h2>
 
-  <p className="mt-3 text-sm leading-6 text-gray-600">
-    Add family members, ancestors, and loved ones to begin shaping your family tree.
-  </p>
-</Link>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                Explore the family connections you have added and expand
+                previous generations.
+              </p>
+            </Link>
 
-<Link
-  href="/tree"
-  className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
->
-  <h2 className="text-xl font-semibold text-gray-950">
-    View your family tree
-  </h2>
+            <Link
+              href="/gallery"
+              className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <h2 className="text-xl font-semibold text-gray-950">
+                View your gallery
+              </h2>
 
-  <p className="mt-3 text-sm leading-6 text-gray-600">
-    Explore the family connections you have added and expand previous
-    generations.
-  </p>
-</Link>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                See all images you have added to your journal entries in one
+                place.
+              </p>
+            </Link>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-gray-950">
@@ -171,7 +218,7 @@ export default async function DashboardPage() {
               </p>
 
               <div className="mt-6">
-                <JournalEntryForm userId={user.id} />
+                <JournalEntryForm userId={user.id} people={people ?? []} />
               </div>
             </section>
 
@@ -204,6 +251,20 @@ export default async function DashboardPage() {
                           </p>
                         </div>
                       </div>
+
+                      {entry.journal_entry_people &&
+                        entry.journal_entry_people.length > 0 && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {entry.journal_entry_people.map((tag) => (
+                              <span
+                                key={tag.id}
+                                className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
+                              >
+                                {getTaggedPersonName(tag)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                       <p className="mt-4 whitespace-pre-line text-sm leading-6 text-gray-700">
                         {entry.body}
