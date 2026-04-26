@@ -41,26 +41,49 @@ export default async function TreePage() {
   const { data: people } = await supabase
     .from("people")
     .select(
-      "id, linked_user_id, created_by_user_id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, bio"
+      "id, linked_user_id, created_by_user_id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, bio, profile_photo_path"
     )
     .eq("created_by_user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // 4. Find the person profile connected to the logged-in user.
-  const rootPerson = people?.find((person) => person.linked_user_id === user.id);
+  // 4. Create temporary signed URLs for person profile photos.
+  const peopleWithPhotoUrls = await Promise.all(
+    (people ?? []).map(async (person) => {
+      if (!person.profile_photo_path) {
+        return {
+          ...person,
+          profilePhotoUrl: null,
+        };
+      }
 
-  // 5. If the user does not have a person profile yet, send them to family page.
-  if (!people || !rootPerson) {
+      const { data } = await supabase.storage
+        .from("person-photos")
+        .createSignedUrl(person.profile_photo_path, 60 * 60);
+
+      return {
+        ...person,
+        profilePhotoUrl: data?.signedUrl ?? null,
+      };
+    })
+  );
+
+  // 5. Find the person profile connected to the logged-in user.
+  const rootPerson = peopleWithPhotoUrls.find(
+    (person) => person.linked_user_id === user.id
+  );
+
+  // 6. If the user does not have a person profile yet, send them to family page.
+  if (!rootPerson) {
     redirect("/family");
   }
 
-  // 6. Get all relationships created by this user.
+  // 7. Get all relationships created by this user.
   const { data: relationships } = await supabase
     .from("family_relationships")
     .select("id, person_id, related_person_id, relationship_type, nickname")
     .eq("created_by_user_id", user.id);
 
-  // 7. Get journal entries tagged to people.
+  // 8. Get journal entries tagged to people.
   const { data: taggedMemoryRows } = await supabase
     .from("journal_entry_people")
     .select(`
@@ -80,7 +103,7 @@ export default async function TreePage() {
     `)
     .eq("tagged_by_user_id", user.id);
 
-  // 8. Create signed image URLs for tagged memory thumbnails.
+  // 9. Create signed image URLs for tagged memory thumbnails.
   const taggedMemories = await Promise.all(
     ((taggedMemoryRows ?? []) as TaggedMemoryRow[]).map(async (tag) => {
       const entry = Array.isArray(tag.journal_entries)
@@ -119,7 +142,9 @@ export default async function TreePage() {
     })
   );
 
-  const cleanTaggedMemories = taggedMemories.filter((memory) => memory !== null);
+  const cleanTaggedMemories = taggedMemories.filter(
+    (memory) => memory !== null
+  );
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -169,7 +194,7 @@ export default async function TreePage() {
         <div className="mt-10">
           <FamilyTreeClient
             rootPerson={rootPerson}
-            people={people}
+            people={peopleWithPhotoUrls}
             relationships={relationships ?? []}
             taggedMemories={cleanTaggedMemories}
           />

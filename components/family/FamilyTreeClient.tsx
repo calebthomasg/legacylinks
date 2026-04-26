@@ -16,6 +16,8 @@ type Person = {
   city: string | null;
   state: string | null;
   bio: string | null;
+  profile_photo_path: string | null;
+  profilePhotoUrl: string | null;
 };
 
 type Relationship = {
@@ -206,10 +208,20 @@ export default function FamilyTreeClient({
               : "border-gray-200"
           }`}
         >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-xl font-bold text-gray-700">
-            {person.first_name?.charAt(0)}
-            {person.last_name?.charAt(0)}
-          </div>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
+          {person.profilePhotoUrl ? (
+            <img
+              src={person.profilePhotoUrl}
+              alt={getPersonName(person)}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <>
+              {person.first_name?.charAt(0)}
+              {person.last_name?.charAt(0)}
+            </>
+          )}
+        </div>
 
           <h3 className="mt-4 text-base font-semibold text-gray-950">
             {getPersonName(person)}
@@ -288,10 +300,20 @@ function PersonDetails({
   return (
     <div>
       <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xl font-bold text-gray-700">
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
+      {person.profilePhotoUrl ? (
+        <img
+          src={person.profilePhotoUrl}
+          alt={name}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <>
           {person.first_name?.charAt(0)}
           {person.last_name?.charAt(0)}
-        </div>
+        </>
+      )}
+    </div>
 
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">

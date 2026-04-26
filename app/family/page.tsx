@@ -4,9 +4,9 @@ import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/auth/LogoutButton";
 import AddPersonForm from "@/components/family/AddPersonForm";
 import AddRelationshipForm from "@/components/family/AddRelationshipForm";
-import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import DeletePersonButton from "@/components/family/DeletePersonButton";
 import DeleteRelationshipButton from "@/components/family/DeleteRelationshipButton";
+import { getRelationshipLabel } from "@/utils/relationshipTypes";
 
 export default async function FamilyPage() {
   const supabase = await createClient();
@@ -25,12 +25,33 @@ export default async function FamilyPage() {
   const { data: people } = await supabase
     .from("people")
     .select(
-    "id, linked_user_id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, created_at"
+      "id, linked_user_id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, profile_photo_path, created_at"
     )
     .eq("created_by_user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // 4. Get all relationships created by this user.
+  // 4. Create temporary signed URLs for person profile photos.
+  const peopleWithPhotoUrls = await Promise.all(
+    (people ?? []).map(async (person) => {
+      if (!person.profile_photo_path) {
+        return {
+          ...person,
+          profilePhotoUrl: null,
+        };
+      }
+
+      const { data } = await supabase.storage
+        .from("person-photos")
+        .createSignedUrl(person.profile_photo_path, 60 * 60);
+
+      return {
+        ...person,
+        profilePhotoUrl: data?.signedUrl ?? null,
+      };
+    })
+  );
+
+  // 5. Get all relationships created by this user.
   const { data: relationships } = await supabase
     .from("family_relationships")
     .select(
@@ -39,7 +60,7 @@ export default async function FamilyPage() {
     .eq("created_by_user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // 5. Create a quick lookup so we can turn person IDs into names.
+  // 6. Create a quick lookup so we can turn person IDs into names.
   const peopleById = new Map(
     (people ?? []).map((person) => [person.id, person])
   );
@@ -88,6 +109,13 @@ export default async function FamilyPage() {
           </Link>
 
           <Link
+            href="/tree"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+          >
+            View family tree
+          </Link>
+
+          <Link
             href="/gallery"
             className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
           >
@@ -116,14 +144,14 @@ export default async function FamilyPage() {
               People you have added
             </h2>
 
-            {!people || people.length === 0 ? (
+            {peopleWithPhotoUrls.length === 0 ? (
               <p className="mt-4 text-sm leading-6 text-gray-600">
                 No people added yet. Add yourself, a parent, grandparent, child,
                 or loved one to begin building your family tree.
               </p>
             ) : (
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {people.map((person) => {
+                {peopleWithPhotoUrls.map((person) => {
                   const name =
                     person.display_name ||
                     [person.first_name, person.last_name]
@@ -135,7 +163,22 @@ export default async function FamilyPage() {
                       key={person.id}
                       className="rounded-xl border border-gray-200 p-5"
                     >
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-base font-bold text-gray-700">
+                          {person.profilePhotoUrl ? (
+                            <img
+                              src={person.profilePhotoUrl}
+                              alt={name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <>
+                              {person.first_name?.charAt(0)}
+                              {person.last_name?.charAt(0)}
+                            </>
+                          )}
+                        </div>
+
                         <div>
                           <h3 className="text-lg font-semibold text-gray-950">
                             {name}
@@ -178,19 +221,19 @@ export default async function FamilyPage() {
                         )}
                       </div>
 
-                    <div className="mt-5 flex flex-wrap gap-2">
-                    <Link
-                        href={`/family/${person.id}/edit`}
-                        className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
-                    >
-                        Edit profile
-                    </Link>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Link
+                          href={`/family/${person.id}/edit`}
+                          className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                        >
+                          Edit profile
+                        </Link>
 
-                    <DeletePersonButton
-                        personId={person.id}
-                        isLinkedUser={person.linked_user_id === user.id}
-                    />
-                    </div>
+                        <DeletePersonButton
+                          personId={person.id}
+                          isLinkedUser={person.linked_user_id === user.id}
+                        />
+                      </div>
                     </article>
                   );
                 })}
@@ -229,30 +272,32 @@ export default async function FamilyPage() {
               <div className="mt-6 space-y-4">
                 {relationships.map((relationship) => (
                   <article
-                  key={relationship.id}
-                  className="rounded-xl border border-gray-200 p-5"
-                >
-                  <p className="text-sm leading-6 text-gray-700">
-                    <span className="font-semibold text-gray-950">
-                      {getPersonName(relationship.related_person_id)}
-                    </span>{" "}
-                    is{" "}
-                    <span className="font-semibold text-gray-950">
-                      {getPersonName(relationship.person_id)}
-                      {relationship.nickname
-                        ? `’s “${relationship.nickname}”`
-                        : "’s"}
-                    </span>{" "}
-                    — relationship type:{" "}
-                    <span className="font-semibold text-gray-950">
-                      {getRelationshipLabel(relationship.relationship_type)}
-                    </span>
-                  </p>
+                    key={relationship.id}
+                    className="rounded-xl border border-gray-200 p-5"
+                  >
+                    <p className="text-sm leading-6 text-gray-700">
+                      <span className="font-semibold text-gray-950">
+                        {getPersonName(relationship.related_person_id)}
+                      </span>{" "}
+                      is{" "}
+                      <span className="font-semibold text-gray-950">
+                        {getPersonName(relationship.person_id)}
+                        {relationship.nickname
+                          ? `’s “${relationship.nickname}”`
+                          : "’s"}
+                      </span>{" "}
+                      — relationship type:{" "}
+                      <span className="font-semibold text-gray-950">
+                        {getRelationshipLabel(relationship.relationship_type)}
+                      </span>
+                    </p>
 
-                  <div className="mt-4">
-                    <DeleteRelationshipButton relationshipId={relationship.id} />
-                  </div>
-                </article>
+                    <div className="mt-4">
+                      <DeleteRelationshipButton
+                        relationshipId={relationship.id}
+                      />
+                    </div>
+                  </article>
                 ))}
               </div>
             )}

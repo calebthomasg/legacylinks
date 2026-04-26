@@ -26,7 +26,7 @@ export default async function EditPersonPage({ params }: EditPersonPageProps) {
   const { data: person } = await supabase
     .from("people")
     .select(
-      "id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, bio, created_by_user_id"
+      "id, first_name, last_name, display_name, birth_date, death_date, is_living, city, state, bio, created_by_user_id, profile_photo_path"
     )
     .eq("id", personId)
     .single();

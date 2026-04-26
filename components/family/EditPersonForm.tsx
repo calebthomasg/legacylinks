@@ -7,6 +7,7 @@ import { US_STATES } from "@/utils/usStates";
 
 type Person = {
   id: string;
+  created_by_user_id: string;
   first_name: string;
   last_name: string | null;
   display_name: string | null;
@@ -16,6 +17,7 @@ type Person = {
   city: string | null;
   state: string | null;
   bio: string | null;
+  profile_photo_path: string | null;
 };
 
 type EditPersonFormProps = {
@@ -34,14 +36,49 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
   const [city, setCity] = useState(person.city ?? "");
   const [stateValue, setStateValue] = useState(person.state ?? "");
   const [bio, setBio] = useState(person.bio ?? "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0] ?? null;
+    setPhotoFile(selectedFile);
+  }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setMessage("");
+
+    let profilePhotoPath = person.profile_photo_path;
+
+    if (photoFile) {
+      const fileExtension = photoFile.name.split(".").pop();
+      const safeFileName = `${crypto.randomUUID()}.${fileExtension}`;
+      const storagePath = `${person.created_by_user_id}/${person.id}/${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("person-photos")
+        .upload(storagePath, photoFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setMessage(uploadError.message);
+        setIsSaving(false);
+        return;
+      }
+
+      if (person.profile_photo_path) {
+        await supabase.storage
+          .from("person-photos")
+          .remove([person.profile_photo_path]);
+      }
+
+      profilePhotoPath = storagePath;
+    }
 
     const displayName = [firstName, lastName].filter(Boolean).join(" ");
 
@@ -57,6 +94,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
         city: city || null,
         state: stateValue || null,
         bio: bio || null,
+        profile_photo_path: profilePhotoPath,
         updated_at: new Date().toISOString(),
       })
       .eq("id", person.id);
@@ -67,6 +105,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
       return;
     }
 
+    setPhotoFile(null);
     setMessage("Person updated.");
     setIsSaving(false);
     router.refresh();
@@ -74,6 +113,25 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
 
   return (
     <form onSubmit={handleSave} className="space-y-5">
+      <div>
+        <label className="block text-sm font-medium text-gray-900">
+          Profile photo
+        </label>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoChange}
+          className="mt-2 block w-full text-sm text-gray-950 file:mr-4 file:rounded-xl file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+        />
+
+        {photoFile && (
+          <p className="mt-2 text-sm text-gray-600">
+            Selected: {photoFile.name}
+          </p>
+        )}
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium text-gray-900">
@@ -84,7 +142,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
             required
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
             placeholder="First name"
           />
         </div>
@@ -97,7 +155,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
             type="text"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
             placeholder="Last name"
           />
         </div>
@@ -112,7 +170,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
             type="date"
             value={birthDate}
             onChange={(event) => setBirthDate(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
           />
         </div>
 
@@ -123,7 +181,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
           <select
             value={isLiving ? "living" : "deceased"}
             onChange={(event) => setIsLiving(event.target.value === "living")}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
           >
             <option value="living">Living</option>
             <option value="deceased">Deceased</option>
@@ -140,7 +198,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
             type="date"
             value={deathDate}
             onChange={(event) => setDeathDate(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
           />
         </div>
       )}
@@ -154,7 +212,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
             type="text"
             value={city}
             onChange={(event) => setCity(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
             placeholder="City"
           />
         </div>
@@ -166,7 +224,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
           <select
             value={stateValue}
             onChange={(event) => setStateValue(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
           >
             {US_STATES.map((state) => (
               <option key={state.value} value={state.value}>
@@ -185,7 +243,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
           value={bio}
           onChange={(event) => setBio(event.target.value)}
           rows={6}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
           placeholder="Add a short note, memory, or description..."
         />
       </div>
