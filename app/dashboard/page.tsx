@@ -130,6 +130,20 @@ export default async function DashboardPage() {
   </p>
 </Link>
 
+<Link
+  href="/tree"
+  className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+>
+  <h2 className="text-xl font-semibold text-gray-950">
+    View your family tree
+  </h2>
+
+  <p className="mt-3 text-sm leading-6 text-gray-600">
+    Explore the family connections you have added and expand previous
+    generations.
+  </p>
+</Link>
+
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-gray-950">
                 Journal count
