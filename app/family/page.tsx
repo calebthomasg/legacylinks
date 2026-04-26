@@ -3,18 +3,23 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/auth/LogoutButton";
 import AddPersonForm from "@/components/family/AddPersonForm";
+import AddRelationshipForm from "@/components/family/AddRelationshipForm";
+import { getRelationshipLabel } from "@/utils/relationshipTypes";
 
 export default async function FamilyPage() {
   const supabase = await createClient();
 
+  // 1. Check whether the user is logged in.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 2. If no user is logged in, send them to login.
   if (!user) {
     redirect("/login");
   }
 
+  // 3. Get all people created by this user.
   const { data: people } = await supabase
     .from("people")
     .select(
@@ -22,6 +27,33 @@ export default async function FamilyPage() {
     )
     .eq("created_by_user_id", user.id)
     .order("created_at", { ascending: false });
+
+  // 4. Get all relationships created by this user.
+  const { data: relationships } = await supabase
+    .from("family_relationships")
+    .select(
+      "id, person_id, related_person_id, relationship_type, nickname, created_at"
+    )
+    .eq("created_by_user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  // 5. Create a quick lookup so we can turn person IDs into names.
+  const peopleById = new Map(
+    (people ?? []).map((person) => [person.id, person])
+  );
+
+  function getPersonName(personId: string) {
+    const person = peopleById.get(personId);
+
+    if (!person) {
+      return "Unknown person";
+    }
+
+    return (
+      person.display_name ||
+      [person.first_name, person.last_name].filter(Boolean).join(" ")
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -45,7 +77,7 @@ export default async function FamilyPage() {
           <LogoutButton />
         </div>
 
-        <div className="mt-6 flex gap-4">
+        <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/dashboard"
             className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
@@ -68,8 +100,8 @@ export default async function FamilyPage() {
             </h2>
 
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              Start by adding a family member or loved one. In the next step, we
-              will connect them to your tree with relationship labels.
+              Start by adding a family member or loved one. In the next step,
+              we will connect them to your tree with relationship labels.
             </p>
 
             <div className="mt-6">
@@ -132,15 +164,6 @@ export default async function FamilyPage() {
                           </p>
                         )}
 
-                        <div className="mt-5">
-                        <Link
-                            href={`/family/${person.id}/edit`}
-                            className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
-                        >
-                            Edit profile
-                        </Link>
-                        </div>
-
                         {(person.city || person.state) && (
                           <p>
                             <span className="font-medium text-gray-900">
@@ -152,9 +175,74 @@ export default async function FamilyPage() {
                           </p>
                         )}
                       </div>
+
+                      <div className="mt-5">
+                        <Link
+                          href={`/family/${person.id}/edit`}
+                          className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                        >
+                          Edit profile
+                        </Link>
+                      </div>
                     </article>
                   );
                 })}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-gray-950">
+              Add a relationship
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              Connect two people by defining how they are related. This
+              relationship data will eventually power your visual family tree.
+            </p>
+
+            <div className="mt-6">
+              <AddRelationshipForm userId={user.id} people={people ?? []} />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-gray-950">
+              Relationships you have added
+            </h2>
+
+            {!relationships || relationships.length === 0 ? (
+              <p className="mt-4 text-sm leading-6 text-gray-600">
+                No relationships added yet. Once you connect people, they will
+                appear here.
+              </p>
+            ) : (
+              <div className="mt-6 space-y-4">
+                {relationships.map((relationship) => (
+                  <article
+                    key={relationship.id}
+                    className="rounded-xl border border-gray-200 p-5"
+                  >
+                    <p className="text-sm leading-6 text-gray-700">
+                      <span className="font-semibold text-gray-950">
+                        {getPersonName(relationship.related_person_id)}
+                      </span>{" "}
+                      is{" "}
+                      <span className="font-semibold text-gray-950">
+                        {getPersonName(relationship.person_id)}
+                        {relationship.nickname
+                          ? `’s “${relationship.nickname}”`
+                          : "’s"}
+                      </span>{" "}
+                      — relationship type:{" "}
+                      <span className="font-semibold text-gray-950">
+                        {getRelationshipLabel(relationship.relationship_type)}
+                      </span>
+                    </p>
+                  </article>
+                ))}
               </div>
             )}
           </section>
