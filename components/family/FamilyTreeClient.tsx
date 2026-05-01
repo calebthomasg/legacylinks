@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
+import AddParentModal from "@/components/family/AddParentModal";
 
 type Person = {
   id: string;
@@ -45,6 +46,7 @@ type TaggedMemory = {
 };
 
 type FamilyTreeClientProps = {
+  userId: string;
   rootPerson: Person;
   people: Person[];
   relationships: Relationship[];
@@ -79,6 +81,7 @@ function getEntryPreview(body: string) {
 }
 
 export default function FamilyTreeClient({
+  userId,
   rootPerson,
   people,
   relationships,
@@ -90,6 +93,16 @@ export default function FamilyTreeClient({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(
     rootPerson.id
   );
+  const [addingParentForPerson, setAddingParentForPerson] =
+    useState<Person | null>(null);
+
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPointerPosition, setLastPointerPosition] = useState({
+    x: 0,
+    y: 0,
+  });
 
   const peopleById = useMemo(() => {
     return new Map(people.map((person) => [person.id, person]));
@@ -108,12 +121,21 @@ export default function FamilyTreeClient({
   }
 
   function getParentsForPerson(personId: string) {
-    return relationships
-      .filter(
-        (relationship) =>
-          relationship.person_id === personId &&
-          PARENT_RELATIONSHIP_TYPES.includes(relationship.relationship_type)
-      )
+    const parentRelationships = relationships.filter(
+      (relationship) =>
+        relationship.person_id === personId &&
+        PARENT_RELATIONSHIP_TYPES.includes(relationship.relationship_type)
+    );
+
+    const sortedRelationships = [...parentRelationships].sort((a, b) => {
+      const order = ["father", "mother", "parent"];
+      return (
+        order.indexOf(a.relationship_type) -
+        order.indexOf(b.relationship_type)
+      );
+    });
+
+    return sortedRelationships
       .map((relationship) => {
         const person = peopleById.get(relationship.related_person_id);
 
@@ -140,144 +162,354 @@ export default function FamilyTreeClient({
     return taggedMemories.filter((memory) => memory.personId === personId);
   }
 
-  function TreeNode({
+  function zoomIn() {
+    setZoom((current) => Math.min(Number((current + 0.1).toFixed(2)), 1.8));
+  }
+
+  function zoomOut() {
+    setZoom((current) => Math.max(Number((current - 0.1).toFixed(2)), 0.4));
+  }
+
+  function resetView() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const zoomDirection = event.deltaY > 0 ? -0.08 : 0.08;
+
+    setZoom((current) => {
+      const nextZoom = Number((current + zoomDirection).toFixed(2));
+      return Math.min(Math.max(nextZoom, 0.4), 1.8);
+    });
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+
+    if (target.closest("button, a, input, textarea, select")) {
+      return;
+    }
+
+    setIsPanning(true);
+    setLastPointerPosition({
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!isPanning) return;
+
+    const deltaX = event.clientX - lastPointerPosition.x;
+    const deltaY = event.clientY - lastPointerPosition.y;
+
+    setPan((current) => ({
+      x: current.x + deltaX,
+      y: current.y + deltaY,
+    }));
+
+    setLastPointerPosition({
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }
+
+  function handlePointerUp() {
+    setIsPanning(false);
+  }
+
+  function PersonAvatar({
     person,
-    relationship,
-    depth = 0,
-    visitedIds = [],
+    size = "large",
   }: {
     person: Person;
-    relationship?: Relationship;
-    depth?: number;
-    visitedIds?: string[];
+    size?: "small" | "large";
   }) {
-    const parents = getParentsForPerson(person.id);
-    const isExpanded = expandedPersonIds.includes(person.id);
-    const hasParents = parents.length > 0;
-    const isSelected = selectedPersonId === person.id;
-
-    const nextVisitedIds = [...visitedIds, person.id];
+    const sizeClasses = size === "large" ? "h-16 w-16" : "h-14 w-14";
 
     return (
+      <div
+        className={`mx-auto flex ${sizeClasses} items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700`}
+      >
+        {person.profilePhotoUrl ? (
+          <img
+            src={person.profilePhotoUrl}
+            alt={getPersonName(person)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            {person.first_name?.charAt(0)}
+            {person.last_name?.charAt(0)}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function PersonCard({
+  person,
+  relationship,
+}: {
+  person: Person;
+  relationship?: Relationship;
+}) {
+  const isSelected = selectedPersonId === person.id;
+  const taggedMemoryCount = getTaggedMemoriesForPerson(person.id).length;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setSelectedPersonId(person.id)}
+      className={`flex h-52 w-56 flex-col items-center rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        isSelected
+          ? "border-gray-950 ring-2 ring-gray-950/10"
+          : "border-gray-200"
+      }`}
+    >
+      <PersonAvatar person={person} />
+
+      <div className="mt-4 flex min-h-12 w-full flex-col items-center justify-start">
+        <h3 className="line-clamp-2 text-base font-semibold leading-5 text-gray-950">
+          {getPersonName(person)}
+        </h3>
+
+        <p className="mt-1 min-h-5 text-sm font-medium text-gray-600">
+          {relationship?.nickname ?? ""}
+        </p>
+
+        <p className="min-h-4 text-xs uppercase tracking-wide text-gray-400">
+          {relationship ? getRelationshipLabel(relationship.relationship_type) : ""}
+        </p>
+      </div>
+
+      <div className="mt-auto w-full">
+        <p
+          className={`rounded-full px-3 py-1 text-xs font-medium ${
+            taggedMemoryCount > 0
+              ? "bg-gray-100 text-gray-600"
+              : "bg-transparent text-transparent"
+          }`}
+        >
+          {taggedMemoryCount > 0
+            ? `${taggedMemoryCount} tagged memor${
+                taggedMemoryCount === 1 ? "y" : "ies"
+              }`
+            : "0 tagged memories"}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+  function TreeConnector({ hasTwoParents }: { hasTwoParents: boolean }) {
+    return (
       <div className="flex flex-col items-center">
-        {hasParents && isExpanded && (
-          <div className="mb-5 flex flex-wrap items-start justify-center gap-5">
-            {parents.map(({ person: parentPerson, relationship }) => {
-              const alreadyVisited = nextVisitedIds.includes(parentPerson.id);
-
-              if (alreadyVisited) {
-                return null;
-              }
-
-              return (
-                <TreeNode
-                  key={parentPerson.id}
-                  person={parentPerson}
-                  relationship={relationship}
-                  depth={depth + 1}
-                  visitedIds={nextVisitedIds}
-                />
-              );
-            })}
-          </div>
+        {hasTwoParents && (
+          <div className="h-px w-72 bg-gray-300" aria-hidden="true" />
         )}
 
+        <div className="h-8 w-px bg-gray-300" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  function TreeControls({
+    person,
+    hasParents,
+    isExpanded,
+    parentCount,
+  }: {
+    person: Person;
+    hasParents: boolean;
+    isExpanded: boolean;
+    parentCount: number;
+  }) {
+    const canAddMoreParents = parentCount < 2;
+
+    return (
+      <div className="mb-2 flex items-center justify-center gap-2">
         {hasParents && (
           <button
             type="button"
             onClick={() => togglePerson(person.id)}
-            className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
             aria-label={
-              isExpanded ? "Hide previous generation" : "Show previous generation"
+              isExpanded
+                ? "Hide previous generation"
+                : "Show previous generation"
             }
           >
             {isExpanded ? "−" : "↑"}
           </button>
         )}
 
-        {hasParents && (
+        {canAddMoreParents && (
+          <button
+            type="button"
+            onClick={() => setAddingParentForPerson(person)}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+            aria-label={`Add parent for ${getPersonName(person)}`}
+            title={`Add parent for ${getPersonName(person)}`}
+          >
+            +
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  function TreeNode({
+    person,
+    relationship,
+    visitedIds = [],
+  }: {
+    person: Person;
+    relationship?: Relationship;
+    visitedIds?: string[];
+  }) {
+    const parents = getParentsForPerson(person.id);
+    const isExpanded = expandedPersonIds.includes(person.id);
+    const hasParents = parents.length > 0;
+    const nextVisitedIds = [...visitedIds, person.id];
+
+    return (
+      <div className="flex flex-col items-center">
+        {hasParents && isExpanded && (
+          <>
+            <div className="flex items-end justify-center gap-6">
+              {parents.map(({ person: parentPerson, relationship }) => {
+                const alreadyVisited = nextVisitedIds.includes(parentPerson.id);
+
+                if (alreadyVisited) {
+                  return null;
+                }
+
+                return (
+                  <TreeNode
+                    key={parentPerson.id}
+                    person={parentPerson}
+                    relationship={relationship}
+                    visitedIds={nextVisitedIds}
+                  />
+                );
+              })}
+            </div>
+
+            <TreeConnector hasTwoParents={parents.length > 1} />
+          </>
+        )}
+
+        <TreeControls
+          person={person}
+          hasParents={hasParents}
+          isExpanded={isExpanded}
+          parentCount={parents.length}
+        />
+
+        {(hasParents || parents.length < 2) && (
           <div className="mb-2 h-5 w-px bg-gray-300" aria-hidden="true" />
         )}
 
-        <button
-          type="button"
-          onClick={() => setSelectedPersonId(person.id)}
-          className={`w-56 rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            isSelected
-              ? "border-gray-950 ring-2 ring-gray-950/10"
-              : "border-gray-200"
-          }`}
-        >
-        <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
-          {person.profilePhotoUrl ? (
-            <img
-              src={person.profilePhotoUrl}
-              alt={getPersonName(person)}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <>
-              {person.first_name?.charAt(0)}
-              {person.last_name?.charAt(0)}
-            </>
-          )}
-        </div>
-
-          <h3 className="mt-4 text-base font-semibold text-gray-950">
-            {getPersonName(person)}
-          </h3>
-
-          {relationship?.nickname && (
-            <p className="mt-1 text-sm font-medium text-gray-600">
-              {relationship.nickname}
-            </p>
-          )}
-
-          {relationship && (
-            <p className="mt-1 text-xs uppercase tracking-wide text-gray-400">
-              {getRelationshipLabel(relationship.relationship_type)}
-            </p>
-          )}
-
-          {getTaggedMemoriesForPerson(person.id).length > 0 && (
-            <p className="mt-3 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-              {getTaggedMemoriesForPerson(person.id).length} tagged memor
-              {getTaggedMemoriesForPerson(person.id).length === 1 ? "y" : "ies"}
-            </p>
-          )}
-        </button>
+        <PersonCard person={person} relationship={relationship} />
       </div>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
-      <section className="min-h-[600px] overflow-auto rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-        <div className="flex min-w-[700px] justify-center pb-12 pt-6">
-          <TreeNode person={rootPerson} />
-        </div>
-      </section>
+    <>
+      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+        <section
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className={`relative h-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ${
+            isPanning ? "cursor-grabbing" : "cursor-grab"
+          }`}
+        >
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+            <button
+              type="button"
+              onClick={zoomOut}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              aria-label="Zoom out"
+            >
+              −
+            </button>
 
-      <aside className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:h-fit">
-        {!selectedPerson ? (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-950">
-              Person details
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              Select a person in the tree to view their details.
-            </p>
+            <div className="min-w-14 text-center text-xs font-semibold text-gray-600">
+              {Math.round(zoom * 100)}%
+            </div>
+
+            <button
+              type="button"
+              onClick={zoomIn}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              aria-label="Zoom in"
+            >
+              +
+            </button>
+
+            <button
+              type="button"
+              onClick={resetView}
+              className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+            >
+              Reset view
+            </button>
           </div>
-        ) : (
-          <PersonDetails
-            person={selectedPerson}
-            relationship={getRelationshipForSelectedPerson(selectedPerson.id)}
-            isRoot={selectedPerson.id === rootPerson.id}
-            taggedMemories={getTaggedMemoriesForPerson(selectedPerson.id)}
-          />
-        )}
-      </aside>
-    </div>
+
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-500 shadow-sm">
+            Drag to move • Scroll to zoom
+          </div>
+
+          <div
+            className="absolute bottom-12 left-1/2 w-max"
+            style={{
+              transform: `translate(calc(-50% + ${pan.x}px), ${pan.y}px) scale(${zoom})`,
+              transformOrigin: "center bottom",
+            }}
+          >
+            <TreeNode person={rootPerson} />
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:h-fit">
+          {!selectedPerson ? (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-950">
+                Person details
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                Select a person in the tree to view their details.
+              </p>
+            </div>
+          ) : (
+            <PersonDetails
+              person={selectedPerson}
+              relationship={getRelationshipForSelectedPerson(selectedPerson.id)}
+              isRoot={selectedPerson.id === rootPerson.id}
+              taggedMemories={getTaggedMemoriesForPerson(selectedPerson.id)}
+            />
+          )}
+        </aside>
+      </div>
+
+      {addingParentForPerson && (
+        <AddParentModal
+          userId={userId}
+          childPerson={addingParentForPerson}
+          onClose={() => setAddingParentForPerson(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -300,20 +532,20 @@ function PersonDetails({
   return (
     <div>
       <div className="flex items-start gap-4">
-    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
-      {person.profilePhotoUrl ? (
-        <img
-          src={person.profilePhotoUrl}
-          alt={name}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <>
-          {person.first_name?.charAt(0)}
-          {person.last_name?.charAt(0)}
-        </>
-      )}
-    </div>
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
+          {person.profilePhotoUrl ? (
+            <img
+              src={person.profilePhotoUrl}
+              alt={name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <>
+              {person.first_name?.charAt(0)}
+              {person.last_name?.charAt(0)}
+            </>
+          )}
+        </div>
 
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">

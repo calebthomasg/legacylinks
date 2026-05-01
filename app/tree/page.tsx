@@ -143,7 +143,7 @@ export default async function TreePage() {
   );
 
   const cleanTaggedMemories = taggedMemories.filter(
-    (memory) => memory !== null
+    (memory): memory is NonNullable<typeof memory> => memory !== null
   );
 
   return (
@@ -193,6 +193,7 @@ export default async function TreePage() {
 
         <div className="mt-10">
           <FamilyTreeClient
+            userId={user.id}
             rootPerson={rootPerson}
             people={peopleWithPhotoUrls}
             relationships={relationships ?? []}
