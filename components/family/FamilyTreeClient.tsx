@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import AddParentModal from "@/components/family/AddParentModal";
 
@@ -90,9 +90,11 @@ export default function FamilyTreeClient({
   const [expandedPersonIds, setExpandedPersonIds] = useState<string[]>([
     rootPerson.id,
   ]);
+
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(
     rootPerson.id
   );
+
   const [addingParentForPerson, setAddingParentForPerson] =
     useState<Person | null>(null);
 
@@ -104,6 +106,8 @@ export default function FamilyTreeClient({
     y: 0,
   });
 
+  const treeViewportRef = useRef<HTMLElement | null>(null);
+
   const peopleById = useMemo(() => {
     return new Map(people.map((person) => [person.id, person]));
   }, [people]);
@@ -111,6 +115,29 @@ export default function FamilyTreeClient({
   const selectedPerson = selectedPersonId
     ? peopleById.get(selectedPersonId)
     : null;
+
+  useEffect(() => {
+    const viewport = treeViewportRef.current;
+
+    if (!viewport) return;
+
+    function handleNativeWheel(event: WheelEvent) {
+      event.preventDefault();
+
+      const zoomDirection = event.deltaY > 0 ? -0.08 : 0.08;
+
+      setZoom((current) => {
+        const nextZoom = Number((current + zoomDirection).toFixed(2));
+        return Math.min(Math.max(nextZoom, 0.4), 1.8);
+      });
+    }
+
+    viewport.addEventListener("wheel", handleNativeWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleNativeWheel);
+    };
+  }, []);
 
   function togglePerson(personId: string) {
     setExpandedPersonIds((current) =>
@@ -129,6 +156,7 @@ export default function FamilyTreeClient({
 
     const sortedRelationships = [...parentRelationships].sort((a, b) => {
       const order = ["father", "mother", "parent"];
+
       return (
         order.indexOf(a.relationship_type) -
         order.indexOf(b.relationship_type)
@@ -175,18 +203,7 @@ export default function FamilyTreeClient({
     setPan({ x: 0, y: 0 });
   }
 
-  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-
-    const zoomDirection = event.deltaY > 0 ? -0.08 : 0.08;
-
-    setZoom((current) => {
-      const nextZoom = Number((current + zoomDirection).toFixed(2));
-      return Math.min(Math.max(nextZoom, 0.4), 1.8);
-    });
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerDown(event: React.PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
 
     if (target.closest("button, a, input, textarea, select")) {
@@ -202,7 +219,7 @@ export default function FamilyTreeClient({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerMove(event: React.PointerEvent<HTMLElement>) {
     if (!isPanning) return;
 
     const deltaX = event.clientX - lastPointerPosition.x;
@@ -253,59 +270,61 @@ export default function FamilyTreeClient({
   }
 
   function PersonCard({
-  person,
-  relationship,
-}: {
-  person: Person;
-  relationship?: Relationship;
-}) {
-  const isSelected = selectedPersonId === person.id;
-  const taggedMemoryCount = getTaggedMemoriesForPerson(person.id).length;
+    person,
+    relationship,
+  }: {
+    person: Person;
+    relationship?: Relationship;
+  }) {
+    const isSelected = selectedPersonId === person.id;
+    const taggedMemoryCount = getTaggedMemoriesForPerson(person.id).length;
 
-  return (
-    <button
-      type="button"
-      onClick={() => setSelectedPersonId(person.id)}
-      className={`flex h-52 w-56 flex-col items-center rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        isSelected
-          ? "border-gray-950 ring-2 ring-gray-950/10"
-          : "border-gray-200"
-      }`}
-    >
-      <PersonAvatar person={person} />
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedPersonId(person.id)}
+        className={`flex h-52 w-56 flex-col items-center rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+          isSelected
+            ? "border-gray-950 ring-2 ring-gray-950/10"
+            : "border-gray-200"
+        }`}
+      >
+        <PersonAvatar person={person} />
 
-      <div className="mt-4 flex min-h-12 w-full flex-col items-center justify-start">
-        <h3 className="line-clamp-2 text-base font-semibold leading-5 text-gray-950">
-          {getPersonName(person)}
-        </h3>
+        <div className="mt-4 flex min-h-12 w-full flex-col items-center justify-start">
+          <h3 className="line-clamp-2 text-base font-semibold leading-5 text-gray-950">
+            {getPersonName(person)}
+          </h3>
 
-        <p className="mt-1 min-h-5 text-sm font-medium text-gray-600">
-          {relationship?.nickname ?? ""}
-        </p>
+          <p className="mt-1 min-h-5 text-sm font-medium text-gray-600">
+            {relationship?.nickname ?? ""}
+          </p>
 
-        <p className="min-h-4 text-xs uppercase tracking-wide text-gray-400">
-          {relationship ? getRelationshipLabel(relationship.relationship_type) : ""}
-        </p>
-      </div>
+          <p className="min-h-4 text-xs uppercase tracking-wide text-gray-400">
+            {relationship
+              ? getRelationshipLabel(relationship.relationship_type)
+              : ""}
+          </p>
+        </div>
 
-      <div className="mt-auto w-full">
-        <p
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            taggedMemoryCount > 0
-              ? "bg-gray-100 text-gray-600"
-              : "bg-transparent text-transparent"
-          }`}
-        >
-          {taggedMemoryCount > 0
-            ? `${taggedMemoryCount} tagged memor${
-                taggedMemoryCount === 1 ? "y" : "ies"
-              }`
-            : "0 tagged memories"}
-        </p>
-      </div>
-    </button>
-  );
-}
+        <div className="mt-auto w-full">
+          <p
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              taggedMemoryCount > 0
+                ? "bg-gray-100 text-gray-600"
+                : "bg-transparent text-transparent"
+            }`}
+          >
+            {taggedMemoryCount > 0
+              ? `${taggedMemoryCount} tagged memor${
+                  taggedMemoryCount === 1 ? "y" : "ies"
+                }`
+              : "0 tagged memories"}
+          </p>
+        </div>
+      </button>
+    );
+  }
 
   function TreeConnector({ hasTwoParents }: { hasTwoParents: boolean }) {
     return (
@@ -425,7 +444,7 @@ export default function FamilyTreeClient({
     <>
       <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
         <section
-          onWheel={handleWheel}
+          ref={treeViewportRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
