@@ -12,6 +12,26 @@ type PersonOption = {
   profile_photo_path: string | null;
 };
 
+type JournalEntryImage = {
+  id: string;
+  storage_path: string;
+  file_name: string | null;
+};
+
+type JournalEntryPerson = {
+  person_id: string;
+};
+
+type JournalEntry = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  entry_date: string | null;
+  journal_entry_images: JournalEntryImage[] | null;
+  journal_entry_people: JournalEntryPerson[] | null;
+};
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
@@ -57,13 +77,53 @@ export default async function DashboardPage() {
 
   const { data: journalEntries } = await supabase
     .from("journal_entries")
-    .select("created_at")
+    .select(`
+      id,
+      title,
+      body,
+      created_at,
+      entry_date,
+      journal_entry_images (
+        id,
+        storage_path,
+        file_name
+      ),
+      journal_entry_people (
+        person_id
+      )
+    `)
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .order("entry_date", { ascending: false });
 
-  const entryDates = (journalEntries ?? [])
-    .map((entry) => entry.created_at)
-    .filter(Boolean);
+  const entriesWithImageUrls = await Promise.all(
+    ((journalEntries ?? []) as JournalEntry[]).map(async (entry) => {
+      const imagesWithUrls = await Promise.all(
+        (entry.journal_entry_images ?? []).map(async (image) => {
+          const { data } = await supabase.storage
+            .from("journal-images")
+            .createSignedUrl(image.storage_path, 60 * 60);
+
+          return {
+            id: image.id,
+            storage_path: image.storage_path,
+            file_name: image.file_name,
+            signedUrl: data?.signedUrl ?? null,
+          };
+        })
+      );
+
+      return {
+        id: entry.id,
+        title: entry.title,
+        body: entry.body,
+        created_at: entry.created_at,
+        entry_date: entry.entry_date,
+        images: imagesWithUrls,
+        taggedPersonIds:
+          entry.journal_entry_people?.map((tag) => tag.person_id) ?? [],
+      };
+    })
+  );
 
   const userFirstName = profile?.first_name || "Friend";
 
@@ -72,14 +132,14 @@ export default async function DashboardPage() {
       <div className="flex min-h-screen">
         <aside className="hidden w-[280px] shrink-0 border-r border-gray-200 bg-white lg:flex lg:flex-col">
           <div className="border-b border-gray-200 px-8 py-8">
-  <Link href="/dashboard" className="block">
-    <img
-      src="/images/LL-Logo-1-B.png"
-      alt="LegacyLink"
-      className="h-auto w-48"
-    />
-  </Link>
-</div>
+            <Link href="/dashboard" className="block">
+              <img
+                src="/images/LL-Logo-1-B.png"
+                alt="LegacyLink"
+                className="h-auto w-48"
+              />
+            </Link>
+          </div>
 
           <nav className="flex-1 px-4 py-6">
             <div className="space-y-1">
@@ -166,7 +226,7 @@ export default async function DashboardPage() {
             <DashboardJournalComposer
               userFirstName={userFirstName}
               people={peopleWithPhotoUrls}
-              entryDates={entryDates}
+              entries={entriesWithImageUrls}
             />
           </div>
         </section>

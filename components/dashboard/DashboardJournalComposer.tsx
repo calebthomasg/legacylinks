@@ -12,10 +12,25 @@ type PersonOption = {
   profilePhotoUrl: string | null;
 };
 
+type JournalEntry = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  entry_date: string | null;
+  taggedPersonIds: string[];
+  images: {
+    id: string;
+    storage_path: string;
+    file_name: string | null;
+    signedUrl: string | null;
+  }[];
+};
+
 type DashboardJournalComposerProps = {
   userFirstName: string;
   people: PersonOption[];
-  entryDates: string[];
+  entries: JournalEntry[];
 };
 
 function getPersonName(person: PersonOption) {
@@ -23,6 +38,23 @@ function getPersonName(person: PersonOption) {
     person.display_name ||
     [person.first_name, person.last_name].filter(Boolean).join(" ")
   );
+}
+
+function getDateKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function getEntryDateKey(entry: JournalEntry) {
+  const date = entry.entry_date ? new Date(`${entry.entry_date}T00:00:00`) : new Date(entry.created_at);
+  return getDateKey(date);
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatLongDate(date: Date) {
@@ -60,7 +92,7 @@ function getGreeting(date: Date) {
   return "Good Evening";
 }
 
-function buildCalendar(currentDate: Date, entryDates: string[]) {
+function buildCalendar(currentDate: Date, entries: JournalEntry[]) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -70,17 +102,13 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   const firstWeekday = firstDayOfMonth.getDay();
   const totalDays = lastDayOfMonth.getDate();
 
-  const entryDateSet = new Set(
-    entryDates.map((dateString) => {
-      const date = new Date(dateString);
-      return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    })
-  );
-
-  const todayKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
+  const entryDateSet = new Set(entries.map((entry) => getEntryDateKey(entry)));
+  const today = new Date();
+  const todayKey = getDateKey(today);
 
   const cells: {
     key: string;
+    date: Date | null;
     label: number | null;
     hasEntry: boolean;
     isToday: boolean;
@@ -90,6 +118,7 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   for (let i = 0; i < firstWeekday; i += 1) {
     cells.push({
       key: `empty-start-${i}`,
+      date: null,
       label: null,
       hasEntry: false,
       isToday: false,
@@ -98,10 +127,12 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   }
 
   for (let day = 1; day <= totalDays; day += 1) {
-    const key = `${year}-${month}-${day}`;
+    const date = new Date(year, month, day);
+    const key = getDateKey(date);
 
     cells.push({
       key,
+      date,
       label: day,
       hasEntry: entryDateSet.has(key),
       isToday: key === todayKey,
@@ -112,6 +143,7 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   while (cells.length % 7 !== 0) {
     cells.push({
       key: `empty-end-${cells.length}`,
+      date: null,
       label: null,
       hasEntry: false,
       isToday: false,
@@ -120,6 +152,7 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   }
 
   const weeks = [];
+
   for (let i = 0; i < cells.length; i += 7) {
     weeks.push(cells.slice(i, i + 7));
   }
@@ -127,26 +160,16 @@ function buildCalendar(currentDate: Date, entryDates: string[]) {
   return weeks;
 }
 
-function calculateStreak(entryDates: string[]) {
-  const loggedDateKeys = new Set(
-    entryDates.map((dateString) => {
-      const date = new Date(dateString);
-
-      return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    })
-  );
+function calculateStreak(entries: JournalEntry[]) {
+  const loggedDateKeys = new Set(entries.map((entry) => getEntryDateKey(entry)));
 
   const today = new Date();
-  let cursor = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  );
+  let cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   let streak = 0;
 
   while (true) {
-    const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
+    const key = getDateKey(cursor);
 
     if (!loggedDateKeys.has(key)) {
       break;
@@ -167,7 +190,7 @@ function calculateStreak(entryDates: string[]) {
 export default function DashboardJournalComposer({
   userFirstName,
   people,
-  entryDates,
+  entries,
 }: DashboardJournalComposerProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -175,12 +198,34 @@ export default function DashboardJournalComposer({
 
   const [now, setNow] = useState(new Date());
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const [activeEntryId, setActiveEntryId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [existingImages, setExistingImages] = useState<JournalEntry["images"]>([]);
+
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const entriesByDateKey = useMemo(() => {
+    const map = new Map<string, JournalEntry>();
+
+    entries.forEach((entry) => {
+      const key = getEntryDateKey(entry);
+
+      if (!map.has(key)) {
+        map.set(key, entry);
+      }
+    });
+
+    return map;
+  }, [entries]);
+
+  const selectedDateKey = getDateKey(selectedDate);
+  const selectedEntry = entriesByDateKey.get(selectedDateKey) ?? null;
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -191,6 +236,25 @@ export default function DashboardJournalComposer({
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedEntry) {
+      setActiveEntryId(selectedEntry.id);
+      setBody(selectedEntry.body ?? "");
+      setSelectedPersonIds(selectedEntry.taggedPersonIds ?? []);
+      setExistingImages(selectedEntry.images ?? []);
+      setSelectedFiles([]);
+      setMessage("");
+      return;
+    }
+
+    setActiveEntryId(null);
+    setBody("");
+    setSelectedPersonIds([]);
+    setExistingImages([]);
+    setSelectedFiles([]);
+    setMessage("");
+  }, [selectedEntry?.id, selectedDateKey]);
 
   useEffect(() => {
     const nextPreviewUrls = selectedFiles.map((file) =>
@@ -205,14 +269,37 @@ export default function DashboardJournalComposer({
   }, [selectedFiles]);
 
   const calendarWeeks = useMemo(
-  () => buildCalendar(calendarDate, entryDates),
-  [calendarDate, entryDates]
-);
-  const streak = useMemo(() => calculateStreak(entryDates), [entryDates]);
+    () => buildCalendar(calendarDate, entries),
+    [calendarDate, entries]
+  );
+
+  const streak = useMemo(() => calculateStreak(entries), [entries]);
 
   const selectedPeople = people.filter((person) =>
     selectedPersonIds.includes(person.id)
   );
+
+  function goToPreviousMonth() {
+    setCalendarDate((current) => {
+      return new Date(current.getFullYear(), current.getMonth() - 1, 1);
+    });
+  }
+
+  function goToNextMonth() {
+    setCalendarDate((current) => {
+      return new Date(current.getFullYear(), current.getMonth() + 1, 1);
+    });
+  }
+
+  function goToCurrentMonth() {
+    const today = new Date();
+    setCalendarDate(today);
+    setSelectedDate(today);
+  }
+
+  function handleCalendarDateClick(date: Date) {
+    setSelectedDate(date);
+  }
 
   function togglePerson(personId: string) {
     setSelectedPersonIds((current) =>
@@ -221,22 +308,6 @@ export default function DashboardJournalComposer({
         : [...current, personId]
     );
   }
-
-  function goToPreviousMonth() {
-  setCalendarDate((current) => {
-    return new Date(current.getFullYear(), current.getMonth() - 1, 1);
-  });
-}
-
-function goToNextMonth() {
-  setCalendarDate((current) => {
-    return new Date(current.getFullYear(), current.getMonth() + 1, 1);
-  });
-}
-
-function goToCurrentMonth() {
-  setCalendarDate(new Date());
-}
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -248,7 +319,7 @@ function goToCurrentMonth() {
   }
 
   async function handleSave() {
-    if (!body.trim() && selectedFiles.length === 0) {
+    if (!body.trim() && selectedFiles.length === 0 && existingImages.length === 0) {
       setMessage("Write something or add a photo before saving.");
       return;
     }
@@ -266,27 +337,64 @@ function goToCurrentMonth() {
       return;
     }
 
-    const entryTitle = `${formatLongDate(now)} Journal Entry`;
+    const entryDate = toDateInputValue(selectedDate);
+    const entryTitle = `${formatLongDate(selectedDate)} Journal Entry`;
 
-    const { data: newEntry, error: entryError } = await supabase
-      .from("journal_entries")
-      .insert({
-        user_id: user.id,
-        title: entryTitle,
-        body: body.trim(),
-      })
-      .select("id")
-      .single();
+    let entryId = activeEntryId;
 
-    if (entryError || !newEntry) {
-      setMessage(entryError?.message ?? "Could not save journal entry.");
-      setIsSaving(false);
-      return;
+    if (entryId) {
+      const { error: updateError } = await supabase
+        .from("journal_entries")
+        .update({
+          title: entryTitle,
+          body: body.trim(),
+          entry_date: entryDate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", entryId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        setMessage(updateError.message);
+        setIsSaving(false);
+        return;
+      }
+
+      const { error: deleteTagsError } = await supabase
+        .from("journal_entry_people")
+        .delete()
+        .eq("journal_entry_id", entryId)
+        .eq("tagged_by_user_id", user.id);
+
+      if (deleteTagsError) {
+        setMessage(deleteTagsError.message);
+        setIsSaving(false);
+        return;
+      }
+    } else {
+      const { data: newEntry, error: entryError } = await supabase
+        .from("journal_entries")
+        .insert({
+          user_id: user.id,
+          title: entryTitle,
+          body: body.trim(),
+          entry_date: entryDate,
+        })
+        .select("id")
+        .single();
+
+      if (entryError || !newEntry) {
+        setMessage(entryError?.message ?? "Could not save journal entry.");
+        setIsSaving(false);
+        return;
+      }
+
+      entryId = newEntry.id;
     }
 
     if (selectedPersonIds.length > 0) {
       const tagRows = selectedPersonIds.map((personId) => ({
-        journal_entry_id: newEntry.id,
+        journal_entry_id: entryId,
         person_id: personId,
         tagged_by_user_id: user.id,
       }));
@@ -305,7 +413,7 @@ function goToCurrentMonth() {
     if (selectedFiles.length > 0) {
       for (const file of selectedFiles) {
         const safeName = file.name.replace(/\s+/g, "-");
-        const storagePath = `${user.id}/${newEntry.id}/${crypto.randomUUID()}-${safeName}`;
+        const storagePath = `${user.id}/${entryId}/${crypto.randomUUID()}-${safeName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("journal-images")
@@ -320,7 +428,7 @@ function goToCurrentMonth() {
         const { error: imageRowError } = await supabase
           .from("journal_entry_images")
           .insert({
-            journal_entry_id: newEntry.id,
+            journal_entry_id: entryId,
             user_id: user.id,
             storage_path: storagePath,
             file_name: file.name,
@@ -334,13 +442,18 @@ function goToCurrentMonth() {
       }
     }
 
-    setBody("");
-    setSelectedPersonIds([]);
     setSelectedFiles([]);
     setMessage("Journal entry saved.");
     setIsSaving(false);
     router.refresh();
   }
+
+  const allPhotoPreviews = [
+    ...existingImages
+      .map((image) => image.signedUrl)
+      .filter((url): url is string => Boolean(url)),
+    ...previewUrls,
+  ];
 
   return (
     <div className="space-y-8">
@@ -356,86 +469,111 @@ function goToCurrentMonth() {
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-4">
-  <div>
-    <p className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-      Monthly activity
-    </p>
+        <div className="mb-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+              Monthly activity
+            </p>
 
-    <div className="mt-1 flex items-center gap-2">
-      <button
-        type="button"
-        onClick={goToPreviousMonth}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        aria-label="Previous month"
-      >
-        ‹
-      </button>
+            {streak >= 2 && (
+              <div className="mt-2 inline-flex items-center rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
+                🔥 {streak} day streak
+              </div>
+            )}
 
-      <p className="min-w-36 text-center text-lg font-semibold text-gray-900">
-        {new Intl.DateTimeFormat("en-US", {
-          month: "long",
-          year: "numeric",
-        }).format(calendarDate)}
-      </p>
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goToPreviousMonth}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                aria-label="Previous month"
+              >
+                ‹
+              </button>
 
-      <button
-        type="button"
-        onClick={goToNextMonth}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        aria-label="Next month"
-      >
-        ›
-      </button>
-    </div>
+              <p className="min-w-36 text-center text-lg font-semibold text-gray-900">
+                {new Intl.DateTimeFormat("en-US", {
+                  month: "long",
+                  year: "numeric",
+                }).format(calendarDate)}
+              </p>
 
-    <button
-      type="button"
-      onClick={goToCurrentMonth}
-      className="mt-2 text-xs font-semibold text-gray-500 hover:text-gray-900"
-    >
-      Back to current month
-    </button>
-  </div>
+              <button
+                type="button"
+                onClick={goToNextMonth}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                aria-label="Next month"
+              >
+                ›
+              </button>
+            </div>
 
-{streak >= 2 && (
-  <div className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
-    🔥 {streak} day streak
-  </div>
-)}
-</div>
+            <button
+              type="button"
+              onClick={goToCurrentMonth}
+              className="mt-2 text-xs font-semibold text-gray-500 hover:text-gray-900"
+            >
+              Back to current month
+            </button>
+          </div>
+        </div>
 
           <div className="grid grid-cols-7 gap-2 text-center text-xs text-gray-400">
             {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-  <div key={`${day}-${index}`} className="pb-1 font-semibold">
-    {day}
-  </div>
-))}
+              <div key={`${day}-${index}`} className="pb-1 font-semibold">
+                {day}
+              </div>
+            ))}
           </div>
 
           <div className="mt-2 grid grid-cols-7 gap-2">
-            {calendarWeeks.flat().map((cell) => (
-              <div
-                key={cell.key}
-                className={`flex aspect-square items-center justify-center rounded-full border text-xs ${
-                  cell.isEmpty
-                    ? "border-transparent bg-transparent"
-                    : cell.isToday
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-700"
-                }`}
-              >
-                {cell.isEmpty ? null : (
-                  <div className="relative flex h-full w-full items-center justify-center">
-                    <span>{cell.label}</span>
+            {calendarWeeks.flat().map((cell) => {
+              const isSelected =
+                cell.date && getDateKey(cell.date) === selectedDateKey;
 
-                    {cell.hasEntry && !cell.isToday && (
-                      <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-gray-900" />
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  disabled={cell.isEmpty || !cell.date}
+                  onClick={() => {
+                    if (cell.date) {
+                      handleCalendarDateClick(cell.date);
+                    }
+                  }}
+                  className={`group flex aspect-square items-center justify-center rounded-full border text-xs transition ${
+                    cell.isEmpty
+                      ? "cursor-default border-transparent bg-transparent"
+                      : isSelected
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : cell.isToday
+                      ? "border-gray-900 bg-white text-gray-900"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                  }`}
+                >
+                  {cell.isEmpty ? null : (
+                    <div className="relative flex h-full w-full items-center justify-center">
+                      {cell.hasEntry ? (
+                        <span>{cell.label}</span>
+                      ) : (
+                        <>
+                          <span className="group-hover:hidden">
+                            {cell.label}
+                          </span>
+                          <span className="hidden text-sm font-semibold group-hover:inline">
+                            +
+                          </span>
+                        </>
+                      )}
+
+                      {cell.hasEntry && !isSelected && (
+                        <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-gray-900" />
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -444,13 +582,17 @@ function goToCurrentMonth() {
         <div className="flex items-start justify-between gap-6">
           <div>
             <p className="text-4xl font-semibold tracking-tight text-gray-950">
-              {formatShortMonthDay(now)}
+              {formatShortMonthDay(selectedDate)}
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-gray-500">
+              {selectedEntry ? "Editing saved entry" : "New entry"}
             </p>
           </div>
 
           <div>
             <p className="text-3xl font-light tracking-tight text-gray-600">
-              {formatTime(now)}
+              {selectedEntry ? formatTime(new Date(selectedEntry.created_at)) : formatTime(now)}
             </p>
           </div>
         </div>
@@ -509,9 +651,7 @@ function goToCurrentMonth() {
 
               <div className="flex flex-wrap items-center gap-3">
                 {selectedPeople.length === 0 ? (
-                  <p className="text-sm text-gray-400">
-                    No one tagged yet.
-                  </p>
+                  <p className="text-sm text-gray-400">No one tagged yet.</p>
                 ) : (
                   selectedPeople.map((person) => (
                     <div
@@ -562,30 +702,28 @@ function goToCurrentMonth() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {previewUrls.length === 0 ? (
-                  <p className="text-sm text-gray-400">
-                    No photos added yet.
-                  </p>
+                {allPhotoPreviews.length === 0 ? (
+                  <p className="text-sm text-gray-400">No photos added yet.</p>
                 ) : (
                   <>
-                    {previewUrls.slice(0, 3).map((url, index) => (
+                    {allPhotoPreviews.slice(0, 3).map((url, index) => (
                       <img
-                        key={url}
+                        key={`${url}-${index}`}
                         src={url}
-                        alt={`Selected upload ${index + 1}`}
+                        alt={`Journal attachment ${index + 1}`}
                         className="h-16 w-16 rounded-2xl object-cover"
                       />
                     ))}
 
-                    {previewUrls.length > 3 && (
+                    {allPhotoPreviews.length > 3 && (
                       <div className="flex h-16 min-w-16 items-center justify-center rounded-2xl bg-gray-100 px-3 text-sm font-semibold text-gray-700">
-                        +{previewUrls.length - 3}
+                        +{allPhotoPreviews.length - 3}
                       </div>
                     )}
 
                     <div className="rounded-full bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
-                      {previewUrls.length} photo
-                      {previewUrls.length === 1 ? "" : "s"}
+                      {allPhotoPreviews.length} photo
+                      {allPhotoPreviews.length === 1 ? "" : "s"}
                     </div>
                   </>
                 )}
@@ -600,7 +738,7 @@ function goToCurrentMonth() {
               disabled={isSaving}
               className="rounded-full bg-emerald-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? "Saving..." : selectedEntry ? "Update" : "Save"}
             </button>
           </div>
         </div>
