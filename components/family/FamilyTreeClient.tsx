@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import AddParentModal from "@/components/family/AddParentModal";
@@ -188,14 +188,14 @@ export default function FamilyTreeClient({
   } | null>(null);
 
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  const [lastPointerPosition, setLastPointerPosition] = useState({
-    x: 0,
-    y: 0,
-  });
 
   const treeViewportRef = useRef<HTMLElement | null>(null);
+  const treeContentRef = useRef<HTMLDivElement | null>(null);
+  const panRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const lastPointerPositionRef = useRef({ x: 0, y: 0 });
+  const animationFrameRef = useRef<number | null>(null);
 
   const peopleById = useMemo(() => {
     return new Map(people.map((person) => [person.id, person]));
@@ -204,6 +204,54 @@ export default function FamilyTreeClient({
   const selectedPerson = selectedPersonId
     ? peopleById.get(selectedPersonId)
     : null;
+
+  const applyTreeTransform = useCallback(() => {
+    const content = treeContentRef.current;
+
+    if (!content) return;
+
+    content.style.transform = `translate(calc(-50% + ${panRef.current.x}px), ${panRef.current.y}px) scale(${zoomRef.current})`;
+  }, []);
+
+  const scheduleTreeTransform = useCallback(() => {
+    if (animationFrameRef.current) return;
+
+    animationFrameRef.current = window.requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      applyTreeTransform();
+    });
+  }, [applyTreeTransform]);
+
+  const setTreeZoom = useCallback((nextZoom: number) => {
+    const clampedZoom = Math.min(Math.max(Number(nextZoom.toFixed(2)), 0.4), 1.8);
+
+    zoomRef.current = clampedZoom;
+    setZoom(clampedZoom);
+    scheduleTreeTransform();
+  }, [scheduleTreeTransform]);
+
+  const getDefaultTreeView = useCallback(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      return {
+        zoom: 0.55,
+        pan: { x: 0, y: -150 },
+      };
+    }
+
+    return {
+      zoom: 1,
+      pan: { x: 0, y: 0 },
+    };
+  }, []);
+
+  useEffect(() => {
+    const defaultView = getDefaultTreeView();
+
+    panRef.current = defaultView.pan;
+    zoomRef.current = defaultView.zoom;
+    setZoom(defaultView.zoom);
+    applyTreeTransform();
+  }, [applyTreeTransform, getDefaultTreeView]);
 
   useEffect(() => {
     const viewport = treeViewportRef.current;
@@ -214,19 +262,19 @@ export default function FamilyTreeClient({
       event.preventDefault();
 
       const zoomDirection = event.deltaY > 0 ? -0.08 : 0.08;
-
-      setZoom((current) => {
-        const nextZoom = Number((current + zoomDirection).toFixed(2));
-        return Math.min(Math.max(nextZoom, 0.4), 1.8);
-      });
+      setTreeZoom(zoomRef.current + zoomDirection);
     }
 
     viewport.addEventListener("wheel", handleNativeWheel, { passive: false });
 
     return () => {
       viewport.removeEventListener("wheel", handleNativeWheel);
+
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
     };
-  }, []);
+  }, [setTreeZoom]);
 
   function togglePerson(personId: string) {
     setExpandedPersonIds((current) =>
@@ -397,16 +445,20 @@ export default function FamilyTreeClient({
   }
 
   function zoomIn() {
-    setZoom((current) => Math.min(Number((current + 0.1).toFixed(2)), 1.8));
+    setTreeZoom(zoomRef.current + 0.1);
   }
 
   function zoomOut() {
-    setZoom((current) => Math.max(Number((current - 0.1).toFixed(2)), 0.4));
+    setTreeZoom(zoomRef.current - 0.1);
   }
 
   function resetView() {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    const defaultView = getDefaultTreeView();
+
+    panRef.current = defaultView.pan;
+    zoomRef.current = defaultView.zoom;
+    setZoom(defaultView.zoom);
+    scheduleTreeTransform();
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLElement>) {
@@ -417,10 +469,10 @@ export default function FamilyTreeClient({
     }
 
     setIsPanning(true);
-    setLastPointerPosition({
+    lastPointerPositionRef.current = {
       x: event.clientX,
       y: event.clientY,
-    });
+    };
 
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -428,18 +480,20 @@ export default function FamilyTreeClient({
   function handlePointerMove(event: React.PointerEvent<HTMLElement>) {
     if (!isPanning) return;
 
-    const deltaX = event.clientX - lastPointerPosition.x;
-    const deltaY = event.clientY - lastPointerPosition.y;
+    const deltaX = event.clientX - lastPointerPositionRef.current.x;
+    const deltaY = event.clientY - lastPointerPositionRef.current.y;
 
-    setPan((current) => ({
-      x: current.x + deltaX,
-      y: current.y + deltaY,
-    }));
+    panRef.current = {
+      x: panRef.current.x + deltaX,
+      y: panRef.current.y + deltaY,
+    };
 
-    setLastPointerPosition({
+    lastPointerPositionRef.current = {
       x: event.clientX,
       y: event.clientY,
-    });
+    };
+
+    scheduleTreeTransform();
   }
 
   function handlePointerUp() {
@@ -738,18 +792,18 @@ export default function FamilyTreeClient({
 
   return (
     <>
-      <div className="relative min-h-[calc(100vh-81px)] overflow-hidden bg-[#5f5c56] text-white lg:min-h-screen">
+      <div className="relative min-h-[calc(100svh-77px)] overflow-hidden bg-[#5f5c56] text-white lg:min-h-screen">
         <section
           ref={treeViewportRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`absolute inset-0 overflow-hidden bg-[#5f5c56] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0_1px,transparent_1px)] [background-size:28px_28px] ${
+          className={`absolute inset-0 touch-none overflow-hidden bg-[#5f5c56] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0_1px,transparent_1px)] [background-size:28px_28px] ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
           }`}
         >
-          <div className="absolute left-4 top-4 z-20 max-w-sm rounded-lg border border-white/10 bg-[#242421]/90 px-4 py-3 shadow-xl shadow-black/20 backdrop-blur">
+          <div className="absolute left-4 top-4 z-20 hidden max-w-sm rounded-lg border border-white/10 bg-[#242421]/90 px-4 py-3 shadow-xl shadow-black/20 backdrop-blur md:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
               Family Tree
             </p>
@@ -758,7 +812,7 @@ export default function FamilyTreeClient({
             </h1>
           </div>
 
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-lg border border-white/10 bg-[#242421]/90 p-2 shadow-xl shadow-black/20 backdrop-blur">
+          <div className="absolute left-4 right-4 top-4 z-20 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#242421]/90 p-2 shadow-xl shadow-black/20 backdrop-blur sm:left-auto sm:right-4">
             <button
               type="button"
               onClick={zoomOut}
@@ -795,9 +849,10 @@ export default function FamilyTreeClient({
           </div>
 
           <div
+            ref={treeContentRef}
             className="absolute bottom-12 left-1/2 w-max"
             style={{
-              transform: `translate(calc(-50% + ${pan.x}px), ${pan.y}px) scale(${zoom})`,
+              transform: `translate(calc(-50% + ${panRef.current.x}px), ${panRef.current.y}px) scale(${zoomRef.current})`,
               transformOrigin: "center bottom",
             }}
           >
@@ -805,7 +860,7 @@ export default function FamilyTreeClient({
           </div>
         </section>
 
-        <aside className="absolute bottom-6 left-6 right-6 z-20 max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#242421]/95 p-5 shadow-2xl shadow-black/25 backdrop-blur xl:left-auto xl:top-24 xl:max-h-none xl:w-[380px] xl:p-6">
+        <aside className="absolute inset-x-0 bottom-0 z-20 max-h-[54svh] overflow-y-auto rounded-t-2xl border-t-4 border-sky bg-[#242421]/98 p-5 shadow-2xl shadow-black/25 backdrop-blur xl:bottom-6 xl:left-auto xl:right-6 xl:top-24 xl:max-h-none xl:w-[380px] xl:rounded-lg xl:border xl:border-white/10 xl:p-6">
           {!selectedPerson ? (
             <div>
               <h2 className="text-xl font-semibold text-white">
@@ -829,6 +884,7 @@ export default function FamilyTreeClient({
               onAddChild={() =>
                 setAddingRelative({ mode: "child", person: selectedPerson })
               }
+              onCloseDetails={() => setSelectedPersonId(null)}
             />
           )}
         </aside>
@@ -968,6 +1024,7 @@ function PersonDetails({
   childRelatives,
   onAddSibling,
   onAddChild,
+  onCloseDetails,
 }: {
   person: Person;
   relationship?: Relationship;
@@ -977,6 +1034,7 @@ function PersonDetails({
   childRelatives: { person: Person; relationship: Relationship }[];
   onAddSibling: () => void;
   onAddChild: () => void;
+  onCloseDetails: () => void;
 }) {
   const name = getPersonName(person);
   const birthDate = formatDate(person.birth_date);
@@ -1021,6 +1079,15 @@ function PersonDetails({
             </p>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={onCloseDetails}
+          className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-2xl leading-none text-white/80 hover:bg-white/10 xl:hidden"
+          aria-label="Close person details"
+        >
+          ×
+        </button>
       </div>
 
       <dl className="mt-6 space-y-4 text-sm">
