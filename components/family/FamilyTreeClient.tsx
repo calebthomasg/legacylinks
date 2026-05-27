@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import AddParentModal from "@/components/family/AddParentModal";
+import AddRelativeModal, {
+  type RelativeMode,
+} from "@/components/family/AddRelativeModal";
 
 type Person = {
   id: string;
@@ -55,6 +58,9 @@ type FamilyTreeClientProps = {
 };
 
 const PARENT_RELATIONSHIP_TYPES = ["father", "mother", "parent"];
+const CHILD_RELATIONSHIP_TYPES = ["son", "daughter", "child"];
+const SIBLING_RELATIONSHIP_TYPES = ["brother", "sister", "sibling"];
+const SPOUSE_RELATIONSHIP_TYPES = ["husband", "wife", "spouse"];
 type InferredGender = "male" | "female" | "unknown";
 
 function getPersonName(person: Person) {
@@ -106,8 +112,35 @@ function getHeadshotEra(person: Person) {
 function inferGender(relationship?: Relationship): InferredGender {
   if (!relationship) return "unknown";
 
-  if (relationship.relationship_type === "father") return "male";
-  if (relationship.relationship_type === "mother") return "female";
+  if (
+    [
+      "father",
+      "son",
+      "brother",
+      "husband",
+      "grandfather",
+      "grandson",
+      "uncle",
+      "nephew",
+    ].includes(relationship.relationship_type)
+  ) {
+    return "male";
+  }
+
+  if (
+    [
+      "mother",
+      "daughter",
+      "sister",
+      "wife",
+      "grandmother",
+      "granddaughter",
+      "aunt",
+      "niece",
+    ].includes(relationship.relationship_type)
+  ) {
+    return "female";
+  }
 
   return "unknown";
 }
@@ -145,6 +178,10 @@ export default function FamilyTreeClient({
 
   const [addingParentForPerson, setAddingParentForPerson] =
     useState<Person | null>(null);
+  const [addingRelative, setAddingRelative] = useState<{
+    mode: RelativeMode;
+    person: Person;
+  } | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -232,6 +269,96 @@ export default function FamilyTreeClient({
     return relationships.find(
       (relationship) => relationship.related_person_id === personId
     );
+  }
+
+  function getRelatedPeopleForPerson(personId: string, types: string[]) {
+    return relationships
+      .filter(
+        (relationship) =>
+          relationship.person_id === personId &&
+          types.includes(relationship.relationship_type)
+      )
+      .map((relationship) => {
+        const person = peopleById.get(relationship.related_person_id);
+
+        if (!person) return null;
+
+        return { person, relationship };
+      })
+      .filter(Boolean) as { person: Person; relationship: Relationship }[];
+  }
+
+  function getChildrenForPerson(personId: string) {
+    return getRelatedPeopleForPerson(personId, CHILD_RELATIONSHIP_TYPES);
+  }
+
+  function getSiblingsForPerson(personId: string) {
+    const explicitSiblings = getRelatedPeopleForPerson(
+      personId,
+      SIBLING_RELATIONSHIP_TYPES
+    );
+    const selectedParentIds = getParentsForPerson(personId).map(
+      ({ person }) => person.id
+    );
+    const sharedParentSiblings = relationships
+      .filter(
+        (relationship) =>
+          selectedParentIds.includes(relationship.related_person_id) &&
+          relationship.person_id !== personId &&
+          PARENT_RELATIONSHIP_TYPES.includes(relationship.relationship_type)
+      )
+      .map((parentRelationship) => {
+        const person = peopleById.get(parentRelationship.person_id);
+
+        if (!person) return null;
+
+        return {
+          person,
+          relationship: parentRelationship,
+        };
+      })
+      .filter(Boolean) as { person: Person; relationship: Relationship }[];
+
+    const siblingMap = new Map<string, { person: Person; relationship: Relationship }>();
+
+    [...explicitSiblings, ...sharedParentSiblings].forEach((sibling) => {
+      if (!siblingMap.has(sibling.person.id)) {
+        siblingMap.set(sibling.person.id, sibling);
+      }
+    });
+
+    return [...siblingMap.values()];
+  }
+
+  function getSpousesForPerson(personId: string) {
+    const directSpouses = getRelatedPeopleForPerson(
+      personId,
+      SPOUSE_RELATIONSHIP_TYPES
+    );
+    const inverseSpouses = relationships
+      .filter(
+        (relationship) =>
+          relationship.related_person_id === personId &&
+          SPOUSE_RELATIONSHIP_TYPES.includes(relationship.relationship_type)
+      )
+      .map((relationship) => {
+        const person = peopleById.get(relationship.person_id);
+
+        if (!person) return null;
+
+        return { person, relationship };
+      })
+      .filter(Boolean) as { person: Person; relationship: Relationship }[];
+
+    const spouseMap = new Map<string, { person: Person; relationship: Relationship }>();
+
+    [...directSpouses, ...inverseSpouses].forEach((spouse) => {
+      if (!spouseMap.has(spouse.person.id)) {
+        spouseMap.set(spouse.person.id, spouse);
+      }
+    });
+
+    return [...spouseMap.values()];
   }
 
   function getTaggedMemoriesForPerson(personId: string) {
@@ -493,6 +620,91 @@ export default function FamilyTreeClient({
     );
   }
 
+  function FamilyUnitNode({ person }: { person: Person }) {
+    const parents = getParentsForPerson(person.id);
+    const spouses = getSpousesForPerson(person.id);
+    const householdChildren = [
+      ...getChildrenForPerson(person.id),
+      ...spouses.flatMap(({ person: spouse }) => getChildrenForPerson(spouse.id)),
+    ].filter(
+      (child, index, list) =>
+        list.findIndex((item) => item.person.id === child.person.id) === index
+    );
+    const isExpanded = expandedPersonIds.includes(person.id);
+    const hasParents = parents.length > 0;
+
+    return (
+      <div className="flex flex-col items-center">
+        {hasParents && isExpanded && (
+          <>
+            <div className="flex items-end justify-center gap-6">
+              {parents.map(({ person: parentPerson, relationship }) => (
+                <TreeNode
+                  key={relationship.id}
+                  person={parentPerson}
+                  relationship={relationship}
+                  visitedIds={[person.id]}
+                />
+              ))}
+            </div>
+
+            <TreeConnector hasTwoParents={parents.length > 1} />
+          </>
+        )}
+
+        <TreeControls
+          person={person}
+          hasParents={hasParents}
+          isExpanded={isExpanded}
+          parentCount={parents.length}
+        />
+
+        {(hasParents || parents.length < 2) && (
+          <div className="mb-2 h-5 w-px bg-white/25" aria-hidden="true" />
+        )}
+
+        <div className="flex items-start justify-center gap-6">
+          <PersonCard person={person} />
+
+          {spouses.map(({ person: spouse, relationship }) => (
+            <PersonCard
+              key={relationship.id}
+              person={spouse}
+              relationship={relationship}
+            />
+          ))}
+
+          {spouses.length === 0 && (
+            <div className="flex h-56 w-52 items-center justify-center rounded-lg border border-dashed border-white/20 bg-[#2f2f2b]/55">
+              <AddRelativeButton
+                label="Add Spouse"
+                onClick={() =>
+                  setAddingRelative({ mode: "spouse", person: rootPerson })
+                }
+              />
+            </div>
+          )}
+        </div>
+
+        {householdChildren.length > 0 && (
+          <>
+            <div className="mt-2 h-10 w-px bg-white/25" aria-hidden="true" />
+            <div className="mb-8 h-px w-full max-w-[720px] bg-white/25" />
+            <div className="flex items-start justify-center gap-6">
+              {householdChildren.map(({ person: child, relationship }) => (
+                <PersonCard
+                  key={relationship.id}
+                  person={child}
+                  relationship={relationship}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="relative min-h-[calc(100vh-81px)] overflow-hidden bg-[#5f5c56] text-white lg:min-h-screen">
@@ -558,7 +770,7 @@ export default function FamilyTreeClient({
               transformOrigin: "center bottom",
             }}
           >
-            <TreeNode person={rootPerson} />
+            <FamilyUnitNode person={rootPerson} />
           </div>
         </section>
 
@@ -578,6 +790,14 @@ export default function FamilyTreeClient({
               relationship={getRelationshipForSelectedPerson(selectedPerson.id)}
               isRoot={selectedPerson.id === rootPerson.id}
               taggedMemories={getTaggedMemoriesForPerson(selectedPerson.id)}
+              siblings={getSiblingsForPerson(selectedPerson.id)}
+              childRelatives={getChildrenForPerson(selectedPerson.id)}
+              onAddSibling={() =>
+                setAddingRelative({ mode: "sibling", person: selectedPerson })
+              }
+              onAddChild={() =>
+                setAddingRelative({ mode: "child", person: selectedPerson })
+              }
             />
           )}
         </aside>
@@ -590,7 +810,121 @@ export default function FamilyTreeClient({
           onClose={() => setAddingParentForPerson(null)}
         />
       )}
+
+      {addingRelative && (
+        <AddRelativeModal
+          userId={userId}
+          anchorPerson={addingRelative.person}
+          mode={addingRelative.mode}
+          onClose={() => setAddingRelative(null)}
+        />
+      )}
     </>
+  );
+}
+
+function AddRelativeButton({
+  label,
+  onClick,
+  compact = false,
+}: {
+  label: string;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group inline-flex items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/10 font-semibold text-white/80 transition-all duration-300 hover:gap-2 hover:bg-white/15 ${
+        compact
+          ? "h-8 w-8 text-xs hover:w-32 hover:px-3"
+          : "h-12 w-12 text-sm hover:w-36 hover:px-4"
+      }`}
+      aria-label={label}
+      title={label}
+    >
+      <span className="flex h-full shrink-0 items-center justify-center text-xl leading-none">
+        +
+      </span>
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-28 group-hover:opacity-100">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function RelativeSection({
+  title,
+  relatives,
+  emptyActionLabel,
+  onAdd,
+}: {
+  title: string;
+  relatives: { person: Person; relationship: Relationship }[];
+  emptyActionLabel: string;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="mt-8 border-t border-white/10 pt-6">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-lg font-semibold text-white">{title}</h3>
+
+        <div className="flex items-center gap-2">
+          {relatives.length > 0 && (
+            <AddRelativeButton
+              label={emptyActionLabel}
+              onClick={onAdd}
+              compact
+            />
+          )}
+
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/70">
+            {relatives.length}
+          </span>
+        </div>
+      </div>
+
+      {relatives.length === 0 ? (
+        <div className="mt-4">
+          <AddRelativeButton label={emptyActionLabel} onClick={onAdd} />
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {relatives.map(({ person, relationship }) => {
+            const avatarUrl =
+              person.profilePhotoUrl ?? getDefaultHeadshot(person, relationship);
+
+            return (
+              <div
+                key={`${relationship.id}-${person.id}`}
+                className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition hover:bg-white/10"
+              >
+                <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
+                  <Image
+                    src={avatarUrl}
+                    alt={getPersonName(person)}
+                    width={40}
+                    height={40}
+                    className="h-full w-full object-cover"
+                    unoptimized={Boolean(person.profilePhotoUrl)}
+                  />
+                </span>
+
+                <span>
+                  <span className="block text-sm font-semibold text-white">
+                    {getPersonName(person)}
+                  </span>
+                  <span className="block text-xs text-white/45">
+                    {getRelationshipLabel(relationship.relationship_type)}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -599,17 +933,26 @@ function PersonDetails({
   relationship,
   isRoot,
   taggedMemories,
+  siblings,
+  childRelatives,
+  onAddSibling,
+  onAddChild,
 }: {
   person: Person;
   relationship?: Relationship;
   isRoot: boolean;
   taggedMemories: TaggedMemory[];
+  siblings: { person: Person; relationship: Relationship }[];
+  childRelatives: { person: Person; relationship: Relationship }[];
+  onAddSibling: () => void;
+  onAddChild: () => void;
 }) {
   const name = getPersonName(person);
   const birthDate = formatDate(person.birth_date);
   const deathDate = formatDate(person.death_date);
   const location = [person.city, person.state].filter(Boolean).join(", ");
-  const avatarUrl = person.profilePhotoUrl ?? getDefaultHeadshot(person, relationship);
+  const avatarUrl =
+    person.profilePhotoUrl ?? getDefaultHeadshot(person, relationship);
 
   return (
     <div>
@@ -685,6 +1028,20 @@ function PersonDetails({
           </div>
         )}
       </dl>
+
+      <RelativeSection
+        title="Siblings"
+        relatives={siblings}
+        emptyActionLabel="Add Sibling"
+        onAdd={onAddSibling}
+      />
+
+      <RelativeSection
+        title="Children"
+        relatives={childRelatives}
+        emptyActionLabel="Add Child"
+        onAdd={onAddChild}
+      />
 
       <div className="mt-8 border-t border-white/10 pt-6">
         <div className="flex items-center justify-between gap-4">
