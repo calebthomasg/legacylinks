@@ -128,7 +128,7 @@ export default function EditJournalEntryForm({
   return (
     <form onSubmit={handleSave} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Entry title
         </label>
         <input
@@ -136,12 +136,12 @@ export default function EditJournalEntryForm({
           required
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Journal entry
         </label>
         <textarea
@@ -149,17 +149,17 @@ export default function EditJournalEntryForm({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           rows={10}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm leading-6 text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Who is this memory about?
         </label>
 
         {people.length === 0 ? (
-          <p className="mt-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <p className="mt-2 rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/70">
             Add people on your family page before tagging them in journal
             entries.
           </p>
@@ -175,8 +175,8 @@ export default function EditJournalEntryForm({
                   onClick={() => togglePerson(person.id)}
                   className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
                     isSelected
-                      ? "border-gray-950 bg-gray-950 text-white"
-                      : "border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
+                      ? "border-night-sky bg-night-sky text-white"
+                      : "border-night-sky/20 bg-white text-night-sky hover:bg-sand"
                   }`}
                 >
                   {getPersonName(person)}
@@ -187,7 +187,7 @@ export default function EditJournalEntryForm({
         )}
 
         {selectedPersonIds.length > 0 && (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-night-sky/70">
             {selectedPersonIds.length} person
             {selectedPersonIds.length === 1 ? "" : "s"} tagged.
           </p>
@@ -195,7 +195,7 @@ export default function EditJournalEntryForm({
       </div>
 
       {message && (
-        <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+        <p className="rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
           {message}
         </p>
       )}
@@ -203,7 +203,7 @@ export default function EditJournalEntryForm({
       <button
         type="submit"
         disabled={isSaving}
-        className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSaving ? "Saving..." : "Save changes"}
       </button>

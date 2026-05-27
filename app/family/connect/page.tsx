@@ -33,11 +33,11 @@ export default async function ConnectFamilyPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
-        <p className="text-sm font-medium text-gray-500">Family</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-950">
+        <p className="text-sm font-medium text-night-sky/60">Family</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-night-sky">
           Find Family
         </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
           Search for relatives on LegacyLinks, send a family connection request,
           and link their account to someone in your family tree.
         </p>

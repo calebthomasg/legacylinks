@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
@@ -458,25 +459,35 @@ export default function DashboardJournalComposer({
   return (
     <div className="space-y-8">
       <section className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight text-gray-950">
+        <div className="relative min-h-36 overflow-visible pr-28 sm:min-h-44 sm:pr-56 lg:pr-72">
+          <Image
+            src="/images/stars.svg"
+            alt=""
+            width={1291}
+            height={708}
+            aria-hidden="true"
+            className="pointer-events-none absolute right-0 top-0 hidden h-auto w-32 select-none sm:block sm:w-48 lg:w-64"
+            priority
+          />
+
+          <h1 className="text-4xl font-semibold tracking-tight text-night-sky">
             {getGreeting(now)}, {userFirstName}.
           </h1>
 
-          <p className="mt-3 text-2xl font-light italic text-gray-500">
+          <p className="mt-3 text-2xl font-light italic text-night-sky/60">
             {formatLongDate(now)} {formatTime(now)}
           </p>
         </div>
 
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-night-sky/10 bg-white p-6 shadow-sm">
         <div className="mb-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/40">
               Monthly activity
             </p>
 
             {streak >= 2 && (
-              <div className="mt-2 inline-flex items-center rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
+              <div className="mt-2 inline-flex items-center rounded-full bg-sand px-4 py-2 text-sm font-semibold text-night-sky/75">
                 🔥 {streak} day streak
               </div>
             )}
@@ -485,13 +496,13 @@ export default function DashboardJournalComposer({
               <button
                 type="button"
                 onClick={goToPreviousMonth}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 text-sm font-semibold text-night-sky/75 hover:bg-sand"
                 aria-label="Previous month"
               >
                 ‹
               </button>
 
-              <p className="min-w-36 text-center text-lg font-semibold text-gray-900">
+              <p className="min-w-36 text-center text-lg font-semibold text-night-sky">
                 {new Intl.DateTimeFormat("en-US", {
                   month: "long",
                   year: "numeric",
@@ -501,7 +512,7 @@ export default function DashboardJournalComposer({
               <button
                 type="button"
                 onClick={goToNextMonth}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 text-sm font-semibold text-night-sky/75 hover:bg-sand"
                 aria-label="Next month"
               >
                 ›
@@ -511,14 +522,14 @@ export default function DashboardJournalComposer({
             <button
               type="button"
               onClick={goToCurrentMonth}
-              className="mt-2 text-xs font-semibold text-gray-500 hover:text-gray-900"
+              className="mt-2 text-xs font-semibold text-night-sky/60 hover:text-night-sky"
             >
               Back to current month
             </button>
           </div>
         </div>
 
-          <div className="grid grid-cols-7 gap-2 text-center text-xs text-gray-400">
+          <div className="grid grid-cols-7 gap-2 text-center text-xs text-night-sky/40">
             {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
               <div key={`${day}-${index}`} className="pb-1 font-semibold">
                 {day}
@@ -545,10 +556,10 @@ export default function DashboardJournalComposer({
                     cell.isEmpty
                       ? "cursor-default border-transparent bg-transparent"
                       : isSelected
-                      ? "border-gray-900 bg-gray-900 text-white"
+                      ? "border-night-sky bg-night-sky text-white"
                       : cell.isToday
-                      ? "border-gray-900 bg-white text-gray-900"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                      ? "border-night-sky bg-white text-night-sky"
+                      : "border-night-sky/10 bg-white text-night-sky/75 hover:border-night-sky/30 hover:bg-sand"
                   }`}
                 >
                   {cell.isEmpty ? null : (
@@ -567,7 +578,7 @@ export default function DashboardJournalComposer({
                       )}
 
                       {cell.hasEntry && !isSelected && (
-                        <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-gray-900" />
+                        <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-night-sky" />
                       )}
                     </div>
                   )}
@@ -578,20 +589,20 @@ export default function DashboardJournalComposer({
         </div>
       </section>
 
-      <section className="rounded-[32px] border border-gray-200 bg-white p-8 shadow-sm">
+      <section className="rounded-[32px] border border-night-sky/10 bg-white p-8 shadow-sm">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <p className="text-4xl font-semibold tracking-tight text-gray-950">
+            <p className="text-4xl font-semibold tracking-tight text-night-sky">
               {formatShortMonthDay(selectedDate)}
             </p>
 
-            <p className="mt-2 text-sm font-medium text-gray-500">
+            <p className="mt-2 text-sm font-medium text-night-sky/60">
               {selectedEntry ? "Editing saved entry" : "New entry"}
             </p>
           </div>
 
           <div>
-            <p className="text-3xl font-light tracking-tight text-gray-600">
+            <p className="text-3xl font-light tracking-tight text-night-sky/70">
               {selectedEntry ? formatTime(new Date(selectedEntry.created_at)) : formatTime(now)}
             </p>
           </div>
@@ -603,19 +614,19 @@ export default function DashboardJournalComposer({
             onChange={(event) => setBody(event.target.value)}
             rows={10}
             placeholder="Write about your day, your memories, your people..."
-            className="min-h-[280px] w-full resize-none border-0 bg-transparent text-[30px] leading-[1.45] text-gray-800 placeholder:text-gray-300 focus:outline-none"
+            className="min-h-[280px] w-full resize-none border-0 bg-transparent text-[30px] leading-[1.45] text-night-sky/85 placeholder:text-night-sky/30 focus:outline-none"
           />
         </div>
 
-        <div className="mt-6 border-t border-gray-100 pt-6">
+        <div className="mt-6 border-t border-night-sky/10 pt-6">
           <div>
-            <p className="mb-3 text-sm font-medium text-gray-500">
+            <p className="mb-3 text-sm font-medium text-night-sky/60">
               Tag family in this entry
             </p>
 
             <div className="flex flex-wrap gap-2">
               {people.length === 0 ? (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-night-sky/60">
                   Add people on your family page to start tagging them.
                 </p>
               ) : (
@@ -629,8 +640,8 @@ export default function DashboardJournalComposer({
                       onClick={() => togglePerson(person.id)}
                       className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
                         isSelected
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                          ? "border-night-sky bg-night-sky text-white"
+                          : "border-night-sky/20 bg-white text-night-sky/75 hover:bg-sand"
                       }`}
                     >
                       {getPersonName(person)}
@@ -645,18 +656,18 @@ export default function DashboardJournalComposer({
         <div className="mt-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="flex flex-1 flex-col gap-5">
             <div>
-              <p className="mb-3 text-sm font-medium italic text-gray-500">
+              <p className="mb-3 text-sm font-medium italic text-night-sky/60">
                 Family tagged:
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
                 {selectedPeople.length === 0 ? (
-                  <p className="text-sm text-gray-400">No one tagged yet.</p>
+                  <p className="text-sm text-night-sky/40">No one tagged yet.</p>
                 ) : (
                   selectedPeople.map((person) => (
                     <div
                       key={person.id}
-                      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-sm font-semibold text-gray-700"
+                      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-sand text-sm font-semibold text-night-sky/75"
                       title={getPersonName(person)}
                     >
                       {person.profilePhotoUrl ? (
@@ -679,14 +690,14 @@ export default function DashboardJournalComposer({
 
             <div>
               <div className="mb-3 flex items-center gap-3">
-                <p className="text-sm font-medium italic text-gray-500">
+                <p className="text-sm font-medium italic text-night-sky/60">
                   Photos attached:
                 </p>
 
                 <button
                   type="button"
                   onClick={openFilePicker}
-                  className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-full border border-night-sky/20 px-4 py-2 text-sm font-medium text-night-sky/75 hover:bg-sand"
                 >
                   Add photos
                 </button>
@@ -703,7 +714,7 @@ export default function DashboardJournalComposer({
 
               <div className="flex flex-wrap items-center gap-3">
                 {allPhotoPreviews.length === 0 ? (
-                  <p className="text-sm text-gray-400">No photos added yet.</p>
+                  <p className="text-sm text-night-sky/40">No photos added yet.</p>
                 ) : (
                   <>
                     {allPhotoPreviews.slice(0, 3).map((url, index) => (
@@ -716,12 +727,12 @@ export default function DashboardJournalComposer({
                     ))}
 
                     {allPhotoPreviews.length > 3 && (
-                      <div className="flex h-16 min-w-16 items-center justify-center rounded-2xl bg-gray-100 px-3 text-sm font-semibold text-gray-700">
+                      <div className="flex h-16 min-w-16 items-center justify-center rounded-2xl bg-sand px-3 text-sm font-semibold text-night-sky/75">
                         +{allPhotoPreviews.length - 3}
                       </div>
                     )}
 
-                    <div className="rounded-full bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
+                    <div className="rounded-full bg-sand px-3 py-2 text-sm font-medium text-night-sky/75">
                       {allPhotoPreviews.length} photo
                       {allPhotoPreviews.length === 1 ? "" : "s"}
                     </div>
@@ -736,7 +747,7 @@ export default function DashboardJournalComposer({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-full bg-emerald-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-leaf px-8 py-4 text-base font-semibold text-white transition hover:bg-forest disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Saving..." : selectedEntry ? "Update" : "Save"}
             </button>
@@ -744,7 +755,7 @@ export default function DashboardJournalComposer({
         </div>
 
         {message && (
-          <div className="mt-6 rounded-2xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+          <div className="mt-6 rounded-2xl bg-sand px-4 py-3 text-sm text-night-sky/75">
             {message}
           </div>
         )}

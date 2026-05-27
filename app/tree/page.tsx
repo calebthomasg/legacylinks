@@ -147,19 +147,19 @@ export default async function TreePage() {
   );
 
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10">
+    <main className="min-h-screen bg-sand px-6 py-10">
       <section className="mx-auto max-w-7xl">
         <div className="flex items-center justify-between gap-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
               Family Tree
             </p>
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-950">
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
               Explore your family line
             </h1>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
               Start with yourself, then expand previous generations to see the
               people connected to your family story.
             </p>
@@ -171,21 +171,21 @@ export default async function TreePage() {
         <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/dashboard"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             Back to dashboard
           </Link>
 
           <Link
             href="/family"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             Manage family
           </Link>
 
           <Link
             href="/gallery"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             View gallery
           </Link>

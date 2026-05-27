@@ -77,7 +77,7 @@ export default function AddRelationshipForm({
   return (
     <form onSubmit={handleSave} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Start with this person
         </label>
 
@@ -85,7 +85,7 @@ export default function AddRelationshipForm({
           required
           value={personId}
           onChange={(event) => setPersonId(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
         >
           <option value="">Select a person</option>
           {people.map((person) => (
@@ -97,7 +97,7 @@ export default function AddRelationshipForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Their family member is
         </label>
 
@@ -105,7 +105,7 @@ export default function AddRelationshipForm({
           required
           value={relatedPersonId}
           onChange={(event) => setRelatedPersonId(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
         >
           <option value="">Select a family member</option>
           {people.map((person) => (
@@ -117,7 +117,7 @@ export default function AddRelationshipForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Relationship
         </label>
 
@@ -125,7 +125,7 @@ export default function AddRelationshipForm({
           required
           value={relationshipType}
           onChange={(event) => setRelationshipType(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
         >
           {RELATIONSHIP_TYPES.map((relationship) => (
             <option key={relationship.value} value={relationship.value}>
@@ -134,14 +134,14 @@ export default function AddRelationshipForm({
           ))}
         </select>
 
-        <p className="mt-2 text-xs leading-5 text-gray-500">
+        <p className="mt-2 text-xs leading-5 text-night-sky/60">
           Example: If you choose yourself first, then choose Carlton, and select
           Father, LegacyLinks will know Carlton is your father.
         </p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Personal nickname
         </label>
 
@@ -149,18 +149,18 @@ export default function AddRelationshipForm({
           type="text"
           value={nickname}
           onChange={(event) => setNickname(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
           placeholder="Dad, Mom, Nana, Pawpaw, etc."
         />
 
-        <p className="mt-2 text-xs leading-5 text-gray-500">
+        <p className="mt-2 text-xs leading-5 text-night-sky/60">
           This is how this person appears to you. It does not change their
           actual profile name.
         </p>
       </div>
 
       {message && (
-        <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+        <p className="rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
           {message}
         </p>
       )}
@@ -168,13 +168,13 @@ export default function AddRelationshipForm({
       <button
         type="submit"
         disabled={isSaving || people.length < 2}
-        className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSaving ? "Adding..." : "Add relationship"}
       </button>
 
       {people.length < 2 && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-night-sky/70">
           Add at least two people before creating a relationship.
         </p>
       )}

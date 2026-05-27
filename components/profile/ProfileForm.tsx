@@ -62,34 +62,34 @@ const { error: profileError } = await supabase
     <form onSubmit={handleSave} className="mt-6 space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             First name
           </label>
           <input
             type="text"
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
             placeholder="First name"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             Last name
           </label>
           <input
             type="text"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
             placeholder="Last name"
           />
         </div>
       </div>
 
       {message && (
-        <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+        <p className="rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
           {message}
         </p>
       )}
@@ -97,7 +97,7 @@ const { error: profileError } = await supabase
       <button
         type="submit"
         disabled={isSaving}
-        className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSaving ? "Saving..." : "Save changes"}
       </button>

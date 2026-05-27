@@ -251,7 +251,7 @@ export default function FamilyTreeClient({
 
     return (
       <div
-        className={`mx-auto flex ${sizeClasses} items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700`}
+        className={`mx-auto flex ${sizeClasses} items-center justify-center overflow-hidden rounded-full bg-sand text-xl font-bold text-night-sky/75`}
       >
         {person.profilePhotoUrl ? (
           <img
@@ -285,22 +285,22 @@ export default function FamilyTreeClient({
         onClick={() => setSelectedPersonId(person.id)}
         className={`flex h-52 w-56 flex-col items-center rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
           isSelected
-            ? "border-gray-950 ring-2 ring-gray-950/10"
-            : "border-gray-200"
+            ? "border-night-sky ring-2 ring-night-sky/10"
+            : "border-night-sky/10"
         }`}
       >
         <PersonAvatar person={person} />
 
         <div className="mt-4 flex min-h-12 w-full flex-col items-center justify-start">
-          <h3 className="line-clamp-2 text-base font-semibold leading-5 text-gray-950">
+          <h3 className="line-clamp-2 text-base font-semibold leading-5 text-night-sky">
             {getPersonName(person)}
           </h3>
 
-          <p className="mt-1 min-h-5 text-sm font-medium text-gray-600">
+          <p className="mt-1 min-h-5 text-sm font-medium text-night-sky/70">
             {relationship?.nickname ?? ""}
           </p>
 
-          <p className="min-h-4 text-xs uppercase tracking-wide text-gray-400">
+          <p className="min-h-4 text-xs uppercase tracking-wide text-night-sky/40">
             {relationship
               ? getRelationshipLabel(relationship.relationship_type)
               : ""}
@@ -311,7 +311,7 @@ export default function FamilyTreeClient({
           <p
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               taggedMemoryCount > 0
-                ? "bg-gray-100 text-gray-600"
+                ? "bg-sand text-night-sky/70"
                 : "bg-transparent text-transparent"
             }`}
           >
@@ -330,10 +330,10 @@ export default function FamilyTreeClient({
     return (
       <div className="flex flex-col items-center">
         {hasTwoParents && (
-          <div className="h-px w-72 bg-gray-300" aria-hidden="true" />
+          <div className="h-px w-72 bg-night-sky/20" aria-hidden="true" />
         )}
 
-        <div className="h-8 w-px bg-gray-300" aria-hidden="true" />
+        <div className="h-8 w-px bg-night-sky/20" aria-hidden="true" />
       </div>
     );
   }
@@ -357,7 +357,7 @@ export default function FamilyTreeClient({
           <button
             type="button"
             onClick={() => togglePerson(person.id)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 bg-white text-sm font-bold text-night-sky/75 shadow-sm hover:bg-sand"
             aria-label={
               isExpanded
                 ? "Hide previous generation"
@@ -372,7 +372,7 @@ export default function FamilyTreeClient({
           <button
             type="button"
             onClick={() => setAddingParentForPerson(person)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 bg-white text-sm font-bold text-night-sky/75 shadow-sm hover:bg-sand"
             aria-label={`Add parent for ${getPersonName(person)}`}
             title={`Add parent for ${getPersonName(person)}`}
           >
@@ -432,7 +432,7 @@ export default function FamilyTreeClient({
         />
 
         {(hasParents || parents.length < 2) && (
-          <div className="mb-2 h-5 w-px bg-gray-300" aria-hidden="true" />
+          <div className="mb-2 h-5 w-px bg-night-sky/20" aria-hidden="true" />
         )}
 
         <PersonCard person={person} relationship={relationship} />
@@ -449,28 +449,28 @@ export default function FamilyTreeClient({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`relative h-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ${
+          className={`relative h-[720px] overflow-hidden rounded-2xl border border-night-sky/10 bg-white shadow-sm ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
           }`}
         >
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-2xl border border-night-sky/10 bg-white/95 p-2 shadow-sm backdrop-blur">
             <button
               type="button"
               onClick={zoomOut}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-night-sky/20 text-sm font-bold text-night-sky/85 hover:bg-sand"
               aria-label="Zoom out"
             >
               −
             </button>
 
-            <div className="min-w-14 text-center text-xs font-semibold text-gray-600">
+            <div className="min-w-14 text-center text-xs font-semibold text-night-sky/70">
               {Math.round(zoom * 100)}%
             </div>
 
             <button
               type="button"
               onClick={zoomIn}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-night-sky/20 text-sm font-bold text-night-sky/85 hover:bg-sand"
               aria-label="Zoom in"
             >
               +
@@ -479,13 +479,13 @@ export default function FamilyTreeClient({
             <button
               type="button"
               onClick={resetView}
-              className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+              className="rounded-xl border border-night-sky/20 px-3 py-2 text-xs font-semibold text-night-sky/85 hover:bg-sand"
             >
               Reset view
             </button>
           </div>
 
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-500 shadow-sm">
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-xl bg-white/90 px-3 py-2 text-xs text-night-sky/60 shadow-sm">
             Drag to move • Scroll to zoom
           </div>
 
@@ -500,13 +500,13 @@ export default function FamilyTreeClient({
           </div>
         </section>
 
-        <aside className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:h-fit">
+        <aside className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:h-fit">
           {!selectedPerson ? (
             <div>
-              <h2 className="text-xl font-semibold text-gray-950">
+              <h2 className="text-xl font-semibold text-night-sky">
                 Person details
               </h2>
-              <p className="mt-3 text-sm leading-6 text-gray-600">
+              <p className="mt-3 text-sm leading-6 text-night-sky/70">
                 Select a person in the tree to view their details.
               </p>
             </div>
@@ -551,7 +551,7 @@ function PersonDetails({
   return (
     <div>
       <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-xl font-bold text-gray-700">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-xl font-bold text-night-sky/75">
           {person.profilePhotoUrl ? (
             <img
               src={person.profilePhotoUrl}
@@ -567,22 +567,22 @@ function PersonDetails({
         </div>
 
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
             {isRoot ? "You" : "Family member"}
           </p>
 
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-950">
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-night-sky">
             {name}
           </h2>
 
           {relationship?.nickname && (
-            <p className="mt-1 text-sm font-medium text-gray-600">
+            <p className="mt-1 text-sm font-medium text-night-sky/70">
               Nickname: {relationship.nickname}
             </p>
           )}
 
           {relationship && (
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-night-sky/60">
               Relationship: {getRelationshipLabel(relationship.relationship_type)}
             </p>
           )}
@@ -592,53 +592,53 @@ function PersonDetails({
       <dl className="mt-6 space-y-4 text-sm">
         {birthDate && (
           <div>
-            <dt className="font-medium text-gray-500">Birthday</dt>
-            <dd className="mt-1 text-gray-950">{birthDate}</dd>
+            <dt className="font-medium text-night-sky/60">Birthday</dt>
+            <dd className="mt-1 text-night-sky">{birthDate}</dd>
           </div>
         )}
 
         {deathDate && (
           <div>
-            <dt className="font-medium text-gray-500">Date of death</dt>
-            <dd className="mt-1 text-gray-950">{deathDate}</dd>
+            <dt className="font-medium text-night-sky/60">Date of death</dt>
+            <dd className="mt-1 text-night-sky">{deathDate}</dd>
           </div>
         )}
 
         <div>
-          <dt className="font-medium text-gray-500">Living status</dt>
-          <dd className="mt-1 text-gray-950">
+          <dt className="font-medium text-night-sky/60">Living status</dt>
+          <dd className="mt-1 text-night-sky">
             {person.is_living ? "Living" : "Deceased"}
           </dd>
         </div>
 
         {location && (
           <div>
-            <dt className="font-medium text-gray-500">Location</dt>
-            <dd className="mt-1 text-gray-950">{location}</dd>
+            <dt className="font-medium text-night-sky/60">Location</dt>
+            <dd className="mt-1 text-night-sky">{location}</dd>
           </div>
         )}
 
         {person.bio && (
           <div>
-            <dt className="font-medium text-gray-500">About</dt>
-            <dd className="mt-1 leading-6 text-gray-950">{person.bio}</dd>
+            <dt className="font-medium text-night-sky/60">About</dt>
+            <dd className="mt-1 leading-6 text-night-sky">{person.bio}</dd>
           </div>
         )}
       </dl>
 
-      <div className="mt-8 border-t border-gray-200 pt-6">
+      <div className="mt-8 border-t border-night-sky/10 pt-6">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-lg font-semibold text-gray-950">
+          <h3 className="text-lg font-semibold text-night-sky">
             Tagged memories
           </h3>
 
-          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+          <span className="rounded-full bg-sand px-3 py-1 text-xs font-medium text-night-sky/70">
             {taggedMemories.length}
           </span>
         </div>
 
         {taggedMemories.length === 0 ? (
-          <p className="mt-3 text-sm leading-6 text-gray-600">
+          <p className="mt-3 text-sm leading-6 text-night-sky/70">
             No journal entries have been tagged with this person yet.
           </p>
         ) : (
@@ -646,17 +646,17 @@ function PersonDetails({
             {taggedMemories.map((memory) => (
               <article
                 key={memory.id}
-                className="rounded-xl border border-gray-200 p-4"
+                className="rounded-xl border border-night-sky/10 p-4"
               >
-                <p className="text-xs font-medium text-gray-500">
+                <p className="text-xs font-medium text-night-sky/60">
                   {formatDate(memory.entry.created_at)}
                 </p>
 
-                <h4 className="mt-1 text-sm font-semibold text-gray-950">
+                <h4 className="mt-1 text-sm font-semibold text-night-sky">
                   {memory.entry.title}
                 </h4>
 
-                <p className="mt-2 text-sm leading-6 text-gray-600">
+                <p className="mt-2 text-sm leading-6 text-night-sky/70">
                   {getEntryPreview(memory.entry.body)}
                 </p>
 

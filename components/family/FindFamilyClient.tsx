@@ -229,10 +229,10 @@ export default function FindFamilyClient({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-night-sky/10 bg-white p-5 shadow-sm">
         <label
           htmlFor="family-search"
-          className="text-sm font-semibold text-gray-900"
+          className="text-sm font-semibold text-night-sky"
         >
           Search for a LegacyLinks user
         </label>
@@ -243,13 +243,13 @@ export default function FindFamilyClient({
             value={query}
             onChange={(event) => handleSearch(event.target.value)}
             placeholder="Search by first or last name"
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+            className="w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
           />
 
           {(results.length > 0 || isSearching) && (
-            <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+            <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-night-sky/10 bg-white shadow-lg">
               {isSearching ? (
-                <div className="px-4 py-3 text-sm text-gray-500">
+                <div className="px-4 py-3 text-sm text-night-sky/60">
                   Searching...
                 </div>
               ) : (
@@ -263,18 +263,18 @@ export default function FindFamilyClient({
                       setQuery(getDisplayName(profile));
                       setStatusMessage("");
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-gray-50"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-sand"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sand text-sm font-semibold text-night-sky/75">
                       {profile.first_name?.[0]}
                       {profile.last_name?.[0]}
                     </div>
 
                     <div>
-                      <p className="text-sm font-semibold text-gray-950">
+                      <p className="text-sm font-semibold text-night-sky">
                         {getDisplayName(profile)}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-night-sky/60">
                         LegacyLinks account
                       </p>
                     </div>
@@ -289,26 +289,26 @@ export default function FindFamilyClient({
           !isSearching &&
           results.length === 0 &&
           !selectedProfile && (
-            <p className="mt-3 text-sm text-gray-500">
+            <p className="mt-3 text-sm text-night-sky/60">
               No matching profiles found.
             </p>
           )}
 
         {selectedProfile && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-semibold text-gray-950">
+          <div className="mt-6 rounded-2xl border border-night-sky/10 bg-sand p-4">
+            <p className="text-sm font-semibold text-night-sky">
               Add {getDisplayName(selectedProfile)} as family
             </p>
 
             <div className="mt-4 grid gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-night-sky/75">
                   How is this person related to you?
                 </label>
                 <select
                   value={relationshipType}
                   onChange={(event) => setRelationshipType(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                  className="mt-2 w-full rounded-xl border border-night-sky/20 bg-white px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
                 >
                   {relationshipOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -319,19 +319,19 @@ export default function FindFamilyClient({
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-night-sky/75">
                   Personal nickname, optional
                 </label>
                 <input
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
                   placeholder="Mom, Dad, Nana, Uncle Mike..."
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+                  className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-night-sky/75">
                   Is this person already in your tree?
                 </label>
                 <select
@@ -339,7 +339,7 @@ export default function FindFamilyClient({
                   onChange={(event) =>
                     setExistingRelatedPersonId(event.target.value)
                   }
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                  className="mt-2 w-full rounded-xl border border-night-sky/20 bg-white px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
                 >
                   <option value="">
                     No, create a new person when accepted
@@ -352,14 +352,14 @@ export default function FindFamilyClient({
                   ))}
                 </select>
 
-                <p className="mt-2 text-xs leading-5 text-gray-500">
+                <p className="mt-2 text-xs leading-5 text-night-sky/60">
                   If this person is already in your tree, linking keeps existing
                   photos, journal tags, and memories attached to that person.
                 </p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-night-sky/75">
                   Message, optional
                 </label>
                 <textarea
@@ -367,7 +367,7 @@ export default function FindFamilyClient({
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder="Hey, I’m trying to connect our family tree on LegacyLinks."
                   rows={3}
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+                  className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm leading-6 text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
                 />
               </div>
 
@@ -376,7 +376,7 @@ export default function FindFamilyClient({
                   type="button"
                   onClick={sendConnectionRequest}
                   disabled={isSending}
-                  className="rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl bg-night-sky px-4 py-3 text-sm font-semibold text-white hover:bg-night-sky/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSending ? "Sending..." : "Send family request"}
                 </button>
@@ -393,7 +393,7 @@ export default function FindFamilyClient({
                     setQuery("");
                     setResults([]);
                   }}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                  className="rounded-xl border border-night-sky/20 bg-white px-4 py-3 text-sm font-semibold text-night-sky/85 hover:bg-sand"
                 >
                   Cancel
                 </button>
@@ -403,20 +403,20 @@ export default function FindFamilyClient({
         )}
 
         {statusMessage && (
-          <p className="mt-4 rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+          <p className="mt-4 rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
             {statusMessage}
           </p>
         )}
       </section>
 
       <aside className="space-y-5">
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-950">
+        <section className="rounded-2xl border border-night-sky/10 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-night-sky">
             Incoming requests
           </h2>
 
           {requests.length === 0 ? (
-            <p className="mt-2 text-sm leading-6 text-gray-600">
+            <p className="mt-2 text-sm leading-6 text-night-sky/70">
               You do not have any pending family requests.
             </p>
           ) : (
@@ -424,13 +424,13 @@ export default function FindFamilyClient({
               {requests.map((request) => (
                 <div
                   key={request.id}
-                  className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                  className="rounded-xl border border-night-sky/10 bg-sand p-4"
                 >
-                  <p className="text-sm font-semibold text-gray-950">
+                  <p className="text-sm font-semibold text-night-sky">
                     {getRequesterName(request)}
                   </p>
 
-                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                  <p className="mt-1 text-xs leading-5 text-night-sky/70">
                     Wants to connect with you as their{" "}
                     <span className="font-semibold">
                       {formatRelationship(request.relationship_type)}
@@ -439,7 +439,7 @@ export default function FindFamilyClient({
                   </p>
 
                   {request.message && (
-                    <p className="mt-3 rounded-lg bg-white p-3 text-xs leading-5 text-gray-600">
+                    <p className="mt-3 rounded-lg bg-white p-3 text-xs leading-5 text-night-sky/70">
                       {request.message}
                     </p>
                   )}
@@ -449,7 +449,7 @@ export default function FindFamilyClient({
                       type="button"
                       onClick={() => acceptRequest(request.id)}
                       disabled={activeRequestId === request.id}
-                      className="rounded-lg bg-gray-950 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg bg-night-sky px-3 py-2 text-xs font-semibold text-white hover:bg-night-sky/90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {activeRequestId === request.id ? "Working..." : "Accept"}
                     </button>
@@ -458,7 +458,7 @@ export default function FindFamilyClient({
                       type="button"
                       onClick={() => declineRequest(request.id)}
                       disabled={activeRequestId === request.id}
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg border border-night-sky/20 bg-white px-3 py-2 text-xs font-semibold text-night-sky/85 hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Decline
                     </button>
@@ -469,21 +469,21 @@ export default function FindFamilyClient({
           )}
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-950">
+        <section className="rounded-2xl border border-night-sky/10 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-night-sky">
             Suggested later
           </h2>
-          <p className="mt-2 text-sm leading-6 text-gray-600">
+          <p className="mt-2 text-sm leading-6 text-night-sky/70">
             Eventually, this area can suggest relatives based on shared
             ancestors, mutual family connections, FamilySearch IDs, or account
             invitations.
           </p>
 
-          <div className="mt-5 rounded-xl bg-gray-50 p-4">
-            <p className="text-sm font-medium text-gray-900">
+          <div className="mt-5 rounded-xl bg-sand p-4">
+            <p className="text-sm font-medium text-night-sky">
               People you may be related to
             </p>
-            <p className="mt-2 text-xs leading-5 text-gray-500">
+            <p className="mt-2 text-xs leading-5 text-night-sky/60">
               Once more accounts are connected, LegacyLinks can recommend close
               relatives here.
             </p>

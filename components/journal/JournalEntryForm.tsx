@@ -146,7 +146,7 @@ export default function JournalEntryForm({
   return (
     <form onSubmit={handleSave} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Entry title
         </label>
         <input
@@ -154,13 +154,13 @@ export default function JournalEntryForm({
           required
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
           placeholder="Example: A story I want my family to remember"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Journal entry
         </label>
         <textarea
@@ -168,18 +168,18 @@ export default function JournalEntryForm({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           rows={8}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm leading-6 outline-none focus:border-night-sky"
           placeholder="Write a memory, lesson, story, or moment from your life..."
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Who is this memory about?
         </label>
 
         {people.length === 0 ? (
-          <p className="mt-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <p className="mt-2 rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/70">
             Add people on your family page before tagging them in journal
             entries.
           </p>
@@ -195,8 +195,8 @@ export default function JournalEntryForm({
                   onClick={() => togglePerson(person.id)}
                   className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
                     isSelected
-                      ? "border-gray-950 bg-gray-950 text-white"
-                      : "border-gray-300 bg-white text-gray-900 hover:bg-gray-50"
+                      ? "border-night-sky bg-night-sky text-white"
+                      : "border-night-sky/20 bg-white text-night-sky hover:bg-sand"
                   }`}
                 >
                   {getPersonName(person)}
@@ -207,7 +207,7 @@ export default function JournalEntryForm({
         )}
 
         {selectedPersonIds.length > 0 && (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-night-sky/70">
             {selectedPersonIds.length} person
             {selectedPersonIds.length === 1 ? "" : "s"} tagged.
           </p>
@@ -215,7 +215,7 @@ export default function JournalEntryForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           Add pictures
         </label>
         <input
@@ -223,18 +223,18 @@ export default function JournalEntryForm({
           accept="image/*"
           multiple
           onChange={handleImageChange}
-          className="mt-2 block w-full text-sm text-gray-700 file:mr-4 file:rounded-xl file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+          className="mt-2 block w-full text-sm text-night-sky/75 file:mr-4 file:rounded-xl file:border-0 file:bg-night-sky file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
         />
 
         {images.length > 0 && (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-night-sky/70">
             {images.length} image{images.length === 1 ? "" : "s"} selected.
           </p>
         )}
       </div>
 
       {message && (
-        <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+        <p className="rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
           {message}
         </p>
       )}
@@ -242,7 +242,7 @@ export default function JournalEntryForm({
       <button
         type="submit"
         disabled={isSaving}
-        className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSaving ? "Saving..." : "Save journal entry"}
       </button>

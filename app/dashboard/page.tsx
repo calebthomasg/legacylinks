@@ -128,10 +128,10 @@ export default async function DashboardPage() {
   const userFirstName = profile?.first_name || "Friend";
 
   return (
-    <main className="min-h-screen bg-white text-gray-950">
+    <main className="min-h-screen bg-white text-night-sky">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[280px] shrink-0 border-r border-gray-200 bg-white lg:flex lg:flex-col">
-          <div className="border-b border-gray-200 px-8 py-8">
+        <aside className="hidden w-[280px] shrink-0 border-r border-night-sky/10 bg-white lg:flex lg:flex-col">
+          <div className="border-b border-night-sky/10 px-8 py-8">
             <Link href="/dashboard" className="block">
               <img
                 src="/images/LL-Logo-1-B.png"
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
               <SidebarLink href="/profile">Account</SidebarLink>
 
               <div className="pt-6">
-                <p className="px-4 text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
+                <p className="px-4 text-xs font-semibold uppercase tracking-[0.2em] text-night-sky/40">
                   Coming later
                 </p>
               </div>
@@ -184,13 +184,13 @@ export default async function DashboardPage() {
             </div>
           </nav>
 
-          <div className="border-t border-gray-200 px-6 py-5">
+          <div className="border-t border-night-sky/10 px-6 py-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-night-sky">
                   {userFirstName}
                 </p>
-                <p className="text-xs text-gray-500">{user.email}</p>
+                <p className="text-xs text-night-sky/60">{user.email}</p>
               </div>
 
               <LogoutButton />
@@ -198,26 +198,31 @@ export default async function DashboardPage() {
           </div>
         </aside>
 
-        <section className="flex-1 bg-gray-50">
-          <div className="mx-auto max-w-7xl px-6 py-8 lg:px-10 lg:py-10">
+        <section className="relative isolate flex-1 overflow-hidden bg-sand bg-[url('/images/topo-background-teal.webp')] bg-cover bg-center bg-no-repeat">
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-72 bg-[url('/images/sky-fade.png')] bg-cover bg-top bg-no-repeat sm:h-80 lg:h-96"
+            aria-hidden="true"
+          />
+
+          <div className="relative z-10 mx-auto max-w-7xl px-6 py-8 lg:px-10 lg:py-10">
             <div className="mb-6 flex flex-wrap items-center gap-3 lg:hidden">
               <Link
                 href="/tree"
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-medium text-night-sky hover:bg-sand"
               >
                 My Family Tree
               </Link>
 
               <Link
                 href="/gallery"
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-medium text-night-sky hover:bg-sand"
               >
                 Photo Gallery
               </Link>
 
               <Link
                 href="/family"
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-medium text-night-sky hover:bg-sand"
               >
                 Manage Family
               </Link>
@@ -248,7 +253,7 @@ function SidebarLink({
 }) {
   if (disabled) {
     return (
-      <div className="flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium text-gray-400">
+      <div className="flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium text-night-sky/40">
         <span>{children}</span>
       </div>
     );
@@ -259,8 +264,8 @@ function SidebarLink({
       href={href}
       className={`flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium transition ${
         active
-          ? "bg-gray-900 text-white"
-          : "text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+          ? "bg-night-sky text-white"
+          : "text-night-sky/75 hover:bg-sand hover:text-night-sky"
       }`}
     >
       <span>{children}</span>

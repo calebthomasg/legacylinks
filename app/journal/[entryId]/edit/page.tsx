@@ -59,19 +59,19 @@ export default async function EditJournalEntryPage({
     entry.journal_entry_people?.map((tag) => tag.person_id) ?? [];
 
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10">
+    <main className="min-h-screen bg-sand px-6 py-10">
       <section className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between gap-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
               Edit journal entry
             </p>
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-950">
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
               Edit memory
             </h1>
 
-            <p className="mt-3 text-sm leading-6 text-gray-600">
+            <p className="mt-3 text-sm leading-6 text-night-sky/70">
               Update the title, story, or people tagged in this memory.
             </p>
           </div>
@@ -82,13 +82,13 @@ export default async function EditJournalEntryPage({
         <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/dashboard"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             Back to dashboard
           </Link>
         </div>
 
-        <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="mt-8 rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
           <EditJournalEntryForm
             entryId={entry.id}
             initialTitle={entry.title}
@@ -98,12 +98,12 @@ export default async function EditJournalEntryPage({
           />
         </section>
 
-        <section className="mt-6 rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
+        <section className="mt-6 rounded-2xl border border-coral/30 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-coral">
             Delete this journal entry
           </h2>
 
-          <p className="mt-3 text-sm leading-6 text-gray-600">
+          <p className="mt-3 text-sm leading-6 text-night-sky/70">
             This will permanently delete this journal entry and its attached
             image files.
           </p>

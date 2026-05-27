@@ -99,19 +99,19 @@ export default function AddParentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-night-sky/60 px-4 py-8">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
               Add parent
             </p>
 
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-night-sky">
               Add parent for {getPersonName(childPerson)}
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-gray-600">
+            <p className="mt-2 text-sm leading-6 text-night-sky/70">
               This will create a new person profile and automatically connect
               them as a parent in the family tree.
             </p>
@@ -120,7 +120,7 @@ export default function AddParentModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-full border border-night-sky/20 px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             Close
           </button>
@@ -128,21 +128,21 @@ export default function AddParentModal({
 
         <form onSubmit={handleSave} className="mt-6 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-900">
+            <label className="block text-sm font-medium text-night-sky">
               How is this person related to {getPersonName(childPerson)}?
             </label>
 
             <select
               value={relationshipType}
               onChange={(event) => setRelationshipType(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+              className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
             >
               <option value="father">Father</option>
               <option value="mother">Mother</option>
               <option value="parent">Parent</option>
             </select>
 
-            <p className="mt-2 text-xs leading-5 text-gray-500">
+            <p className="mt-2 text-xs leading-5 text-night-sky/60">
               Use the direct relationship to this person. For example, if you
               are adding your grandmother above your mom, choose Mother because
               she is your mom’s mother.
@@ -150,7 +150,7 @@ export default function AddParentModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900">
+            <label className="block text-sm font-medium text-night-sky">
               Nickname
             </label>
 
@@ -158,11 +158,11 @@ export default function AddParentModal({
               type="text"
               value={nickname}
               onChange={(event) => setNickname(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+              className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
               placeholder="Dad, Mom, Nana, Pawpaw, Grandma Bobbie, etc."
             />
 
-            <p className="mt-2 text-xs leading-5 text-gray-500">
+            <p className="mt-2 text-xs leading-5 text-night-sky/60">
               This is optional. It controls how this person appears to you in
               the tree.
             </p>
@@ -170,7 +170,7 @@ export default function AddParentModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 First name
               </label>
 
@@ -179,13 +179,13 @@ export default function AddParentModal({
                 required
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
                 placeholder="First name"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 Last name
               </label>
 
@@ -193,7 +193,7 @@ export default function AddParentModal({
                 type="text"
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
                 placeholder="Last name"
               />
             </div>
@@ -201,7 +201,7 @@ export default function AddParentModal({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 Birthday
               </label>
 
@@ -209,12 +209,12 @@ export default function AddParentModal({
                 type="date"
                 value={birthDate}
                 onChange={(event) => setBirthDate(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 Living status
               </label>
 
@@ -223,7 +223,7 @@ export default function AddParentModal({
                 onChange={(event) =>
                   setIsLiving(event.target.value === "living")
                 }
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
               >
                 <option value="living">Living</option>
                 <option value="deceased">Deceased</option>
@@ -233,7 +233,7 @@ export default function AddParentModal({
 
           {!isLiving && (
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 Date of death
               </label>
 
@@ -241,14 +241,14 @@ export default function AddParentModal({
                 type="date"
                 value={deathDate}
                 onChange={(event) => setDeathDate(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
               />
             </div>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 City
               </label>
 
@@ -256,20 +256,20 @@ export default function AddParentModal({
                 type="text"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
                 placeholder="City"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900">
+              <label className="block text-sm font-medium text-night-sky">
                 State
               </label>
 
               <select
                 value={stateValue}
                 onChange={(event) => setStateValue(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-950 outline-none focus:border-gray-900"
+                className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm text-night-sky outline-none focus:border-night-sky"
               >
                 {US_STATES.map((state) => (
                   <option key={state.value} value={state.value}>
@@ -281,7 +281,7 @@ export default function AddParentModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900">
+            <label className="block text-sm font-medium text-night-sky">
               About this person
             </label>
 
@@ -289,13 +289,13 @@ export default function AddParentModal({
               value={bio}
               onChange={(event) => setBio(event.target.value)}
               rows={5}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 text-gray-950 placeholder:text-gray-400 outline-none focus:border-gray-900"
+              className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm leading-6 text-night-sky placeholder:text-night-sky/40 outline-none focus:border-night-sky"
               placeholder="Add a short note, memory, or description..."
             />
           </div>
 
           {message && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">
               {message}
             </p>
           )}
@@ -303,7 +303,7 @@ export default function AddParentModal({
           <button
             type="submit"
             disabled={isSaving}
-            className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? "Adding parent..." : "Add parent"}
           </button>

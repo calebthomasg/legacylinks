@@ -51,12 +51,12 @@ export default function DeletePersonButton({
         type="button"
         onClick={handleDelete}
         disabled={isDeleting || isLinkedUser}
-        className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl border border-coral/30 px-4 py-2 text-sm font-semibold text-coral hover:bg-coral/10 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isDeleting ? "Deleting..." : "Delete"}
       </button>
 
-      {message && <p className="mt-2 text-sm text-red-700">{message}</p>}
+      {message && <p className="mt-2 text-sm text-coral">{message}</p>}
     </div>
   );
 }

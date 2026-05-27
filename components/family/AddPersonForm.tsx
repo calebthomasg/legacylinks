@@ -69,7 +69,7 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
     <form onSubmit={handleSave} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             First name
           </label>
           <input
@@ -77,20 +77,20 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
             required
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
             placeholder="First name"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             Last name
           </label>
           <input
             type="text"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
             placeholder="Last name"
           />
         </div>
@@ -98,25 +98,25 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             Birthday
           </label>
           <input
             type="date"
             value={birthDate}
             onChange={(event) => setBirthDate(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             Living status
           </label>
           <select
             value={isLiving ? "living" : "deceased"}
             onChange={(event) => setIsLiving(event.target.value === "living")}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
           >
             <option value="living">Living</option>
             <option value="deceased">Deceased</option>
@@ -126,40 +126,40 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
 
       {!isLiving && (
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             Date of death
           </label>
           <input
             type="date"
             value={deathDate}
             onChange={(event) => setDeathDate(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
           />
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             City
           </label>
           <input
             type="text"
             value={city}
             onChange={(event) => setCity(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+            className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
             placeholder="City"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-900">
+          <label className="block text-sm font-medium text-night-sky">
             State
           </label>
         <select
         value={stateValue}
         onChange={(event) => setStateValue(event.target.value)}
-        className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+        className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm outline-none focus:border-night-sky"
         >
         {US_STATES.map((state) => (
             <option key={state.value} value={state.value}>
@@ -171,20 +171,20 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-900">
+        <label className="block text-sm font-medium text-night-sky">
           About this person
         </label>
         <textarea
           value={bio}
           onChange={(event) => setBio(event.target.value)}
           rows={5}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm leading-6 outline-none focus:border-gray-900"
+          className="mt-2 w-full rounded-xl border border-night-sky/20 px-4 py-3 text-sm leading-6 outline-none focus:border-night-sky"
           placeholder="Add a short note, memory, or description..."
         />
       </div>
 
       {message && (
-        <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
+        <p className="rounded-xl bg-sand px-4 py-3 text-sm text-night-sky/75">
           {message}
         </p>
       )}
@@ -192,7 +192,7 @@ export default function AddPersonForm({ userId }: AddPersonFormProps) {
       <button
         type="submit"
         disabled={isSaving}
-        className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSaving ? "Adding..." : "Add person"}
       </button>

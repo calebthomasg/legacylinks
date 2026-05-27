@@ -79,19 +79,19 @@ export default async function FamilyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10">
+    <main className="min-h-screen bg-sand px-6 py-10">
       <section className="mx-auto max-w-6xl">
         <div className="flex items-center justify-between gap-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
               Family
             </p>
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-950">
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
               Your family people
             </h1>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
               Add family members, ancestors, and loved ones. These person
               profiles will become the foundation for your family tree.
             </p>
@@ -103,33 +103,33 @@ export default async function FamilyPage() {
         <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/dashboard"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             Back to dashboard
           </Link>
 
           <Link
             href="/tree"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             View family tree
           </Link>
 
           <Link
             href="/gallery"
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
           >
             View gallery
           </Link>
         </div>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-950">
+          <section className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-night-sky">
               Add a person
             </h2>
 
-            <p className="mt-3 text-sm leading-6 text-gray-600">
+            <p className="mt-3 text-sm leading-6 text-night-sky/70">
               Start by adding a family member or loved one. In the next step,
               we will connect them to your tree with relationship labels.
             </p>
@@ -139,13 +139,13 @@ export default async function FamilyPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-950">
+          <section className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-night-sky">
               People you have added
             </h2>
 
             {peopleWithPhotoUrls.length === 0 ? (
-              <p className="mt-4 text-sm leading-6 text-gray-600">
+              <p className="mt-4 text-sm leading-6 text-night-sky/70">
                 No people added yet. Add yourself, a parent, grandparent, child,
                 or loved one to begin building your family tree.
               </p>
@@ -161,10 +161,10 @@ export default async function FamilyPage() {
                   return (
                     <article
                       key={person.id}
-                      className="rounded-xl border border-gray-200 p-5"
+                      className="rounded-xl border border-night-sky/10 p-5"
                     >
                       <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-base font-bold text-gray-700">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-base font-bold text-night-sky/75">
                           {person.profilePhotoUrl ? (
                             <img
                               src={person.profilePhotoUrl}
@@ -180,20 +180,20 @@ export default async function FamilyPage() {
                         </div>
 
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-950">
+                          <h3 className="text-lg font-semibold text-night-sky">
                             {name}
                           </h3>
 
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-night-sky/60">
                             {person.is_living ? "Living" : "Deceased"}
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-4 space-y-2 text-sm text-gray-600">
+                      <div className="mt-4 space-y-2 text-sm text-night-sky/70">
                         {person.birth_date && (
                           <p>
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-night-sky">
                               Birth:
                             </span>{" "}
                             {new Date(person.birth_date).toLocaleDateString()}
@@ -202,7 +202,7 @@ export default async function FamilyPage() {
 
                         {person.death_date && (
                           <p>
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-night-sky">
                               Death:
                             </span>{" "}
                             {new Date(person.death_date).toLocaleDateString()}
@@ -211,7 +211,7 @@ export default async function FamilyPage() {
 
                         {(person.city || person.state) && (
                           <p>
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-night-sky">
                               Location:
                             </span>{" "}
                             {[person.city, person.state]
@@ -224,7 +224,7 @@ export default async function FamilyPage() {
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link
                           href={`/family/${person.id}/edit`}
-                          className="inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                          className="inline-flex rounded-xl border border-night-sky/20 px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
                         >
                           Edit profile
                         </Link>
@@ -243,12 +243,12 @@ export default async function FamilyPage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-950">
+          <section className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-night-sky">
               Add a relationship
             </h2>
 
-            <p className="mt-3 text-sm leading-6 text-gray-600">
+            <p className="mt-3 text-sm leading-6 text-night-sky/70">
               Connect two people by defining how they are related. This
               relationship data will eventually power your visual family tree.
             </p>
@@ -258,13 +258,13 @@ export default async function FamilyPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-950">
+          <section className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold text-night-sky">
               Relationships you have added
             </h2>
 
             {!relationships || relationships.length === 0 ? (
-              <p className="mt-4 text-sm leading-6 text-gray-600">
+              <p className="mt-4 text-sm leading-6 text-night-sky/70">
                 No relationships added yet. Once you connect people, they will
                 appear here.
               </p>
@@ -273,21 +273,21 @@ export default async function FamilyPage() {
                 {relationships.map((relationship) => (
                   <article
                     key={relationship.id}
-                    className="rounded-xl border border-gray-200 p-5"
+                    className="rounded-xl border border-night-sky/10 p-5"
                   >
-                    <p className="text-sm leading-6 text-gray-700">
-                      <span className="font-semibold text-gray-950">
+                    <p className="text-sm leading-6 text-night-sky/75">
+                      <span className="font-semibold text-night-sky">
                         {getPersonName(relationship.related_person_id)}
                       </span>{" "}
                       is{" "}
-                      <span className="font-semibold text-gray-950">
+                      <span className="font-semibold text-night-sky">
                         {getPersonName(relationship.person_id)}
                         {relationship.nickname
                           ? `’s “${relationship.nickname}”`
                           : "’s"}
                       </span>{" "}
                       — relationship type:{" "}
-                      <span className="font-semibold text-gray-950">
+                      <span className="font-semibold text-night-sky">
                         {getRelationshipLabel(relationship.relationship_type)}
                       </span>
                     </p>
