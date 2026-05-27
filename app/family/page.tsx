@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import LogoutButton from "@/components/auth/LogoutButton";
+import AppShell from "@/components/layout/AppShell";
 import AddPersonForm from "@/components/family/AddPersonForm";
 import AddRelationshipForm from "@/components/family/AddRelationshipForm";
 import DeletePersonButton from "@/components/family/DeletePersonButton";
@@ -79,35 +79,24 @@ export default async function FamilyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-sand px-6 py-10">
-      <section className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between gap-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-              Family
-            </p>
+    <AppShell active="family" userEmail={user.email}>
+      <section className="mx-auto max-w-6xl px-6 py-10">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
+            Family
+          </p>
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
-              Your family people
-            </h1>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
+            Your family people
+          </h1>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
-              Add family members, ancestors, and loved ones. These person
-              profiles will become the foundation for your family tree.
-            </p>
-          </div>
-
-          <LogoutButton />
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
+            Add family members, ancestors, and loved ones. These person
+            profiles will become the foundation for your family tree.
+          </p>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-4">
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            Back to dashboard
-          </Link>
-
           <Link
             href="/tree"
             className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
@@ -304,6 +293,6 @@ export default async function FamilyPage() {
           </section>
         </div>
       </section>
-    </main>
+    </AppShell>
   );
 }

@@ -67,7 +67,9 @@ export default function GalleryPageTransition() {
     ).matches;
 
     if (prefersReducedMotion) {
-      setIsVisible(false);
+      hideTimeout = window.setTimeout(() => {
+        setIsVisible(false);
+      }, 0);
       return;
     }
 

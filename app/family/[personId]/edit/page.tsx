@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import LogoutButton from "@/components/auth/LogoutButton";
+import AppShell from "@/components/layout/AppShell";
 import EditPersonForm from "@/components/family/EditPersonForm";
 
 type EditPersonPageProps = {
@@ -44,25 +44,21 @@ export default async function EditPersonPage({ params }: EditPersonPageProps) {
     [person.first_name, person.last_name].filter(Boolean).join(" ");
 
   return (
-    <main className="min-h-screen bg-sand px-6 py-10">
-      <section className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between gap-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-              Edit person
-            </p>
+    <AppShell active="family" userEmail={user.email}>
+      <section className="mx-auto max-w-3xl px-6 py-10">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
+            Edit person
+          </p>
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
-              Edit {name}
-            </h1>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
+            Edit {name}
+          </h1>
 
-            <p className="mt-3 text-sm leading-6 text-night-sky/70">
-              Update this person’s details. Only the original creator can edit
-              this profile.
-            </p>
-          </div>
-
-          <LogoutButton />
+          <p className="mt-3 text-sm leading-6 text-night-sky/70">
+            Update this person’s details. Only the original creator can edit
+            this profile.
+          </p>
         </div>
 
         <div className="mt-6">
@@ -75,6 +71,6 @@ export default async function EditPersonPage({ params }: EditPersonPageProps) {
           <EditPersonForm person={person} />
         </section>
       </section>
-    </main>
+    </AppShell>
   );
 }

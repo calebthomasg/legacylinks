@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import AppShell from "@/components/layout/AppShell";
 import FindFamilyClient from "@/components/family/FindFamilyClient";
 
 export default async function ConnectFamilyPage() {
@@ -31,8 +32,9 @@ export default async function ConnectFamilyPage() {
   );
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-8">
+    <AppShell active="find-family" userEmail={user.email}>
+      <section className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mb-8">
         <p className="text-sm font-medium text-night-sky/60">Family</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-night-sky">
           Find Family
@@ -41,14 +43,15 @@ export default async function ConnectFamilyPage() {
           Search for relatives on LegacyLinks, send a family connection request,
           and link their account to someone in your family tree.
         </p>
-      </div>
+        </div>
 
-      <FindFamilyClient
-        currentUserId={user.id}
-        currentUserPersonId={currentUserPerson?.id ?? null}
-        existingPeople={existingPeople ?? []}
-        incomingRequests={incomingRequests ?? []}
-      />
-    </main>
+        <FindFamilyClient
+          currentUserId={user.id}
+          currentUserPersonId={currentUserPerson?.id ?? null}
+          existingPeople={existingPeople ?? []}
+          incomingRequests={incomingRequests ?? []}
+        />
+      </section>
+    </AppShell>
   );
 }

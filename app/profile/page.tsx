@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import LogoutButton from "@/components/auth/LogoutButton";
+import AppShell from "@/components/layout/AppShell";
 import ProfileForm from "@/components/profile/ProfileForm";
 
 export default async function ProfilePage() {
@@ -22,19 +21,19 @@ export default async function ProfilePage() {
     .single();
 
   return (
-    <main className="min-h-screen bg-sand px-6 py-10">
-      <section className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-              Profile
-            </p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
-              Your LegacyLinks profile
-            </h1>
-          </div>
-
-          <LogoutButton />
+    <AppShell
+      active="account"
+      userName={profile?.first_name ?? "LegacyLinks"}
+      userEmail={user.email}
+    >
+      <section className="mx-auto max-w-3xl px-6 py-10">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
+            Profile
+          </p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
+            Your LegacyLinks profile
+          </h1>
         </div>
 
         <div className="mt-10 rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm">
@@ -66,13 +65,7 @@ export default async function ProfilePage() {
             />
           </div>
         </div>
-
-        <div className="mt-6">
-          <Link href="/dashboard" className="text-sm font-semibold text-night-sky">
-            ← Back to dashboard
-          </Link>
-        </div>
       </section>
-    </main>
+    </AppShell>
   );
 }

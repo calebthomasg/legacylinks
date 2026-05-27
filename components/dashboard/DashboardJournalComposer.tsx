@@ -205,7 +205,6 @@ export default function DashboardJournalComposer({
   const [body, setBody] = useState("");
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<JournalEntry["images"]>([]);
 
   const [message, setMessage] = useState("");
@@ -227,6 +226,9 @@ export default function DashboardJournalComposer({
 
   const selectedDateKey = getDateKey(selectedDate);
   const selectedEntry = entriesByDateKey.get(selectedDateKey) ?? null;
+  const previewUrls = useMemo(() => {
+    return selectedFiles.map((file) => URL.createObjectURL(file));
+  }, [selectedFiles]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -239,35 +241,35 @@ export default function DashboardJournalComposer({
   }, []);
 
   useEffect(() => {
-    if (selectedEntry) {
-      setActiveEntryId(selectedEntry.id);
-      setBody(selectedEntry.body ?? "");
-      setSelectedPersonIds(selectedEntry.taggedPersonIds ?? []);
-      setExistingImages(selectedEntry.images ?? []);
+    const syncSelection = window.setTimeout(() => {
+      if (selectedEntry) {
+        setActiveEntryId(selectedEntry.id);
+        setBody(selectedEntry.body ?? "");
+        setSelectedPersonIds(selectedEntry.taggedPersonIds ?? []);
+        setExistingImages(selectedEntry.images ?? []);
+        setSelectedFiles([]);
+        setMessage("");
+        return;
+      }
+
+      setActiveEntryId(null);
+      setBody("");
+      setSelectedPersonIds([]);
+      setExistingImages([]);
       setSelectedFiles([]);
       setMessage("");
-      return;
-    }
-
-    setActiveEntryId(null);
-    setBody("");
-    setSelectedPersonIds([]);
-    setExistingImages([]);
-    setSelectedFiles([]);
-    setMessage("");
-  }, [selectedEntry?.id, selectedDateKey]);
-
-  useEffect(() => {
-    const nextPreviewUrls = selectedFiles.map((file) =>
-      URL.createObjectURL(file)
-    );
-
-    setPreviewUrls(nextPreviewUrls);
+    }, 0);
 
     return () => {
-      nextPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      window.clearTimeout(syncSelection);
     };
-  }, [selectedFiles]);
+  }, [selectedEntry, selectedDateKey]);
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewUrls]);
 
   const calendarWeeks = useMemo(
     () => buildCalendar(calendarDate, entries),

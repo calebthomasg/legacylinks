@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import LogoutButton from "@/components/auth/LogoutButton";
+import AppShell from "@/components/layout/AppShell";
 import FamilyTreeClient from "@/components/family/FamilyTreeClient";
 
 type JournalEntryImage = {
@@ -147,60 +146,18 @@ export default async function TreePage() {
   );
 
   return (
-    <main className="min-h-screen bg-sand px-6 py-10">
-      <section className="mx-auto max-w-7xl">
-        <div className="flex items-center justify-between gap-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-              Family Tree
-            </p>
-
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-night-sky">
-              Explore your family line
-            </h1>
-
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-night-sky/70">
-              Start with yourself, then expand previous generations to see the
-              people connected to your family story.
-            </p>
-          </div>
-
-          <LogoutButton />
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-4">
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            Back to dashboard
-          </Link>
-
-          <Link
-            href="/family"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            Manage family
-          </Link>
-
-          <Link
-            href="/gallery"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            View gallery
-          </Link>
-        </div>
-
-        <div className="mt-10">
-          <FamilyTreeClient
-            userId={user.id}
-            rootPerson={rootPerson}
-            people={peopleWithPhotoUrls}
-            relationships={relationships ?? []}
-            taggedMemories={cleanTaggedMemories}
-          />
-        </div>
-      </section>
-    </main>
+    <AppShell
+      active="tree"
+      userEmail={user.email}
+      contentClassName="overflow-hidden bg-[#5f5c56]"
+    >
+      <FamilyTreeClient
+        userId={user.id}
+        rootPerson={rootPerson}
+        people={peopleWithPhotoUrls}
+        relationships={relationships ?? []}
+        taggedMemories={cleanTaggedMemories}
+      />
+    </AppShell>
   );
 }

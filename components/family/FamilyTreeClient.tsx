@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import AddParentModal from "@/components/family/AddParentModal";
 
@@ -54,6 +55,7 @@ type FamilyTreeClientProps = {
 };
 
 const PARENT_RELATIONSHIP_TYPES = ["father", "mother", "parent"];
+type InferredGender = "male" | "female" | "unknown";
 
 function getPersonName(person: Person) {
   return (
@@ -78,6 +80,52 @@ function getEntryPreview(body: string) {
   }
 
   return `${body.slice(0, 120)}...`;
+}
+
+function getBirthYear(person: Person) {
+  if (!person.birth_date) return null;
+
+  const year = new Date(person.birth_date).getFullYear();
+  return Number.isNaN(year) ? null : year;
+}
+
+function getHeadshotEra(person: Person) {
+  const year = getBirthYear(person);
+
+  if (!year || year > 1979) return "1980";
+  if (year >= 1950) return "1950";
+  if (year >= 1920) return "1920";
+  if (year >= 1900) return "1900";
+  if (year >= 1800) return "1800";
+  if (year >= 1700) return "1700";
+  if (year >= 1600) return "1600";
+  if (year >= 1500) return "1500";
+  return "1400";
+}
+
+function inferGender(relationship?: Relationship): InferredGender {
+  if (!relationship) return "unknown";
+
+  if (relationship.relationship_type === "father") return "male";
+  if (relationship.relationship_type === "mother") return "female";
+
+  return "unknown";
+}
+
+function getDefaultHeadshot(person: Person, relationship?: Relationship) {
+  const gender = inferGender(relationship);
+  const genderPrefix = gender === "female" ? "f" : "m";
+
+  return `/images/tree-headshots/${genderPrefix}-${getHeadshotEra(person)}.webp`;
+}
+
+function getGenderAccent(relationship?: Relationship) {
+  const gender = inferGender(relationship);
+
+  if (gender === "female") return "bg-coral";
+  if (gender === "male") return "bg-sky";
+
+  return "bg-teal";
 }
 
 export default function FamilyTreeClient({
@@ -242,29 +290,29 @@ export default function FamilyTreeClient({
 
   function PersonAvatar({
     person,
+    relationship,
     size = "large",
   }: {
     person: Person;
+    relationship?: Relationship;
     size?: "small" | "large";
   }) {
-    const sizeClasses = size === "large" ? "h-16 w-16" : "h-14 w-14";
+    const sizeClasses = size === "large" ? "h-20 w-20" : "h-16 w-16";
+    const imageSrc = person.profilePhotoUrl ?? getDefaultHeadshot(person, relationship);
 
     return (
       <div
-        className={`mx-auto flex ${sizeClasses} items-center justify-center overflow-hidden rounded-full bg-sand text-xl font-bold text-night-sky/75`}
+        className={`mx-auto flex ${sizeClasses} items-center justify-center overflow-hidden rounded-full bg-night-sky/20 ring-2 ring-white/10`}
       >
-        {person.profilePhotoUrl ? (
-          <img
-            src={person.profilePhotoUrl}
-            alt={getPersonName(person)}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <>
-            {person.first_name?.charAt(0)}
-            {person.last_name?.charAt(0)}
-          </>
-        )}
+        <Image
+          src={imageSrc}
+          alt={getPersonName(person)}
+          width={80}
+          height={80}
+          className="h-full w-full object-cover"
+          unoptimized={Boolean(person.profilePhotoUrl)}
+          loading="lazy"
+        />
       </div>
     );
   }
@@ -283,24 +331,29 @@ export default function FamilyTreeClient({
       <button
         type="button"
         onClick={() => setSelectedPersonId(person.id)}
-        className={`flex h-52 w-56 flex-col items-center rounded-2xl border bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        className={`relative flex h-56 w-52 flex-col items-center overflow-hidden rounded-lg border bg-[#2f2f2b] p-5 text-center shadow-xl shadow-black/20 transition hover:-translate-y-0.5 hover:bg-[#373732] ${
           isSelected
-            ? "border-night-sky ring-2 ring-night-sky/10"
-            : "border-night-sky/10"
+            ? "border-sky/70 ring-2 ring-sky/30"
+            : "border-white/10"
         }`}
       >
-        <PersonAvatar person={person} />
+        <span
+          className={`absolute inset-x-0 top-0 h-1 ${getGenderAccent(relationship)}`}
+          aria-hidden="true"
+        />
+
+        <PersonAvatar person={person} relationship={relationship} />
 
         <div className="mt-4 flex min-h-12 w-full flex-col items-center justify-start">
-          <h3 className="line-clamp-2 text-base font-semibold leading-5 text-night-sky">
+          <h3 className="line-clamp-2 text-base font-semibold leading-5 text-white">
             {getPersonName(person)}
           </h3>
 
-          <p className="mt-1 min-h-5 text-sm font-medium text-night-sky/70">
+          <p className="mt-1 min-h-5 text-sm font-medium text-white/65">
             {relationship?.nickname ?? ""}
           </p>
 
-          <p className="min-h-4 text-xs uppercase tracking-wide text-night-sky/40">
+          <p className="min-h-4 text-xs uppercase tracking-wide text-white/35">
             {relationship
               ? getRelationshipLabel(relationship.relationship_type)
               : ""}
@@ -311,7 +364,7 @@ export default function FamilyTreeClient({
           <p
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               taggedMemoryCount > 0
-                ? "bg-sand text-night-sky/70"
+                ? "bg-white/10 text-white/75"
                 : "bg-transparent text-transparent"
             }`}
           >
@@ -330,10 +383,10 @@ export default function FamilyTreeClient({
     return (
       <div className="flex flex-col items-center">
         {hasTwoParents && (
-          <div className="h-px w-72 bg-night-sky/20" aria-hidden="true" />
+          <div className="h-px w-72 bg-white/25" aria-hidden="true" />
         )}
 
-        <div className="h-8 w-px bg-night-sky/20" aria-hidden="true" />
+        <div className="h-8 w-px bg-white/25" aria-hidden="true" />
       </div>
     );
   }
@@ -357,7 +410,7 @@ export default function FamilyTreeClient({
           <button
             type="button"
             onClick={() => togglePerson(person.id)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 bg-white text-sm font-bold text-night-sky/75 shadow-sm hover:bg-sand"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-[#242421] text-sm font-bold text-white/80 shadow-sm hover:bg-[#373732]"
             aria-label={
               isExpanded
                 ? "Hide previous generation"
@@ -372,7 +425,7 @@ export default function FamilyTreeClient({
           <button
             type="button"
             onClick={() => setAddingParentForPerson(person)}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-night-sky/20 bg-white text-sm font-bold text-night-sky/75 shadow-sm hover:bg-sand"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-[#242421] text-sm font-bold text-white/80 shadow-sm hover:bg-[#373732]"
             aria-label={`Add parent for ${getPersonName(person)}`}
             title={`Add parent for ${getPersonName(person)}`}
           >
@@ -411,7 +464,7 @@ export default function FamilyTreeClient({
 
                 return (
                   <TreeNode
-                    key={parentPerson.id}
+                    key={relationship.id}
                     person={parentPerson}
                     relationship={relationship}
                     visitedIds={nextVisitedIds}
@@ -432,7 +485,7 @@ export default function FamilyTreeClient({
         />
 
         {(hasParents || parents.length < 2) && (
-          <div className="mb-2 h-5 w-px bg-night-sky/20" aria-hidden="true" />
+          <div className="mb-2 h-5 w-px bg-white/25" aria-hidden="true" />
         )}
 
         <PersonCard person={person} relationship={relationship} />
@@ -442,35 +495,44 @@ export default function FamilyTreeClient({
 
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+      <div className="relative min-h-[calc(100vh-81px)] overflow-hidden bg-[#5f5c56] text-white lg:min-h-screen">
         <section
           ref={treeViewportRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`relative h-[720px] overflow-hidden rounded-2xl border border-night-sky/10 bg-white shadow-sm ${
+          className={`absolute inset-0 overflow-hidden bg-[#5f5c56] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0_1px,transparent_1px)] [background-size:28px_28px] ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
           }`}
         >
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-2xl border border-night-sky/10 bg-white/95 p-2 shadow-sm backdrop-blur">
+          <div className="absolute left-4 top-4 z-20 max-w-sm rounded-lg border border-white/10 bg-[#242421]/90 px-4 py-3 shadow-xl shadow-black/20 backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+              Family Tree
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-white">
+              Explore your family line
+            </h1>
+          </div>
+
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-lg border border-white/10 bg-[#242421]/90 p-2 shadow-xl shadow-black/20 backdrop-blur">
             <button
               type="button"
               onClick={zoomOut}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-night-sky/20 text-sm font-bold text-night-sky/85 hover:bg-sand"
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-white/15 text-sm font-bold text-white/85 hover:bg-white/10"
               aria-label="Zoom out"
             >
               −
             </button>
 
-            <div className="min-w-14 text-center text-xs font-semibold text-night-sky/70">
+            <div className="min-w-14 text-center text-xs font-semibold text-white/70">
               {Math.round(zoom * 100)}%
             </div>
 
             <button
               type="button"
               onClick={zoomIn}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-night-sky/20 text-sm font-bold text-night-sky/85 hover:bg-sand"
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-white/15 text-sm font-bold text-white/85 hover:bg-white/10"
               aria-label="Zoom in"
             >
               +
@@ -479,13 +541,13 @@ export default function FamilyTreeClient({
             <button
               type="button"
               onClick={resetView}
-              className="rounded-xl border border-night-sky/20 px-3 py-2 text-xs font-semibold text-night-sky/85 hover:bg-sand"
+              className="rounded-md border border-white/15 px-3 py-2 text-xs font-semibold text-white/85 hover:bg-white/10"
             >
               Reset view
             </button>
           </div>
 
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-xl bg-white/90 px-3 py-2 text-xs text-night-sky/60 shadow-sm">
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 rounded-md bg-[#242421]/90 px-3 py-2 text-xs text-white/60 shadow-sm">
             Drag to move • Scroll to zoom
           </div>
 
@@ -500,13 +562,13 @@ export default function FamilyTreeClient({
           </div>
         </section>
 
-        <aside className="rounded-2xl border border-night-sky/10 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:h-fit">
+        <aside className="absolute bottom-6 left-6 right-6 z-20 max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#242421]/95 p-5 shadow-2xl shadow-black/25 backdrop-blur xl:left-auto xl:top-24 xl:max-h-none xl:w-[380px] xl:p-6">
           {!selectedPerson ? (
             <div>
-              <h2 className="text-xl font-semibold text-night-sky">
+              <h2 className="text-xl font-semibold text-white">
                 Person details
               </h2>
-              <p className="mt-3 text-sm leading-6 text-night-sky/70">
+              <p className="mt-3 text-sm leading-6 text-white/65">
                 Select a person in the tree to view their details.
               </p>
             </div>
@@ -547,42 +609,40 @@ function PersonDetails({
   const birthDate = formatDate(person.birth_date);
   const deathDate = formatDate(person.death_date);
   const location = [person.city, person.state].filter(Boolean).join(", ");
+  const avatarUrl = person.profilePhotoUrl ?? getDefaultHeadshot(person, relationship);
 
   return (
     <div>
       <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-xl font-bold text-night-sky/75">
-          {person.profilePhotoUrl ? (
-            <img
-              src={person.profilePhotoUrl}
-              alt={name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <>
-              {person.first_name?.charAt(0)}
-              {person.last_name?.charAt(0)}
-            </>
-          )}
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 ring-2 ring-white/10">
+          <Image
+            src={avatarUrl}
+            alt={name}
+            width={64}
+            height={64}
+            className="h-full w-full object-cover"
+            unoptimized={Boolean(person.profilePhotoUrl)}
+            loading="lazy"
+          />
         </div>
 
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
+          <p className="text-sm font-semibold uppercase tracking-wide text-white/45">
             {isRoot ? "You" : "Family member"}
           </p>
 
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-night-sky">
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">
             {name}
           </h2>
 
           {relationship?.nickname && (
-            <p className="mt-1 text-sm font-medium text-night-sky/70">
+            <p className="mt-1 text-sm font-medium text-white/70">
               Nickname: {relationship.nickname}
             </p>
           )}
 
           {relationship && (
-            <p className="mt-1 text-sm text-night-sky/60">
+            <p className="mt-1 text-sm text-white/55">
               Relationship: {getRelationshipLabel(relationship.relationship_type)}
             </p>
           )}
@@ -592,53 +652,53 @@ function PersonDetails({
       <dl className="mt-6 space-y-4 text-sm">
         {birthDate && (
           <div>
-            <dt className="font-medium text-night-sky/60">Birthday</dt>
-            <dd className="mt-1 text-night-sky">{birthDate}</dd>
+            <dt className="font-medium text-white/45">Birthday</dt>
+            <dd className="mt-1 text-white">{birthDate}</dd>
           </div>
         )}
 
         {deathDate && (
           <div>
-            <dt className="font-medium text-night-sky/60">Date of death</dt>
-            <dd className="mt-1 text-night-sky">{deathDate}</dd>
+            <dt className="font-medium text-white/45">Date of death</dt>
+            <dd className="mt-1 text-white">{deathDate}</dd>
           </div>
         )}
 
         <div>
-          <dt className="font-medium text-night-sky/60">Living status</dt>
-          <dd className="mt-1 text-night-sky">
+          <dt className="font-medium text-white/45">Living status</dt>
+          <dd className="mt-1 text-white">
             {person.is_living ? "Living" : "Deceased"}
           </dd>
         </div>
 
         {location && (
           <div>
-            <dt className="font-medium text-night-sky/60">Location</dt>
-            <dd className="mt-1 text-night-sky">{location}</dd>
+            <dt className="font-medium text-white/45">Location</dt>
+            <dd className="mt-1 text-white">{location}</dd>
           </div>
         )}
 
         {person.bio && (
           <div>
-            <dt className="font-medium text-night-sky/60">About</dt>
-            <dd className="mt-1 leading-6 text-night-sky">{person.bio}</dd>
+            <dt className="font-medium text-white/45">About</dt>
+            <dd className="mt-1 leading-6 text-white/80">{person.bio}</dd>
           </div>
         )}
       </dl>
 
-      <div className="mt-8 border-t border-night-sky/10 pt-6">
+      <div className="mt-8 border-t border-white/10 pt-6">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-lg font-semibold text-night-sky">
+          <h3 className="text-lg font-semibold text-white">
             Tagged memories
           </h3>
 
-          <span className="rounded-full bg-sand px-3 py-1 text-xs font-medium text-night-sky/70">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/70">
             {taggedMemories.length}
           </span>
         </div>
 
         {taggedMemories.length === 0 ? (
-          <p className="mt-3 text-sm leading-6 text-night-sky/70">
+          <p className="mt-3 text-sm leading-6 text-white/65">
             No journal entries have been tagged with this person yet.
           </p>
         ) : (
@@ -646,17 +706,17 @@ function PersonDetails({
             {taggedMemories.map((memory) => (
               <article
                 key={memory.id}
-                className="rounded-xl border border-night-sky/10 p-4"
+                className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
               >
-                <p className="text-xs font-medium text-night-sky/60">
+                <p className="text-xs font-medium text-white/45">
                   {formatDate(memory.entry.created_at)}
                 </p>
 
-                <h4 className="mt-1 text-sm font-semibold text-night-sky">
+                <h4 className="mt-1 text-sm font-semibold text-white">
                   {memory.entry.title}
                 </h4>
 
-                <p className="mt-2 text-sm leading-6 text-night-sky/70">
+                <p className="mt-2 text-sm leading-6 text-white/65">
                   {getEntryPreview(memory.entry.body)}
                 </p>
 
@@ -664,11 +724,14 @@ function PersonDetails({
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {memory.entry.images.slice(0, 3).map((image) =>
                       image.signedUrl ? (
-                        <img
+                        <Image
                           key={image.id}
                           src={image.signedUrl}
                           alt={image.file_name ?? "Tagged memory image"}
+                          width={120}
+                          height={80}
                           className="h-20 w-full rounded-lg object-cover"
+                          unoptimized
                         />
                       ) : null
                     )}

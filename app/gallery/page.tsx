@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import LogoutButton from "@/components/auth/LogoutButton";
+import AppShell from "@/components/layout/AppShell";
 import ImageGallery from "@/components/gallery/ImageGallery";
 import GalleryPageTransition from "@/components/gallery/GalleryPageTransition";
 
@@ -75,11 +74,11 @@ export default async function GalleryPage() {
   );
 
   return (
-    <main className="min-h-screen bg-sand px-6 py-10">
+    <AppShell active="gallery" userEmail={user.email}>
       <GalleryPageTransition />
 
-      <section className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between gap-6">
+      <section className="mx-auto max-w-6xl px-6 py-10">
+        <div>
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
               Gallery
@@ -94,30 +93,12 @@ export default async function GalleryPage() {
               organized by the date they were uploaded.
             </p>
           </div>
-
-          <LogoutButton />
-        </div>
-
-        <div className="mt-6 flex gap-4">
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            Back to dashboard
-          </Link>
-
-          <Link
-            href="/profile"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
-          >
-            View profile
-          </Link>
         </div>
 
         <div className="mt-10">
           <ImageGallery images={galleryImages} />
         </div>
       </section>
-    </main>
+    </AppShell>
   );
 }
