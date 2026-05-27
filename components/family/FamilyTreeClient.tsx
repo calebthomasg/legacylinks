@@ -70,6 +70,10 @@ function getPersonName(person: Person) {
   );
 }
 
+function getNormalizedPersonName(person: Person) {
+  return getPersonName(person).trim().toLowerCase();
+}
+
 function formatDate(dateString: string | null) {
   if (!dateString) return null;
 
@@ -248,7 +252,7 @@ export default function FamilyTreeClient({
       );
     });
 
-    return sortedRelationships
+    const mappedParents = sortedRelationships
       .map((relationship) => {
         const person = peopleById.get(relationship.related_person_id);
 
@@ -263,6 +267,33 @@ export default function FamilyTreeClient({
       person: Person;
       relationship: Relationship;
     }[];
+
+    const dedupedParents = new Map<
+      string,
+      { person: Person; relationship: Relationship }
+    >();
+
+    mappedParents.forEach((parent) => {
+      const parentKey = [
+        parent.relationship.relationship_type,
+        getNormalizedPersonName(parent.person),
+      ].join(":");
+      const existingParent = dedupedParents.get(parentKey);
+
+      if (!existingParent) {
+        dedupedParents.set(parentKey, parent);
+        return;
+      }
+
+      const shouldPreferCurrent =
+        !existingParent.person.linked_user_id && Boolean(parent.person.linked_user_id);
+
+      if (shouldPreferCurrent) {
+        dedupedParents.set(parentKey, parent);
+      }
+    });
+
+    return [...dedupedParents.values()];
   }
 
   function getRelationshipForSelectedPerson(personId: string) {
