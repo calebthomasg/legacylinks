@@ -61,7 +61,7 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
       const { error: uploadError } = await supabase.storage
         .from("person-photos")
         .upload(storagePath, photoFile, {
-          cacheControl: "3600",
+          cacheControl: "31536000",
           upsert: false,
         });
 

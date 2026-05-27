@@ -1,0 +1,61 @@
+.overlay {
+  background:
+    radial-gradient(circle at 20% 20%, rgb(77 170 245 / 0.42), transparent 34rem),
+    linear-gradient(180deg, rgb(77 170 245 / 0.92), rgb(245 241 230 / 0.86));
+  perspective: 48rem;
+}
+
+.playing {
+  animation: gallery-intro-fade 2800ms ease forwards;
+}
+
+.stream {
+  transform-style: preserve-3d;
+}
+
+.photo {
+  animation: gallery-photo-rise var(--rise-duration, 2600ms) cubic-bezier(0.22, 0.72, 0.22, 1) both;
+  animation-delay: var(--rise-delay, 0ms);
+  left: var(--rise-left, 0%);
+  top: 100%;
+  transform: translate3d(0, 32vh, var(--rise-depth, 0)) rotate(var(--rise-rotate, 0deg));
+  width: clamp(8rem, 18vw, 17rem);
+}
+
+@keyframes gallery-photo-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 32vh, var(--rise-depth, 0)) rotate(var(--rise-rotate, 0deg));
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -156vh, var(--rise-depth, 0)) rotate(var(--rise-rotate, 0deg));
+  }
+}
+
+@keyframes gallery-intro-fade {
+  0%,
+  68% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .photo {
+    animation: none;
+  }
+}

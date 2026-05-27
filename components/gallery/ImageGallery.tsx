@@ -5,6 +5,7 @@ import { useState } from "react";
 type GalleryImage = {
   id: string;
   signedUrl: string | null;
+  thumbnailUrl: string | null;
   fileName: string | null;
   dateAdded: string;
   entryTitle: string;
@@ -51,10 +52,12 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
               className="overflow-hidden rounded-2xl border border-night-sky/10 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
               <div className="aspect-square bg-sand">
-                {image.signedUrl ? (
+                {image.thumbnailUrl ? (
                   <img
-                    src={image.signedUrl}
+                    src={image.thumbnailUrl}
                     alt={image.fileName ?? "Journal image"}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 ) : (

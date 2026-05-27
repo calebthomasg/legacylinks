@@ -418,7 +418,10 @@ export default function DashboardJournalComposer({
 
         const { error: uploadError } = await supabase.storage
           .from("journal-images")
-          .upload(storagePath, file);
+          .upload(storagePath, file, {
+            cacheControl: "31536000",
+            upsert: false,
+          });
 
         if (uploadError) {
           setMessage(uploadError.message);

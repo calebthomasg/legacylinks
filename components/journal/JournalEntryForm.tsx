@@ -104,7 +104,7 @@ export default function JournalEntryForm({
         const { error: uploadError } = await supabase.storage
           .from("journal-images")
           .upload(storagePath, image, {
-            cacheControl: "3600",
+            cacheControl: "31536000",
             upsert: false,
           });
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/auth/LogoutButton";
 import ImageGallery from "@/components/gallery/ImageGallery";
+import GalleryPageTransition from "@/components/gallery/GalleryPageTransition";
 
 export default async function GalleryPage() {
   const supabase = await createClient();
@@ -41,9 +42,18 @@ export default async function GalleryPage() {
   // 4. Create temporary signed URLs for each private image.
   const galleryImages = await Promise.all(
     (imageRows ?? []).map(async (image) => {
-      const { data } = await supabase.storage
-        .from("journal-images")
-        .createSignedUrl(image.storage_path, 60 * 60);
+      const storage = supabase.storage.from("journal-images");
+      const [fullImageResult, thumbnailResult] = await Promise.all([
+        storage.createSignedUrl(image.storage_path, 60 * 60),
+        storage.createSignedUrl(image.storage_path, 60 * 60, {
+          transform: {
+            width: 500,
+            height: 500,
+            resize: "cover",
+            quality: 70,
+          },
+        }),
+      ]);
 
       const entry = Array.isArray(image.journal_entries)
         ? image.journal_entries[0]
@@ -51,7 +61,11 @@ export default async function GalleryPage() {
 
       return {
         id: image.id,
-        signedUrl: data?.signedUrl ?? null,
+        signedUrl: fullImageResult.data?.signedUrl ?? null,
+        thumbnailUrl:
+          thumbnailResult.data?.signedUrl ??
+          fullImageResult.data?.signedUrl ??
+          null,
         fileName: image.file_name,
         dateAdded: image.created_at,
         entryTitle: entry?.title ?? "Untitled journal entry",
@@ -62,6 +76,8 @@ export default async function GalleryPage() {
 
   return (
     <main className="min-h-screen bg-sand px-6 py-10">
+      <GalleryPageTransition />
+
       <section className="mx-auto max-w-6xl">
         <div className="flex items-center justify-between gap-6">
           <div>
