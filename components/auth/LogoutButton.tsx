@@ -16,7 +16,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="button-secondary"
+      className="button-secondary whitespace-nowrap"
     >
       Log out
     </button>

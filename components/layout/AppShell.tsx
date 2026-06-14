@@ -90,18 +90,18 @@ export default function AppShell({
           </nav>
 
           <div className="border-t border-night-sky/10 px-6 py-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-night-sky">
-                  {userName}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-night-sky">
+                {userName}
+              </p>
+              {userEmail && (
+                <p className="truncate text-xs text-night-sky/60">
+                  {userEmail}
                 </p>
-                {userEmail && (
-                  <p className="truncate text-xs text-night-sky/60">
-                    {userEmail}
-                  </p>
-                )}
-              </div>
+              )}
+            </div>
 
+            <div className="mt-4">
               <LogoutButton />
             </div>
           </div>
@@ -215,18 +215,18 @@ export default function AppShell({
               </nav>
 
               <div className="border-t border-night-sky/10 px-6 py-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-night-sky">
-                      {userName}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-night-sky">
+                    {userName}
+                  </p>
+                  {userEmail && (
+                    <p className="truncate text-xs text-night-sky/60">
+                      {userEmail}
                     </p>
-                    {userEmail && (
-                      <p className="truncate text-xs text-night-sky/60">
-                        {userEmail}
-                      </p>
-                    )}
-                  </div>
+                  )}
+                </div>
 
+                <div className="mt-4">
                   <LogoutButton />
                 </div>
               </div>
