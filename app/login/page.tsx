@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 
@@ -35,13 +36,24 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-12">
-      <section className="w-full max-w-md rounded-2xl border border-night-sky/10 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-          LegacyLinks
-        </p>
+    <main className="relative flex min-h-screen items-center justify-center px-6 py-12">
+      <Link
+        href="/"
+        className="absolute left-6 top-6 sm:left-10 sm:top-8"
+        aria-label="LegacyLinks home"
+      >
+        <Image
+          src="/images/ll-logo.svg"
+          alt="LegacyLinks"
+          width={192}
+          height={44}
+          className="h-auto w-40 sm:w-48"
+          priority
+        />
+      </Link>
 
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-night-sky">
+      <section className="w-full max-w-md rounded-2xl border border-night-sky/10 bg-white p-8 shadow-sm">
+        <h1 className="text-3xl font-bold tracking-tight text-night-sky">
           Welcome back
         </h1>
 
