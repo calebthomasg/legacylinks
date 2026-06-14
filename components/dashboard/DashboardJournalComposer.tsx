@@ -615,6 +615,7 @@ export default function DashboardJournalComposer({
 
         <div className="mt-8">
           <textarea
+            data-field-variant="unstyled"
             value={body}
             onChange={(event) => setBody(event.target.value)}
             rows={10}

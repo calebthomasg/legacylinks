@@ -4,7 +4,8 @@
   --brand-forest: #165733;
   --brand-leaf: #6dbf67;
   --brand-teal: #14b8a6;
-  --brand-sky: #4daaf5;
+  --brand-sky: #5db4f9;
+  --brand-sky-depth: #2998e9;
   --brand-sunshine: #ffc83d;
   --brand-coral: #ff6868;
   --brand-night-sky: #0f1d3a;
@@ -21,6 +22,7 @@
   --color-leaf: var(--brand-leaf);
   --color-teal: var(--brand-teal);
   --color-sky: var(--brand-sky);
+  --color-sky-depth: var(--brand-sky-depth);
   --color-sunshine: var(--brand-sunshine);
   --color-coral: var(--brand-coral);
   --color-night-sky: var(--brand-night-sky);
@@ -52,4 +54,101 @@ h4[class],
 h5,
 h5[class] {
   font-weight: 585;
+}
+
+:where(
+  input:not(
+      [type="button"],
+      [type="checkbox"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"],
+      [type="image"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ),
+  select,
+  textarea
+):not([data-field-variant="unstyled"]) {
+  width: 100%;
+  border: 2px solid #e2e2e2;
+  border-bottom-width: 3px;
+  border-radius: 14px;
+  background: #f7f7f7;
+  color: var(--brand-night-sky);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.4;
+  outline: none;
+  padding: 0.75rem 0.95rem;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 75%);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+:where(
+  input:not(
+      [type="button"],
+      [type="checkbox"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"],
+      [type="image"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ),
+  select,
+  textarea
+):not([data-field-variant="unstyled"])::placeholder {
+  color: rgb(15 29 58 / 48%);
+  opacity: 1;
+}
+
+:where(
+  input:not(
+      [type="button"],
+      [type="checkbox"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"],
+      [type="image"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ),
+  select,
+  textarea
+):not([data-field-variant="unstyled"]):focus {
+  border-color: var(--brand-sky);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 3px rgb(93 180 249 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+
+:where(
+  input:not(
+      [type="button"],
+      [type="checkbox"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"],
+      [type="image"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ),
+  select,
+  textarea
+):not([data-field-variant="unstyled"]):disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
