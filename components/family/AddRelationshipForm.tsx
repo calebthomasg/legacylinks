@@ -168,7 +168,7 @@ export default function AddRelationshipForm({
       <button
         type="submit"
         disabled={isSaving || people.length < 2}
-        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="button-primary"
       >
         {isSaving ? "Adding..." : "Add relationship"}
       </button>

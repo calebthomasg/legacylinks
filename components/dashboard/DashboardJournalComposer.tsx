@@ -703,7 +703,7 @@ export default function DashboardJournalComposer({
                 <button
                   type="button"
                   onClick={openFilePicker}
-                  className="rounded-full border border-night-sky/20 px-4 py-2 text-sm font-medium text-night-sky/75 hover:bg-sand"
+                  className="button-secondary"
                 >
                   Add photos
                 </button>
@@ -753,7 +753,7 @@ export default function DashboardJournalComposer({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-full bg-leaf px-8 py-4 text-base font-semibold text-white transition hover:bg-forest disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-primary px-8 py-4"
             >
               {isSaving ? "Saving..." : selectedEntry ? "Update" : "Save"}
             </button>

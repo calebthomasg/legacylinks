@@ -47,7 +47,7 @@ export default function DeleteRelationshipButton({
         type="button"
         onClick={handleDelete}
         disabled={isDeleting}
-        className="rounded-xl border border-coral/30 px-4 py-2 text-sm font-semibold text-coral hover:bg-coral/10 disabled:cursor-not-allowed disabled:opacity-60"
+        className="button-danger"
       >
         {isDeleting ? "Deleting..." : "Delete"}
       </button>

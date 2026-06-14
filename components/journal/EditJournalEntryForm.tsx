@@ -203,7 +203,7 @@ export default function EditJournalEntryForm({
       <button
         type="submit"
         disabled={isSaving}
-        className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="button-primary"
       >
         {isSaving ? "Saving..." : "Save changes"}
       </button>

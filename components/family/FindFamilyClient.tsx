@@ -376,7 +376,7 @@ export default function FindFamilyClient({
                   type="button"
                   onClick={sendConnectionRequest}
                   disabled={isSending}
-                  className="rounded-xl bg-night-sky px-4 py-3 text-sm font-semibold text-white hover:bg-night-sky/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="button-primary"
                 >
                   {isSending ? "Sending..." : "Send family request"}
                 </button>
@@ -393,7 +393,7 @@ export default function FindFamilyClient({
                     setQuery("");
                     setResults([]);
                   }}
-                  className="rounded-xl border border-night-sky/20 bg-white px-4 py-3 text-sm font-semibold text-night-sky/85 hover:bg-sand"
+                  className="button-secondary"
                 >
                   Cancel
                 </button>
@@ -449,7 +449,7 @@ export default function FindFamilyClient({
                       type="button"
                       onClick={() => acceptRequest(request.id)}
                       disabled={activeRequestId === request.id}
-                      className="rounded-lg bg-night-sky px-3 py-2 text-xs font-semibold text-white hover:bg-night-sky/90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="button-primary px-3 py-2 text-xs"
                     >
                       {activeRequestId === request.id ? "Working..." : "Accept"}
                     </button>
@@ -458,7 +458,7 @@ export default function FindFamilyClient({
                       type="button"
                       onClick={() => declineRequest(request.id)}
                       disabled={activeRequestId === request.id}
-                      className="rounded-lg border border-night-sky/20 bg-white px-3 py-2 text-xs font-semibold text-night-sky/85 hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
+                      className="button-secondary px-3 py-2 text-xs"
                     >
                       Decline
                     </button>

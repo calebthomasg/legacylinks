@@ -178,7 +178,7 @@ export default function AddRelativeModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-night-sky/20 px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
+            className="button-secondary"
           >
             Close
           </button>
@@ -352,7 +352,7 @@ export default function AddRelativeModal({
           <button
             type="submit"
             disabled={isSaving}
-            className="rounded-xl bg-night-sky px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="button-primary"
           >
             {isSaving ? "Adding..." : copy.eyebrow}
           </button>

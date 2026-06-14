@@ -99,14 +99,14 @@ export default async function FamilyPage() {
         <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/tree"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
+            className="button-secondary"
           >
             View family tree
           </Link>
 
           <Link
             href="/gallery"
-            className="rounded-xl border border-night-sky/20 bg-white px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
+            className="button-secondary"
           >
             View gallery
           </Link>
@@ -213,7 +213,7 @@ export default async function FamilyPage() {
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link
                           href={`/family/${person.id}/edit`}
-                          className="inline-flex rounded-xl border border-night-sky/20 px-4 py-2 text-sm font-semibold text-night-sky hover:bg-sand"
+                          className="button-secondary"
                         >
                           Edit profile
                         </Link>
