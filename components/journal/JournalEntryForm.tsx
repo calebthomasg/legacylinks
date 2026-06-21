@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  getJournalImageStoragePath,
+  MAX_JOURNAL_ENTRY_IMAGES,
+  optimizeJournalImage,
+} from "@/utils/images/client";
 
 type PersonOption = {
   id: string;
@@ -40,7 +45,14 @@ export default function JournalEntryForm({
 
   function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const selectedFiles = Array.from(event.target.files ?? []);
-    setImages(selectedFiles);
+    if (selectedFiles.length > MAX_JOURNAL_ENTRY_IMAGES) {
+      setMessage(`You can add up to ${MAX_JOURNAL_ENTRY_IMAGES} photos per entry.`);
+    } else {
+      setMessage("");
+    }
+
+    setImages(selectedFiles.slice(0, MAX_JOURNAL_ENTRY_IMAGES));
+    event.target.value = "";
   }
 
   function togglePerson(personId: string) {
@@ -56,91 +68,107 @@ export default function JournalEntryForm({
     setIsSaving(true);
     setMessage("");
 
-    // 1. Save the journal entry first.
-    const { data: journalEntry, error: journalError } = await supabase
-      .from("journal_entries")
-      .insert({
-        user_id: userId,
-        title,
-        body,
-      })
-      .select("id")
-      .single();
+    try {
+      // 1. Save the journal entry first.
+      const { data: journalEntry, error: journalError } = await supabase
+        .from("journal_entries")
+        .insert({
+          user_id: userId,
+          title,
+          body,
+        })
+        .select("id")
+        .single();
 
-    if (journalError || !journalEntry) {
-      setMessage(journalError?.message ?? "Could not save journal entry.");
-      setIsSaving(false);
-      return;
-    }
-
-    // 2. Save people tags for this journal entry.
-    if (selectedPersonIds.length > 0) {
-      const tagRows = selectedPersonIds.map((personId) => ({
-        journal_entry_id: journalEntry.id,
-        person_id: personId,
-        tagged_by_user_id: userId,
-      }));
-
-      const { error: tagError } = await supabase
-        .from("journal_entry_people")
-        .insert(tagRows);
-
-      if (tagError) {
-        setMessage(tagError.message);
-        setIsSaving(false);
+      if (journalError || !journalEntry) {
+        setMessage(journalError?.message ?? "Could not save journal entry.");
         return;
       }
-    }
 
-    // 3. Upload images, if any were selected.
-    if (images.length > 0) {
-      const imageRows = [];
+      // 2. Save people tags for this journal entry.
+      if (selectedPersonIds.length > 0) {
+        const tagRows = selectedPersonIds.map((personId) => ({
+          journal_entry_id: journalEntry.id,
+          person_id: personId,
+          tagged_by_user_id: userId,
+        }));
 
-      for (const image of images) {
-        const fileExtension = image.name.split(".").pop();
-        const safeFileName = `${crypto.randomUUID()}.${fileExtension}`;
-        const storagePath = `${userId}/${journalEntry.id}/${safeFileName}`;
+        const { error: tagError } = await supabase
+          .from("journal_entry_people")
+          .insert(tagRows);
 
-        const { error: uploadError } = await supabase.storage
-          .from("journal-images")
-          .upload(storagePath, image, {
-            cacheControl: "31536000",
-            upsert: false,
-          });
-
-        if (uploadError) {
-          setMessage(uploadError.message);
-          setIsSaving(false);
+        if (tagError) {
+          setMessage(tagError.message);
           return;
         }
-
-        imageRows.push({
-          journal_entry_id: journalEntry.id,
-          user_id: userId,
-          storage_path: storagePath,
-          file_name: image.name,
-        });
       }
 
-      const { error: imageRecordError } = await supabase
-        .from("journal_entry_images")
-        .insert(imageRows);
+      // 3. Upload images, if any were selected.
+      if (images.length > 0) {
+        setMessage(`Optimizing ${images.length} photo${images.length === 1 ? "" : "s"}...`);
 
-      if (imageRecordError) {
-        setMessage(imageRecordError.message);
-        setIsSaving(false);
-        return;
+        const imageRows = [];
+
+        for (let index = 0; index < images.length; index += 1) {
+          const originalImage = images[index];
+          const uploadImage = await optimizeJournalImage(originalImage);
+          const storagePath = getJournalImageStoragePath(
+            userId,
+            journalEntry.id,
+            uploadImage
+          );
+
+          setMessage(`Uploading photo ${index + 1} of ${images.length}...`);
+
+          const { error: uploadError } = await supabase.storage
+            .from("journal-images")
+            .upload(storagePath, uploadImage, {
+              cacheControl: "31536000",
+              contentType: uploadImage.type || originalImage.type,
+              upsert: false,
+            });
+
+          if (uploadError) {
+            setMessage(
+              `Photo ${index + 1} could not upload: ${uploadError.message}`
+            );
+            return;
+          }
+
+          imageRows.push({
+            journal_entry_id: journalEntry.id,
+            user_id: userId,
+            storage_path: storagePath,
+            file_name: originalImage.name,
+          });
+        }
+
+        const { error: imageRecordError } = await supabase
+          .from("journal_entry_images")
+          .insert(imageRows);
+
+        if (imageRecordError) {
+          setMessage(imageRecordError.message);
+          return;
+        }
       }
+
+      setTitle("");
+      setBody("");
+      setImages([]);
+      setSelectedPersonIds([]);
+      setMessage("Journal entry saved.");
+
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving this journal entry."
+      );
+    } finally {
+      setIsSaving(false);
     }
-
-    setTitle("");
-    setBody("");
-    setImages([]);
-    setSelectedPersonIds([]);
-    setMessage("Journal entry saved.");
-    setIsSaving(false);
-
-    router.refresh();
   }
 
   return (
@@ -231,6 +259,11 @@ export default function JournalEntryForm({
             {images.length} image{images.length === 1 ? "" : "s"} selected.
           </p>
         )}
+
+        <p className="mt-2 text-xs text-night-sky/45">
+          Add up to {MAX_JOURNAL_ENTRY_IMAGES} photos. Large images are
+          optimized before upload.
+        </p>
       </div>
 
       {message && (

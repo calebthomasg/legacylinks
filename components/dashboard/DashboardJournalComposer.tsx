@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import {
+  getJournalImageStoragePath,
+  MAX_JOURNAL_ENTRY_IMAGES,
+  optimizeJournalImage,
+} from "@/utils/images/client";
 
 type PersonOption = {
   id: string;
@@ -231,6 +236,12 @@ export default function DashboardJournalComposer({
   }, [selectedFiles]);
 
   useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewUrls]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       setNow(new Date());
     }, 60000);
@@ -264,12 +275,6 @@ export default function DashboardJournalComposer({
       window.clearTimeout(syncSelection);
     };
   }, [selectedEntry, selectedDateKey]);
-
-  useEffect(() => {
-    return () => {
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [previewUrls]);
 
   const calendarWeeks = useMemo(
     () => buildCalendar(calendarDate, entries),
@@ -314,7 +319,27 @@ export default function DashboardJournalComposer({
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
-    setSelectedFiles(files);
+    const availableSlots =
+      MAX_JOURNAL_ENTRY_IMAGES - existingImages.length - selectedFiles.length;
+
+    if (availableSlots <= 0) {
+      setMessage(`You can add up to ${MAX_JOURNAL_ENTRY_IMAGES} photos per entry.`);
+      event.target.value = "";
+      return;
+    }
+
+    if (files.length > availableSlots) {
+      setMessage(
+        `Only ${availableSlots} more photo${
+          availableSlots === 1 ? "" : "s"
+        } can be added to this entry.`
+      );
+    } else {
+      setMessage("");
+    }
+
+    setSelectedFiles((current) => [...current, ...files.slice(0, availableSlots)]);
+    event.target.value = "";
   }
 
   function openFilePicker() {
@@ -330,128 +355,156 @@ export default function DashboardJournalComposer({
     setIsSaving(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setMessage("You must be logged in to save an entry.");
-      setIsSaving(false);
-      return;
-    }
-
-    const entryDate = toDateInputValue(selectedDate);
-    const entryTitle = `${formatLongDate(selectedDate)} Journal Entry`;
-
-    let entryId = activeEntryId;
-
-    if (entryId) {
-      const { error: updateError } = await supabase
-        .from("journal_entries")
-        .update({
-          title: entryTitle,
-          body: body.trim(),
-          entry_date: entryDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", entryId)
-        .eq("user_id", user.id);
-
-      if (updateError) {
-        setMessage(updateError.message);
-        setIsSaving(false);
+      if (!user) {
+        setMessage("You must be logged in to save an entry.");
         return;
       }
 
-      const { error: deleteTagsError } = await supabase
-        .from("journal_entry_people")
-        .delete()
-        .eq("journal_entry_id", entryId)
-        .eq("tagged_by_user_id", user.id);
-
-      if (deleteTagsError) {
-        setMessage(deleteTagsError.message);
-        setIsSaving(false);
-        return;
-      }
-    } else {
-      const { data: newEntry, error: entryError } = await supabase
-        .from("journal_entries")
-        .insert({
-          user_id: user.id,
-          title: entryTitle,
-          body: body.trim(),
-          entry_date: entryDate,
-        })
-        .select("id")
-        .single();
-
-      if (entryError || !newEntry) {
-        setMessage(entryError?.message ?? "Could not save journal entry.");
-        setIsSaving(false);
+      if (existingImages.length + selectedFiles.length > MAX_JOURNAL_ENTRY_IMAGES) {
+        setMessage(`You can add up to ${MAX_JOURNAL_ENTRY_IMAGES} photos per entry.`);
         return;
       }
 
-      entryId = newEntry.id;
-    }
+      const entryDate = toDateInputValue(selectedDate);
+      const entryTitle = `${formatLongDate(selectedDate)} Journal Entry`;
 
-    if (selectedPersonIds.length > 0) {
-      const tagRows = selectedPersonIds.map((personId) => ({
-        journal_entry_id: entryId,
-        person_id: personId,
-        tagged_by_user_id: user.id,
-      }));
+      let entryId = activeEntryId;
 
-      const { error: tagError } = await supabase
-        .from("journal_entry_people")
-        .insert(tagRows);
+      if (entryId) {
+        const { error: updateError } = await supabase
+          .from("journal_entries")
+          .update({
+            title: entryTitle,
+            body: body.trim(),
+            entry_date: entryDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", entryId)
+          .eq("user_id", user.id);
 
-      if (tagError) {
-        setMessage(tagError.message);
-        setIsSaving(false);
-        return;
-      }
-    }
-
-    if (selectedFiles.length > 0) {
-      for (const file of selectedFiles) {
-        const safeName = file.name.replace(/\s+/g, "-");
-        const storagePath = `${user.id}/${entryId}/${crypto.randomUUID()}-${safeName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("journal-images")
-          .upload(storagePath, file, {
-            cacheControl: "31536000",
-            upsert: false,
-          });
-
-        if (uploadError) {
-          setMessage(uploadError.message);
-          setIsSaving(false);
+        if (updateError) {
+          setMessage(updateError.message);
           return;
+        }
+
+        const { error: deleteTagsError } = await supabase
+          .from("journal_entry_people")
+          .delete()
+          .eq("journal_entry_id", entryId)
+          .eq("tagged_by_user_id", user.id);
+
+        if (deleteTagsError) {
+          setMessage(deleteTagsError.message);
+          return;
+        }
+      } else {
+        const { data: newEntry, error: entryError } = await supabase
+          .from("journal_entries")
+          .insert({
+            user_id: user.id,
+            title: entryTitle,
+            body: body.trim(),
+            entry_date: entryDate,
+          })
+          .select("id")
+          .single();
+
+        if (entryError || !newEntry) {
+          setMessage(entryError?.message ?? "Could not save journal entry.");
+          return;
+        }
+
+        entryId = newEntry.id;
+      }
+
+      if (!entryId) {
+        setMessage("Could not save journal entry.");
+        return;
+      }
+
+      if (selectedPersonIds.length > 0) {
+        const tagRows = selectedPersonIds.map((personId) => ({
+          journal_entry_id: entryId,
+          person_id: personId,
+          tagged_by_user_id: user.id,
+        }));
+
+        const { error: tagError } = await supabase
+          .from("journal_entry_people")
+          .insert(tagRows);
+
+        if (tagError) {
+          setMessage(tagError.message);
+          return;
+        }
+      }
+
+      if (selectedFiles.length > 0) {
+        setMessage(`Optimizing ${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"}...`);
+
+        const imageRows = [];
+
+        for (let index = 0; index < selectedFiles.length; index += 1) {
+          const originalFile = selectedFiles[index];
+          const uploadFile = await optimizeJournalImage(originalFile);
+          const storagePath = getJournalImageStoragePath(
+            user.id,
+            entryId,
+            uploadFile
+          );
+
+          setMessage(`Uploading photo ${index + 1} of ${selectedFiles.length}...`);
+
+          const { error: uploadError } = await supabase.storage
+            .from("journal-images")
+            .upload(storagePath, uploadFile, {
+              cacheControl: "31536000",
+              contentType: uploadFile.type || originalFile.type,
+              upsert: false,
+            });
+
+          if (uploadError) {
+            setMessage(
+              `Photo ${index + 1} could not upload: ${uploadError.message}`
+            );
+            return;
+          }
+
+          imageRows.push({
+            journal_entry_id: entryId,
+            user_id: user.id,
+            storage_path: storagePath,
+            file_name: originalFile.name,
+          });
         }
 
         const { error: imageRowError } = await supabase
           .from("journal_entry_images")
-          .insert({
-            journal_entry_id: entryId,
-            user_id: user.id,
-            storage_path: storagePath,
-            file_name: file.name,
-          });
+          .insert(imageRows);
 
         if (imageRowError) {
           setMessage(imageRowError.message);
-          setIsSaving(false);
           return;
         }
       }
-    }
 
-    setSelectedFiles([]);
-    setMessage("Journal entry saved.");
-    setIsSaving(false);
-    router.refresh();
+      setSelectedFiles([]);
+      setMessage("Journal entry saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving this journal entry."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const allPhotoPreviews = [
@@ -717,6 +770,11 @@ export default function DashboardJournalComposer({
                   onChange={handleFileChange}
                 />
               </div>
+
+              <p className="mb-3 text-xs text-night-sky/45">
+                Add up to {MAX_JOURNAL_ENTRY_IMAGES} photos. Large images are
+                optimized before upload.
+              </p>
 
               <div className="flex flex-wrap items-center gap-3">
                 {allPhotoPreviews.length === 0 ? (
