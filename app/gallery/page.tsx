@@ -17,6 +17,12 @@ export default async function GalleryPage() {
     redirect("/login");
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("first_name, last_name")
+    .eq("id", user.id)
+    .single();
+
   // 3. Get the user's image records and the journal entry each image belongs to.
   const { data: imageRows, error } = await supabase
     .from("journal_entry_images")
@@ -28,6 +34,7 @@ export default async function GalleryPage() {
       journal_entries (
         id,
         title,
+        entry_date,
         created_at
       )
     `)
@@ -37,6 +44,129 @@ export default async function GalleryPage() {
   if (error) {
     console.error("Gallery image query error:", error.message);
   }
+
+  const imageIds = (imageRows ?? []).map((image) => image.id);
+  const { data: imageLikes, error: imageLikesError } =
+    imageIds.length > 0
+      ? await supabase
+          .from("journal_image_likes")
+          .select("image_id, user_id")
+          .in("image_id", imageIds)
+      : { data: [], error: null };
+
+  if (imageLikesError) {
+    console.error("Gallery image likes query error:", imageLikesError.message);
+  }
+
+  const { data: commentRows, error: commentsError } =
+    imageIds.length > 0
+      ? await supabase
+          .from("journal_image_comments")
+          .select("id, image_id, user_id, parent_comment_id, body, created_at")
+          .in("image_id", imageIds)
+          .order("created_at", { ascending: true })
+      : { data: [], error: null };
+
+  if (commentsError) {
+    console.error("Gallery image comments query error:", commentsError.message);
+  }
+
+  const commentIds = (commentRows ?? []).map((comment) => comment.id);
+  const commentAuthorIds = Array.from(
+    new Set((commentRows ?? []).map((comment) => comment.user_id))
+  );
+
+  const { data: commentLikes, error: commentLikesError } =
+    commentIds.length > 0
+      ? await supabase
+          .from("journal_image_comment_likes")
+          .select("comment_id, user_id")
+          .in("comment_id", commentIds)
+      : { data: [], error: null };
+
+  if (commentLikesError) {
+    console.error(
+      "Gallery image comment likes query error:",
+      commentLikesError.message
+    );
+  }
+
+  const { data: commentAuthors, error: commentAuthorsError } =
+    commentAuthorIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", commentAuthorIds)
+      : { data: [], error: null };
+
+  if (commentAuthorsError) {
+    console.error(
+      "Gallery image comment authors query error:",
+      commentAuthorsError.message
+    );
+  }
+
+  const authorNamesById = new Map(
+    (commentAuthors ?? []).map((author) => [
+      author.id,
+      [author.first_name, author.last_name].filter(Boolean).join(" ") ||
+        "LegacyLinks user",
+    ])
+  );
+
+  const imageLikesByImageId = new Map<string, Set<string>>();
+
+  (imageLikes ?? []).forEach((like) => {
+    if (!imageLikesByImageId.has(like.image_id)) {
+      imageLikesByImageId.set(like.image_id, new Set());
+    }
+
+    imageLikesByImageId.get(like.image_id)?.add(like.user_id);
+  });
+
+  const commentLikesByCommentId = new Map<string, Set<string>>();
+
+  (commentLikes ?? []).forEach((like) => {
+    if (!commentLikesByCommentId.has(like.comment_id)) {
+      commentLikesByCommentId.set(like.comment_id, new Set());
+    }
+
+    commentLikesByCommentId.get(like.comment_id)?.add(like.user_id);
+  });
+
+  const commentsByImageId = new Map<
+    string,
+    {
+      id: string;
+      imageId: string;
+      userId: string;
+      parentCommentId: string | null;
+      body: string;
+      createdAt: string;
+      authorName: string;
+      likeCount: number;
+      isLikedByCurrentUser: boolean;
+    }[]
+  >();
+
+  (commentRows ?? []).forEach((comment) => {
+    const likeUserIds = commentLikesByCommentId.get(comment.id) ?? new Set();
+    const comments = commentsByImageId.get(comment.image_id) ?? [];
+
+    comments.push({
+      id: comment.id,
+      imageId: comment.image_id,
+      userId: comment.user_id,
+      parentCommentId: comment.parent_comment_id,
+      body: comment.body,
+      createdAt: comment.created_at,
+      authorName: authorNamesById.get(comment.user_id) ?? "LegacyLinks user",
+      likeCount: likeUserIds.size,
+      isLikedByCurrentUser: likeUserIds.has(user.id),
+    });
+
+    commentsByImageId.set(comment.image_id, comments);
+  });
 
   // 4. Create temporary signed URLs for each private image.
   const galleryImages = await Promise.all(
@@ -67,11 +197,21 @@ export default async function GalleryPage() {
           null,
         fileName: image.file_name,
         dateAdded: image.created_at,
+        entryId: entry?.id ?? null,
         entryTitle: entry?.title ?? "Untitled journal entry",
-        entryCreatedAt: entry?.created_at ?? null,
+        entryCreatedAt: entry?.entry_date ?? entry?.created_at ?? null,
+        likeCount: imageLikesByImageId.get(image.id)?.size ?? 0,
+        isLikedByCurrentUser:
+          imageLikesByImageId.get(image.id)?.has(user.id) ?? false,
+        comments: commentsByImageId.get(image.id) ?? [],
       };
     })
   );
+
+  const currentUserName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+    user.email ||
+    "You";
 
   return (
     <AppShell active="gallery" userEmail={user.email}>
@@ -96,7 +236,11 @@ export default async function GalleryPage() {
         </div>
 
         <div className="mt-10">
-          <ImageGallery images={galleryImages} />
+          <ImageGallery
+            images={galleryImages}
+            currentUserId={user.id}
+            currentUserName={currentUserName}
+          />
         </div>
       </section>
     </AppShell>
