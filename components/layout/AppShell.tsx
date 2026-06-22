@@ -12,6 +12,7 @@ type AppShellProps = {
     | "gallery"
     | "family"
     | "find-family"
+    | "family-chat"
     | "profile"
     | null;
   userEmail?: string | null;
@@ -23,18 +24,18 @@ type AppShellProps = {
 
 function getPrimaryLinks(profileHref: string) {
   return [
-  { href: "/dashboard", label: "Journal", active: "journal" },
-  { href: "/tree", label: "My Family Tree", active: "tree" },
-  { href: profileHref, label: "Profile", active: "profile" },
-  { href: "/gallery", label: "Photo Gallery", active: "gallery" },
-  { href: "/family", label: "Manage Family", active: "family" },
-  { href: "/family/connect", label: "Find Family", active: "find-family" },
+    { href: "/dashboard", label: "Journal", active: "journal" },
+    { href: "/tree", label: "My Family Tree", active: "tree" },
+    { href: profileHref, label: "Profile", active: "profile" },
+    { href: "/gallery", label: "Photo Gallery", active: "gallery" },
+    { href: "/family", label: "Manage Family", active: "family" },
+    { href: "/family/connect", label: "Find Family", active: "find-family" },
+    { href: "/family-chat", label: "Family Chat", active: "family-chat" },
   ] as const;
 }
 
 const comingLaterLinks = [
   "Family Feed",
-  "Family Chat",
   "Clans",
   "FamilySearch Sync",
   "LegacyLinks Map",
