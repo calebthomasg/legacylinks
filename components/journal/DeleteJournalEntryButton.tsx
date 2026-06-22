@@ -63,7 +63,7 @@ export default function DeleteJournalEntryButton({
       return;
     }
 
-    router.refresh();
+    router.push("/dashboard");
   }
 
   return (
