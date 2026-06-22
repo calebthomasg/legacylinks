@@ -6,27 +6,31 @@ import { useState } from "react";
 import LogoutButton from "@/components/auth/LogoutButton";
 
 type AppShellProps = {
-  active:
+  active?:
     | "journal"
     | "tree"
     | "gallery"
     | "family"
     | "find-family"
-    | "account";
+    | "profile"
+    | null;
   userEmail?: string | null;
   userName?: string | null;
+  profileHref?: string;
   children: React.ReactNode;
   contentClassName?: string;
 };
 
-const primaryLinks = [
+function getPrimaryLinks(profileHref: string) {
+  return [
   { href: "/dashboard", label: "Journal", active: "journal" },
   { href: "/tree", label: "My Family Tree", active: "tree" },
+  { href: profileHref, label: "Profile", active: "profile" },
   { href: "/gallery", label: "Photo Gallery", active: "gallery" },
   { href: "/family", label: "Manage Family", active: "family" },
   { href: "/family/connect", label: "Find Family", active: "find-family" },
-  { href: "/profile", label: "Account", active: "account" },
-] as const;
+  ] as const;
+}
 
 const comingLaterLinks = [
   "Family Feed",
@@ -41,10 +45,12 @@ export default function AppShell({
   active,
   userEmail,
   userName = "LegacyLinks",
+  profileHref = "/family",
   children,
   contentClassName = "bg-sand",
 }: AppShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const primaryLinks = getPrimaryLinks(profileHref);
 
   return (
     <main className="min-h-screen bg-white text-night-sky">

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import FamilyTreeClient from "@/components/family/FamilyTreeClient";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 type JournalEntryImage = {
   id: string;
@@ -35,6 +36,8 @@ export default async function TreePage() {
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   // 3. Get all people created by this user.
   const { data: people } = await supabase
@@ -149,6 +152,7 @@ export default async function TreePage() {
     <AppShell
       active="tree"
       userEmail={user.email}
+      profileHref={profileHref}
       contentClassName="overflow-hidden bg-[#5f5c56]"
     >
       <FamilyTreeClient

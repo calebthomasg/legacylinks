@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import EditPersonForm from "@/components/family/EditPersonForm";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 type EditPersonPageProps = {
   params: Promise<{
@@ -22,6 +23,8 @@ export default async function EditPersonPage({ params }: EditPersonPageProps) {
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   const { data: person } = await supabase
     .from("people")
@@ -44,7 +47,7 @@ export default async function EditPersonPage({ params }: EditPersonPageProps) {
     [person.first_name, person.last_name].filter(Boolean).join(" ");
 
   return (
-    <AppShell active="family" userEmail={user.email}>
+    <AppShell active="family" userEmail={user.email} profileHref={profileHref}>
       <section className="mx-auto max-w-3xl px-6 py-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">

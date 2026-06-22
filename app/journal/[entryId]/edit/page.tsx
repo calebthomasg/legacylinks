@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import EditJournalEntryForm from "@/components/journal/EditJournalEntryForm";
 import DeleteJournalEntryButton from "@/components/journal/DeleteJournalEntryButton";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 type EditJournalEntryPageProps = {
   params: Promise<{
@@ -24,6 +25,8 @@ export default async function EditJournalEntryPage({
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   const { data: entry } = await supabase
     .from("journal_entries")
@@ -58,7 +61,7 @@ export default async function EditJournalEntryPage({
     entry.journal_entry_people?.map((tag) => tag.person_id) ?? [];
 
   return (
-    <AppShell active="journal" userEmail={user.email}>
+    <AppShell active="journal" userEmail={user.email} profileHref={profileHref}>
       <section className="mx-auto max-w-3xl px-6 py-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">

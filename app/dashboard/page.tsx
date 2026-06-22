@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import DashboardJournalComposer from "@/components/dashboard/DashboardJournalComposer";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 type PersonOption = {
   id: string;
@@ -41,6 +42,8 @@ export default async function DashboardPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -131,6 +134,7 @@ export default async function DashboardPage() {
       active="journal"
       userName={userFirstName}
       userEmail={user.email}
+      profileHref={profileHref}
       contentClassName="relative isolate overflow-hidden bg-sand bg-[url('/images/topo-background-teal.webp')] bg-cover bg-center bg-no-repeat"
     >
           <div

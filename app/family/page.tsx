@@ -7,6 +7,7 @@ import AddRelationshipForm from "@/components/family/AddRelationshipForm";
 import DeletePersonButton from "@/components/family/DeletePersonButton";
 import DeleteRelationshipButton from "@/components/family/DeleteRelationshipButton";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 export default async function FamilyPage() {
   const supabase = await createClient();
@@ -20,6 +21,8 @@ export default async function FamilyPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   // 3. Get all people created by this user.
   const { data: people } = await supabase
@@ -79,7 +82,7 @@ export default async function FamilyPage() {
   }
 
   return (
-    <AppShell active="family" userEmail={user.email}>
+    <AppShell active="family" userEmail={user.email} profileHref={profileHref}>
       <section className="mx-auto max-w-6xl px-6 py-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">

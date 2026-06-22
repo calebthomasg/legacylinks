@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import FindFamilyClient from "@/components/family/FindFamilyClient";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 export default async function ConnectFamilyPage() {
   const supabase = await createClient();
@@ -14,6 +15,8 @@ export default async function ConnectFamilyPage() {
   if (userError || !user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   const { data: currentUserPerson } = await supabase
     .from("people")
@@ -32,7 +35,11 @@ export default async function ConnectFamilyPage() {
   );
 
   return (
-    <AppShell active="find-family" userEmail={user.email}>
+    <AppShell
+      active="find-family"
+      userEmail={user.email}
+      profileHref={profileHref}
+    >
       <section className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8">
         <p className="text-sm font-medium text-night-sky/60">Family</p>

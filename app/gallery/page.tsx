@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import ImageGallery from "@/components/gallery/ImageGallery";
 import GalleryPageTransition from "@/components/gallery/GalleryPageTransition";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 export default async function GalleryPage() {
   const supabase = await createClient();
@@ -16,6 +17,8 @@ export default async function GalleryPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const profileHref = await getProfileNavHref(user.id);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -214,7 +217,7 @@ export default async function GalleryPage() {
     "You";
 
   return (
-    <AppShell active="gallery" userEmail={user.email}>
+    <AppShell active="gallery" userEmail={user.email} profileHref={profileHref}>
       <GalleryPageTransition />
 
       <section className="mx-auto max-w-6xl px-6 py-10">

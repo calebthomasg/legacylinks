@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
 import ProfileForm from "@/components/profile/ProfileForm";
+import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -14,6 +15,8 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
+  const profileHref = await getProfileNavHref(user.id);
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("first_name, last_name")
@@ -22,9 +25,10 @@ export default async function ProfilePage() {
 
   return (
     <AppShell
-      active="account"
+      active={null}
       userName={profile?.first_name ?? "LegacyLinks"}
       userEmail={user.email}
+      profileHref={profileHref}
     >
       <section className="mx-auto max-w-3xl px-6 py-10">
         <div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { getRelationshipLabel } from "@/utils/relationshipTypes";
 import AddParentModal from "@/components/family/AddParentModal";
 import AddRelativeModal, {
@@ -1063,9 +1064,18 @@ function PersonDetails({
             {isRoot ? "You" : "Family member"}
           </p>
 
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">
-            {name}
-          </h2>
+          {person.id ? (
+            <Link
+              href={`/people/${person.id}`}
+              className="mt-1 inline-block text-2xl font-bold tracking-tight text-white transition hover:text-sky hover:underline"
+            >
+              {name}
+            </Link>
+          ) : (
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">
+              {name}
+            </h2>
+          )}
 
           {relationship?.nickname && (
             <p className="mt-1 text-sm font-medium text-white/70">
