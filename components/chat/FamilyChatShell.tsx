@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createClient } from "@/utils/supabase/client";
 
 export type ChatAvatar = {
@@ -313,10 +321,19 @@ export default function FamilyChatShell({
 
   const selectedThread =
     threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const hasSelectedMessagesLoaded = selectedThreadId
+    ? Object.prototype.hasOwnProperty.call(messagesByThreadId, selectedThreadId)
+    : false;
   const selectedMessages = selectedThreadId
     ? messagesByThreadId[selectedThreadId] ?? []
     : [];
-  const isLoadingSelectedThread = loadingThreadId === selectedThreadId;
+  const isLoadingSelectedThread =
+    loadingThreadId === selectedThreadId && !hasSelectedMessagesLoaded;
+  const activeThreadIds = useMemo(
+    () => threads.map((thread) => thread.id).sort(),
+    [threads]
+  );
+  const activeThreadIdsKey = activeThreadIds.join(",");
 
   const onlineAvatars = useMemo(() => {
     const seen = new Set<string>();
@@ -324,6 +341,10 @@ export default function FamilyChatShell({
 
     for (const thread of threads) {
       for (const member of thread.members) {
+        if (member.userId === currentUserId) {
+          continue;
+        }
+
         if (seen.has(member.userId)) {
           continue;
         }
@@ -333,13 +354,43 @@ export default function FamilyChatShell({
       }
     }
 
+    if (avatars.length === 0) {
+      for (const recipient of recipients) {
+        if (recipient.userId === currentUserId || seen.has(recipient.userId)) {
+          continue;
+        }
+
+        seen.add(recipient.userId);
+        avatars.push(recipient.avatar);
+      }
+    }
+
     return avatars.slice(0, 8);
-  }, [threads]);
+  }, [currentUserId, recipients, threads]);
+
+  const appendMessageToThread = useCallback((message: ChatMessage) => {
+    setMessagesByThreadId((currentMessages) => {
+      const threadMessages = currentMessages[message.thread_id] ?? [];
+
+      if (threadMessages.some((existingMessage) => existingMessage.id === message.id)) {
+        return currentMessages;
+      }
+
+      return {
+        ...currentMessages,
+        [message.thread_id]: [...threadMessages, message].sort(
+          (first, second) =>
+            new Date(first.created_at).getTime() -
+            new Date(second.created_at).getTime()
+        ),
+      };
+    });
+  }, []);
 
   useEffect(() => {
     if (
       !selectedThreadId ||
-      messagesByThreadId[selectedThreadId] ||
+      hasSelectedMessagesLoaded ||
       loadingThreadId === selectedThreadId
     ) {
       return;
@@ -384,7 +435,60 @@ export default function FamilyChatShell({
     return () => {
       isActive = false;
     };
-  }, [loadingThreadId, messagesByThreadId, selectedThreadId, supabase]);
+  }, [
+    hasSelectedMessagesLoaded,
+    loadingThreadId,
+    selectedThreadId,
+    supabase,
+  ]);
+
+  useEffect(() => {
+    if (activeThreadIds.length === 0) {
+      return;
+    }
+
+    const channel = supabase.channel(
+      `family-chat-messages:${currentUserId}:${activeThreadIdsKey}`
+    );
+
+    for (const threadId of activeThreadIds) {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+          filter: `thread_id=eq.${threadId}`,
+        },
+        (payload) => {
+          const message = payload.new as ChatMessage;
+
+          if (!message?.id || !message.thread_id) {
+            return;
+          }
+
+          appendMessageToThread(message);
+          updateThreadPreview(message);
+          setMessageError(null);
+          setLoadingThreadId((currentThreadId) =>
+            currentThreadId === message.thread_id ? null : currentThreadId
+          );
+        }
+      );
+    }
+
+    channel.subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [
+    activeThreadIds,
+    activeThreadIdsKey,
+    appendMessageToThread,
+    currentUserId,
+    supabase,
+  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
@@ -625,17 +729,7 @@ export default function FamilyChatShell({
         body,
       });
 
-      setMessagesByThreadId((currentMessages) => {
-        const threadMessages = currentMessages[selectedThread.id] ?? [];
-
-        return {
-          ...currentMessages,
-          [selectedThread.id]: [
-            ...threadMessages.filter((message) => message.id !== sentMessage.id),
-            sentMessage,
-          ],
-        };
-      });
+      appendMessageToThread(sentMessage);
       updateThreadPreview(sentMessage);
       setMessageDraft("");
     } catch (error) {
