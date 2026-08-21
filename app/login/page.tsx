@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
@@ -9,14 +9,18 @@ import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = createClient();
-  const returnPath = getSafeReturnPath(searchParams.get("next"));
+  const [returnPath, setReturnPath] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReturnPath(getSafeReturnPath(params.get("next")));
+  }, []);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,9 +70,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="mt-8 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-night-sky">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-night-sky">Email</label>
             <input
               type="email"
               required
@@ -80,9 +82,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-night-sky">
-              Password
-            </label>
+            <label className="block text-sm font-medium text-night-sky">Password</label>
             <input
               type="password"
               required
@@ -94,26 +94,17 @@ export default function LoginPage() {
           </div>
 
           {message && (
-            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">
-              {message}
-            </p>
+            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="button-primary w-full"
-          >
+          <button type="submit" disabled={isLoading} className="button-primary w-full">
             {isLoading ? "Logging in..." : "Log in"}
           </button>
         </form>
 
         <p className="mt-6 text-sm text-night-sky/70">
           Need an account?{" "}
-          <Link
-            href={withReturnPath("/signup", returnPath)}
-            className="font-semibold text-night-sky"
-          >
+          <Link href={withReturnPath("/signup", returnPath)} className="font-semibold text-night-sky">
             Create one
           </Link>
         </p>
