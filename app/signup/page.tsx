@@ -1,24 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
 export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = createClient();
-  const returnPath = getSafeReturnPath(searchParams.get("next"));
+  const [returnPath, setReturnPath] = useState<string | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReturnPath(getSafeReturnPath(params.get("next")));
+  }, []);
 
   async function handleSignup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,13 +57,9 @@ export default function SignupPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-12">
       <section className="w-full max-w-md rounded-2xl border border-night-sky/10 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">
-          LegacyLinks
-        </p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-night-sky/60">LegacyLinks</p>
 
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-night-sky">
-          Create your account
-        </h1>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-night-sky">Create your account</h1>
 
         <p className="mt-3 text-sm leading-6 text-night-sky/70">
           Start saving the stories, memories, and moments your family will carry forward.
@@ -69,9 +68,7 @@ export default function SignupPage() {
         <form onSubmit={handleSignup} className="mt-8 space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-night-sky">
-                First name
-              </label>
+              <label className="block text-sm font-medium text-night-sky">First name</label>
               <input
                 type="text"
                 required
@@ -83,9 +80,7 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-night-sky">
-                Last name
-              </label>
+              <label className="block text-sm font-medium text-night-sky">Last name</label>
               <input
                 type="text"
                 required
@@ -98,9 +93,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-night-sky">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-night-sky">Email</label>
             <input
               type="email"
               required
@@ -112,9 +105,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-night-sky">
-              Password
-            </label>
+            <label className="block text-sm font-medium text-night-sky">Password</label>
             <input
               type="password"
               required
@@ -127,26 +118,17 @@ export default function SignupPage() {
           </div>
 
           {message && (
-            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">
-              {message}
-            </p>
+            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="button-primary w-full"
-          >
+          <button type="submit" disabled={isLoading} className="button-primary w-full">
             {isLoading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
         <p className="mt-6 text-sm text-night-sky/70">
           Already have an account?{" "}
-          <Link
-            href={withReturnPath("/login", returnPath)}
-            className="font-semibold text-night-sky"
-          >
+          <Link href={withReturnPath("/login", returnPath)} className="font-semibold text-night-sky">
             Log in
           </Link>
         </p>
