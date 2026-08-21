@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+  const returnPath = getSafeReturnPath(searchParams.get("next"));
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -22,7 +25,7 @@ export default function SignupPage() {
     setIsLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -39,8 +42,13 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/profile");
-    router.refresh();
+    if (data.session) {
+      router.push(returnPath ?? "/profile");
+      router.refresh();
+      return;
+    }
+
+    router.push(withReturnPath("/login", returnPath));
   }
 
   return (
@@ -135,7 +143,10 @@ export default function SignupPage() {
 
         <p className="mt-6 text-sm text-night-sky/70">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-night-sky">
+          <Link
+            href={withReturnPath("/login", returnPath)}
+            className="font-semibold text-night-sky"
+          >
             Log in
           </Link>
         </p>
