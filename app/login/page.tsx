@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+  const returnPath = getSafeReturnPath(searchParams.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +34,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(returnPath ?? "/dashboard");
     router.refresh();
   }
 
@@ -107,7 +110,10 @@ export default function LoginPage() {
 
         <p className="mt-6 text-sm text-night-sky/70">
           Need an account?{" "}
-          <Link href="/signup" className="font-semibold text-night-sky">
+          <Link
+            href={withReturnPath("/signup", returnPath)}
+            className="font-semibold text-night-sky"
+          >
             Create one
           </Link>
         </p>
