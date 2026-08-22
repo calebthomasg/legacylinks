@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
+import TrailheadMap from "@/components/trailhead/TrailheadMap";
 import { createClient } from "@/utils/supabase/server";
 import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
@@ -21,6 +22,8 @@ type TrailheadCache = {
   arrival_longitude: number | null;
 };
 
+const DEFAULT_TRAILHEAD_CENTER: [number, number] = [-97.3759, 33.0455];
+
 export default async function TrailheadPage() {
   const supabase = await createClient();
   const {
@@ -38,6 +41,10 @@ export default async function TrailheadPage() {
   ]);
 
   const trailheadCaches = (caches ?? []) as TrailheadCache[];
+  const firstCache = trailheadCaches[0];
+  const mapCenter: [number, number] = firstCache
+    ? [firstCache.search_longitude, firstCache.search_latitude]
+    : DEFAULT_TRAILHEAD_CENTER;
 
   return (
     <AppShell
@@ -54,9 +61,7 @@ export default async function TrailheadPage() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-8 lg:px-10 lg:py-10">
         <header className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal">
-            Trailhead
-          </p>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal">Trailhead</p>
           <h1 className="mt-3 text-4xl font-bold tracking-tight text-night-sky sm:text-5xl">
             Find your next adventure.
           </h1>
@@ -66,27 +71,25 @@ export default async function TrailheadPage() {
         </header>
 
         <section className="mt-8 overflow-hidden rounded-[2rem] border border-night-sky/10 bg-white shadow-sm">
-          <div className="relative flex min-h-[520px] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.12),_transparent_42%),linear-gradient(to_bottom,_#f5f1e6,_#ffffff)] px-6 py-12 text-center">
-            <div className="max-w-lg">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-teal/10 text-3xl" aria-hidden="true">
-                ⌖
-              </div>
-              <h2 className="mt-5 text-2xl font-bold text-night-sky">
-                Your map starts here.
-              </h2>
-              <p className="mt-3 leading-7 text-night-sky/65">
-                The Trailhead map is the next piece of the adventure. Your cache data is connected and ready for Mapbox.
-              </p>
-
-              <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-night-sky/10 bg-white px-4 py-2 text-sm font-semibold text-night-sky shadow-sm">
-                <span className="h-2.5 w-2.5 rounded-full bg-leaf" aria-hidden="true" />
-                {error
-                  ? "Trailhead data unavailable"
-                  : `${trailheadCaches.length} ${trailheadCaches.length === 1 ? "cache" : "caches"} ready to explore`}
+          {error ? (
+            <div className="flex min-h-[520px] items-center justify-center bg-sand px-6 text-center">
+              <div className="max-w-md">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p>
+                <h2 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h2>
+                <p className="mt-3 leading-7 text-night-sky/65">Try refreshing Trailhead in a moment.</p>
               </div>
             </div>
-          </div>
+          ) : (
+            <TrailheadMap center={mapCenter} />
+          )}
         </section>
+
+        <div className="mt-4 flex items-center justify-between gap-4 text-sm text-night-sky/60">
+          <p>The map gets you close. The adventure gets you there.</p>
+          <p className="shrink-0 font-semibold text-night-sky/70">
+            {trailheadCaches.length} {trailheadCaches.length === 1 ? "cache" : "caches"} nearby
+          </p>
+        </div>
       </div>
     </AppShell>
   );
