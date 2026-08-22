@@ -14,24 +14,13 @@ declare global {
   }
 }
 
-type MapboxErrorEvent = {
-  error?: {
-    message?: string;
-  };
-};
-
+type MapboxErrorEvent = { error?: { message?: string } };
 type MapboxMap = {
   addControl: (control: unknown, position?: string) => void;
-  addSource: (id: string, source: Record<string, unknown>) => void;
-  addLayer: (layer: Record<string, unknown>) => void;
-  on: (
-    event: "load" | "error",
-    handler: (() => void) | ((event: MapboxErrorEvent) => void),
-  ) => void;
+  on: (event: "load" | "error", handler: (() => void) | ((event: MapboxErrorEvent) => void)) => void;
   resize: () => void;
   remove: () => void;
 };
-
 type MapboxMarker = {
   setLngLat: (coordinates: [number, number]) => MapboxMarker;
   addTo: (map: MapboxMap) => MapboxMarker;
@@ -56,78 +45,80 @@ type TrailheadCache = {
   arrival_longitude: number | null;
 };
 
-type TrailheadMapProps = {
-  center: [number, number];
-  caches: TrailheadCache[];
-};
+type TrailheadMapProps = { center: [number, number]; caches: TrailheadCache[] };
 
 const MAPBOX_GL_VERSION = "3.26.0";
 const MAPBOX_CSP_SCRIPT = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp.js`;
 const MAPBOX_CSP_WORKER = "/mapbox-gl-csp-worker.js";
-const EARTH_RADIUS_METERS = 6371008.8;
 
-function createSearchAreaPolygon(cache: TrailheadCache) {
-  const latitudeRadians = (cache.search_latitude * Math.PI) / 180;
-  const longitudeRadians = (cache.search_longitude * Math.PI) / 180;
-  const angularDistance = cache.search_radius_meters / EARTH_RADIUS_METERS;
-  const coordinates: [number, number][] = [];
-
-  for (let step = 0; step <= 64; step += 1) {
-    const bearing = (step / 64) * Math.PI * 2;
-    const latitude = Math.asin(
-      Math.sin(latitudeRadians) * Math.cos(angularDistance) +
-        Math.cos(latitudeRadians) * Math.sin(angularDistance) * Math.cos(bearing),
-    );
-    const longitude =
-      longitudeRadians +
-      Math.atan2(
-        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitudeRadians),
-        Math.cos(angularDistance) - Math.sin(latitudeRadians) * Math.sin(latitude),
-      );
-
-    coordinates.push([(longitude * 180) / Math.PI, (latitude * 180) / Math.PI]);
-  }
-
-  return {
-    type: "Feature" as const,
-    properties: {
-      cache_id: cache.cache_id,
-      title: cache.title,
-      radius_meters: cache.search_radius_meters,
-    },
-    geometry: {
-      type: "Polygon" as const,
-      coordinates: [coordinates],
-    },
-  };
-}
-
-function createSearchAreaGeoJson(caches: TrailheadCache[]) {
-  return {
-    type: "FeatureCollection" as const,
-    features: caches.map(createSearchAreaPolygon),
-  };
-}
-
-function createCacheMarkerElement(cache: TrailheadCache) {
+function createCacheMarkerElement(cache: TrailheadCache, onSelect: () => void) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "group flex flex-col items-center focus:outline-none";
-  button.setAttribute("aria-label", `${cache.title}, ${cache.adventure_title}`);
+  button.setAttribute("aria-label", `Open ${cache.title}`);
   button.title = cache.title;
+  button.addEventListener("click", onSelect);
 
   const pin = document.createElement("span");
-  pin.className =
-    "flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-white bg-teal text-lg font-black text-white shadow-lg transition-transform group-hover:scale-110 group-focus:scale-110";
+  pin.className = "flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-white bg-teal text-lg font-black text-white shadow-lg transition-transform group-hover:scale-110 group-focus:scale-110";
   pin.textContent = cache.chapter_number ? String(cache.chapter_number) : "★";
 
   const label = document.createElement("span");
-  label.className =
-    "mt-1 max-w-40 rounded-full bg-night-sky px-3 py-1 text-center text-xs font-bold text-white shadow-md";
+  label.className = "mt-1 max-w-40 rounded-full bg-night-sky px-3 py-1 text-center text-xs font-bold text-white shadow-md";
   label.textContent = cache.title;
-
   button.append(pin, label);
   return button;
+}
+
+function Rating({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-night-sky/45">{label}</span>
+        <span className="text-sm font-bold text-night-sky">{value}/5</span>
+      </div>
+      <div className="mt-2 flex gap-1.5" aria-label={`${label}: ${value} out of 5`}>
+        {[1, 2, 3, 4, 5].map((step) => (
+          <span key={step} className={`h-2 flex-1 rounded-full ${step <= value ? "bg-teal" : "bg-night-sky/10"}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CacheDetailPanel({ cache, onClose }: { cache: TrailheadCache; onClose: () => void }) {
+  return (
+    <aside className="absolute inset-x-3 bottom-3 z-30 max-h-[58%] overflow-y-auto rounded-[1.75rem] border border-night-sky/10 bg-white shadow-2xl sm:inset-x-5 lg:inset-y-0 lg:left-0 lg:right-auto lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-y-0 lg:border-l-0">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-night-sky/10 bg-white/95 px-5 py-4 backdrop-blur lg:px-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal">Adventure</p>
+          <p className="mt-1 text-sm font-semibold text-night-sky/65">{cache.adventure_title}</p>
+        </div>
+        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-night-sky/10 text-2xl leading-none text-night-sky transition hover:bg-sand" aria-label="Close cache details">×</button>
+      </div>
+
+      <div className="px-5 py-6 lg:px-6 lg:py-7">
+        {cache.chapter_number && <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Chapter {cache.chapter_number}</p>}
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-night-sky">{cache.title}</h2>
+        {cache.description && <p className="mt-3 text-[15px] leading-7 text-night-sky/65">{cache.description}</p>}
+
+        <div className="mt-6 flex gap-6 border-y border-night-sky/10 py-5">
+          <Rating label="Difficulty" value={cache.difficulty} />
+          <Rating label="Terrain" value={cache.terrain} />
+        </div>
+
+        <div className="mt-6 rounded-2xl bg-sand p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-night-sky/45">What to expect</p>
+          <p className="mt-2 text-sm leading-6 text-night-sky/70">Choose this adventure when you’re ready to head toward the search area. The exact hiding place stays part of the hunt.</p>
+        </div>
+
+        <button type="button" className="mt-6 w-full rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90">
+          Begin adventure
+        </button>
+        <p className="mt-3 text-center text-xs leading-5 text-night-sky/45">Search mode and navigation are coming in the next Trailhead steps.</p>
+      </div>
+    </aside>
+  );
 }
 
 export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
@@ -137,67 +128,20 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
   const [scriptReady, setScriptReady] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-
+  const [selectedCache, setSelectedCache] = useState<TrailheadCache | null>(null);
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
   const initializeMap = useCallback(() => {
-    if (!scriptReady || !containerRef.current || mapRef.current || !window.mapboxgl || !token) {
-      return;
-    }
+    if (!scriptReady || !containerRef.current || mapRef.current || !window.mapboxgl || !token) return;
 
     try {
       window.mapboxgl.workerUrl = MAPBOX_CSP_WORKER;
-
-      const map = new window.mapboxgl.Map({
-        accessToken: token,
-        container: containerRef.current,
-        style: "mapbox://styles/mapbox/streets-v12",
-        center,
-        zoom: 12,
-      });
+      const map = new window.mapboxgl.Map({ accessToken: token, container: containerRef.current, style: "mapbox://styles/mapbox/streets-v12", center, zoom: 12 });
 
       map.on("load", () => {
         map.resize();
         window.requestAnimationFrame(() => map.resize());
-
-        map.addSource("trailhead-search-areas", {
-          type: "geojson",
-          data: createSearchAreaGeoJson(caches),
-        });
-
-        map.addLayer({
-          id: "trailhead-search-areas-fill",
-          type: "fill",
-          source: "trailhead-search-areas",
-          paint: {
-            "fill-color": "#14b8a6",
-            "fill-opacity": 0.16,
-          },
-        });
-
-        map.addLayer({
-          id: "trailhead-search-areas-outline",
-          type: "line",
-          source: "trailhead-search-areas",
-          paint: {
-            "line-color": "#0f1d3a",
-            "line-width": 2,
-            "line-opacity": 0.55,
-            "line-dasharray": [2, 2],
-          },
-        });
-
-        markerRefs.current = caches.map((cache) => {
-          const marker = new window.mapboxgl!.Marker({
-            element: createCacheMarkerElement(cache),
-            anchor: "bottom",
-          })
-            .setLngLat([cache.search_longitude, cache.search_latitude])
-            .addTo(map);
-
-          return marker;
-        });
-
+        markerRefs.current = caches.map((cache) => new window.mapboxgl!.Marker({ element: createCacheMarkerElement(cache, () => setSelectedCache(cache)), anchor: "bottom" }).setLngLat([cache.search_longitude, cache.search_latitude]).addTo(map));
         setMapLoaded(true);
         setMapError(null);
       });
@@ -206,7 +150,6 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
         const message = event?.error?.message;
         setMapError(message ? `Mapbox error: ${message}` : "Trailhead could not load the map right now.");
       });
-
       map.addControl(new window.mapboxgl.NavigationControl({ showCompass: true }), "top-right");
       mapRef.current = map;
     } catch (error) {
@@ -216,7 +159,6 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
 
   useEffect(() => {
     initializeMap();
-
     return () => {
       markerRefs.current.forEach((marker) => marker.remove());
       markerRefs.current = [];
@@ -225,52 +167,17 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
     };
   }, [initializeMap]);
 
-  if (!token) {
-    return (
-      <div className="flex h-[520px] items-center justify-center bg-sand px-6 text-center">
-        <div className="max-w-md">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map setup needed</p>
-          <h2 className="mt-3 text-2xl font-bold text-night-sky">Trailhead needs its Mapbox token.</h2>
-          <p className="mt-3 leading-7 text-night-sky/65">
-            Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to this environment and redeploy to turn on the live map.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!token) return <div className="flex h-full min-h-[520px] items-center justify-center bg-sand px-6 text-center"><div className="max-w-md"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map setup needed</p><h2 className="mt-3 text-2xl font-bold text-night-sky">Trailhead needs its Mapbox token.</h2></div></div>;
 
   return (
-    <div className="relative h-[520px] w-full bg-sand">
-      <link
-        href={`https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl.css`}
-        rel="stylesheet"
-      />
-      <Script
-        src={MAPBOX_CSP_SCRIPT}
-        strategy="afterInteractive"
-        onLoad={() => setScriptReady(true)}
-        onError={() => setMapError("Trailhead could not load the Mapbox CSP library right now.")}
-      />
-      <div
-        ref={containerRef}
-        className="absolute inset-0 h-full w-full"
-        aria-label="Trailhead interactive map"
-      />
+    <div className="relative h-full min-h-[520px] w-full bg-sand">
+      <link href={`https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl.css`} rel="stylesheet" />
+      <Script src={MAPBOX_CSP_SCRIPT} strategy="afterInteractive" onLoad={() => setScriptReady(true)} onError={() => setMapError("Trailhead could not load the Mapbox CSP library right now.")} />
+      <div ref={containerRef} className="absolute inset-0 h-full w-full" aria-label="Trailhead interactive map" />
 
-      {(!scriptReady || !mapLoaded) && !mapError && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-sand text-sm font-semibold text-night-sky/60">
-          Opening Trailhead…
-        </div>
-      )}
-
-      {mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-sand px-6 text-center">
-          <div className="max-w-lg">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map could not load</p>
-            <p className="mt-3 break-words font-semibold leading-7 text-night-sky">{mapError}</p>
-          </div>
-        </div>
-      )}
+      {(!scriptReady || !mapLoaded) && !mapError && <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-sand text-sm font-semibold text-night-sky/60">Opening Trailhead…</div>}
+      {mapError && <div className="absolute inset-0 flex items-center justify-center bg-sand px-6 text-center"><div className="max-w-lg"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map could not load</p><p className="mt-3 break-words font-semibold leading-7 text-night-sky">{mapError}</p></div></div>}
+      {selectedCache && <CacheDetailPanel cache={selectedCache} onClose={() => setSelectedCache(null)} />}
     </div>
   );
 }
