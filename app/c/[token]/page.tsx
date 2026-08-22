@@ -11,6 +11,7 @@ type NfcCache = {
   description: string | null;
   difficulty: number;
   terrain: number;
+  backstory: string | null;
 };
 
 type CacheEntryPageProps = {
@@ -28,12 +29,10 @@ export default async function CacheEntryPage({ params }: CacheEntryPageProps) {
   }
 
   const supabase = await createClient();
-  const [{ data: cache, error }, { data: authData }] = await Promise.all([
-    supabase
-      .rpc("resolve_cache_nfc", { p_public_token: token })
-      .maybeSingle<NfcCache>(),
-    supabase.auth.getUser(),
-  ]);
+  const { data: authData } = await supabase.auth.getUser();
+  const { data: cache, error } = await supabase
+    .rpc("resolve_cache_nfc", { p_public_token: token })
+    .maybeSingle<NfcCache>();
 
   if (error || !cache) {
     notFound();
@@ -43,7 +42,7 @@ export default async function CacheEntryPage({ params }: CacheEntryPageProps) {
   const isSignedIn = Boolean(authData.user);
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-sand px-6 py-12">
+    <main className="relative min-h-screen bg-sand px-6 py-24 sm:py-28">
       <Link
         href="/"
         className="absolute left-6 top-6 sm:left-10 sm:top-8"
@@ -59,7 +58,7 @@ export default async function CacheEntryPage({ params }: CacheEntryPageProps) {
         />
       </Link>
 
-      <section className="w-full max-w-xl rounded-3xl border border-night-sky/10 bg-white p-8 shadow-sm sm:p-10">
+      <section className="mx-auto w-full max-w-2xl rounded-3xl border border-night-sky/10 bg-white p-8 shadow-sm sm:p-10">
         <p className="text-sm font-semibold uppercase tracking-wide text-teal">
           LegacyLink cache discovered
         </p>
@@ -84,7 +83,25 @@ export default async function CacheEntryPage({ params }: CacheEntryPageProps) {
 
         {isSignedIn ? (
           <div className="mt-8">
-            <p className="leading-7 text-night-sky/70">
+            {cache.backstory ? (
+              <article className="border-t border-night-sky/10 pt-8">
+                <p className="text-sm font-semibold uppercase tracking-wide text-teal">
+                  Story unlocked
+                </p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-night-sky">
+                  {cache.title}
+                </h2>
+                <div className="mt-5 whitespace-pre-line text-base leading-8 text-night-sky/80">
+                  {cache.backstory}
+                </div>
+              </article>
+            ) : (
+              <p className="leading-7 text-night-sky/70">
+                This cache does not have a story to reveal yet.
+              </p>
+            )}
+
+            <p className="mt-8 text-sm leading-6 text-night-sky/60">
               Your account is connected to this discovery. Find logging will be added in the next cache milestone.
             </p>
             <Link href="/dashboard" className="button-primary mt-6 inline-flex">
@@ -94,14 +111,14 @@ export default async function CacheEntryPage({ params }: CacheEntryPageProps) {
         ) : (
           <div className="mt-8">
             <p className="leading-7 text-night-sky/70">
-              Log in or create a LegacyLink account to continue from this discovery. We’ll bring you right back here afterward.
+              This cache has a story waiting for you. Log in or create a LegacyLink account to unlock it. We’ll bring you right back here afterward.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={withReturnPath("/login", returnPath)}
                 className="button-primary inline-flex justify-center"
               >
-                Log in
+                Log in to unlock story
               </Link>
               <Link
                 href={withReturnPath("/signup", returnPath)}

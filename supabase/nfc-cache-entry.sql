@@ -1,15 +1,20 @@
--- Secure, minimal lookup used by the public NFC landing route.
+-- Secure NFC lookup used by the cache landing route.
 -- The opaque public_token identifies an active NFC tag without exposing
 -- cache_nfc_tags or private cache location data to browser clients.
+-- Public visitors receive preview metadata only. Authenticated users also
+-- receive the cache backstory so the story can be revealed after sign-in.
 
-create or replace function public.resolve_cache_nfc(p_public_token uuid)
+drop function if exists public.resolve_cache_nfc(uuid);
+
+create function public.resolve_cache_nfc(p_public_token uuid)
 returns table (
   cache_id uuid,
   public_code text,
   title text,
   description text,
   difficulty smallint,
-  terrain smallint
+  terrain smallint,
+  backstory text
 )
 language sql
 stable
@@ -22,7 +27,11 @@ as $$
     c.title,
     c.description,
     c.difficulty,
-    c.terrain
+    c.terrain,
+    case
+      when auth.uid() is not null then c.backstory
+      else null
+    end as backstory
   from public.cache_nfc_tags n
   join public.caches c on c.id = n.cache_id
   where n.public_token = p_public_token
@@ -32,4 +41,5 @@ as $$
 $$;
 
 revoke all on function public.resolve_cache_nfc(uuid) from public;
+revoke execute on function public.resolve_cache_nfc(uuid) from anon, authenticated;
 grant execute on function public.resolve_cache_nfc(uuid) to anon, authenticated;
