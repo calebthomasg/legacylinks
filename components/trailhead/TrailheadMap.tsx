@@ -35,7 +35,7 @@ type TrailheadMapProps = {
 
 const MAPBOX_GL_VERSION = "3.26.0";
 const MAPBOX_CSP_SCRIPT = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp.js`;
-const MAPBOX_CSP_WORKER = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp-worker.js`;
+const MAPBOX_CSP_WORKER = "/mapbox-gl-csp-worker.js";
 
 export default function TrailheadMap({ center }: TrailheadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
