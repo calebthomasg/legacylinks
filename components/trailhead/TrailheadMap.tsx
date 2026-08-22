@@ -12,8 +12,16 @@ declare global {
   }
 }
 
+type MapboxErrorEvent = {
+  error?: {
+    message?: string;
+  };
+};
+
 type MapboxMap = {
   addControl: (control: unknown, position?: string) => void;
+  on: (event: "load", handler: () => void) => void;
+  on: (event: "error", handler: (event: MapboxErrorEvent) => void) => void;
   remove: () => void;
 };
 
@@ -27,6 +35,7 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -45,10 +54,20 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
         zoom: 12,
       });
 
+      map.on("load", () => {
+        setMapLoaded(true);
+        setMapError(null);
+      });
+
+      map.on("error", (event) => {
+        const message = event.error?.message;
+        setMapError(message ? `Mapbox error: ${message}` : "Trailhead could not load the map right now.");
+      });
+
       map.addControl(new window.mapboxgl.NavigationControl({ showCompass: true }), "top-right");
       mapRef.current = map;
-    } catch {
-      setMapError("Trailhead could not load the map right now.");
+    } catch (error) {
+      setMapError(error instanceof Error ? `Mapbox error: ${error.message}` : "Trailhead could not load the map right now.");
     }
   }, [center, scriptReady, token]);
 
@@ -63,7 +82,7 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
 
   if (!token) {
     return (
-      <div className="flex min-h-[520px] items-center justify-center bg-sand px-6 text-center">
+      <div className="flex h-[520px] items-center justify-center bg-sand px-6 text-center">
         <div className="max-w-md">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map setup needed</p>
           <h2 className="mt-3 text-2xl font-bold text-night-sky">Trailhead needs its Mapbox token.</h2>
@@ -76,7 +95,7 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
   }
 
   return (
-    <div className="relative min-h-[520px] bg-sand">
+    <div className="relative h-[520px] w-full bg-sand">
       <link
         href={`https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl.css`}
         rel="stylesheet"
@@ -85,19 +104,26 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
         src={`https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl.js`}
         strategy="afterInteractive"
         onLoad={() => setScriptReady(true)}
-        onError={() => setMapError("Trailhead could not load the map library right now.")}
+        onError={() => setMapError("Trailhead could not load the Mapbox library right now.")}
       />
-      <div ref={containerRef} className="absolute inset-0" aria-label="Trailhead interactive map" />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 h-full w-full"
+        aria-label="Trailhead interactive map"
+      />
 
-      {!scriptReady && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-sand text-sm font-semibold text-night-sky/60">
+      {(!scriptReady || !mapLoaded) && !mapError && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-sand text-sm font-semibold text-night-sky/60">
           Opening Trailhead…
         </div>
       )}
 
       {mapError && (
         <div className="absolute inset-0 flex items-center justify-center bg-sand px-6 text-center">
-          <p className="max-w-md font-semibold text-night-sky">{mapError}</p>
+          <div className="max-w-lg">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Map could not load</p>
+            <p className="mt-3 break-words font-semibold leading-7 text-night-sky">{mapError}</p>
+          </div>
         </div>
       )}
     </div>
