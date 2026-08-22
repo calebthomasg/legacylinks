@@ -52,43 +52,34 @@ export default async function TrailheadPage() {
       userName={profile?.first_name || "Trailblazer"}
       userEmail={user.email}
       profileHref={profileHref}
-      contentClassName="relative isolate overflow-hidden bg-sand"
+      contentClassName="relative overflow-hidden bg-sand"
     >
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[url('/images/sky-fade.png')] bg-cover bg-top bg-no-repeat"
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 mx-auto max-w-7xl px-6 py-8 lg:px-10 lg:py-10">
-        <header className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal">Trailhead</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-night-sky sm:text-5xl">
-            Find your next adventure.
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-night-sky/70 sm:text-lg">
-            Discover stories and adventures waiting to be found around you.
-          </p>
-        </header>
-
-        <section className="mt-8 overflow-hidden rounded-[2rem] border border-night-sky/10 bg-white shadow-sm">
-          {error ? (
-            <div className="flex min-h-[520px] items-center justify-center bg-sand px-6 text-center">
-              <div className="max-w-md">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p>
-                <h2 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h2>
-                <p className="mt-3 leading-7 text-night-sky/65">Try refreshing Trailhead in a moment.</p>
-              </div>
+      <div className="relative h-[calc(100dvh-77px)] min-h-[560px] lg:h-screen lg:min-h-[640px]">
+        {error ? (
+          <div className="flex h-full items-center justify-center bg-sand px-6 text-center">
+            <div className="max-w-md">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p>
+              <h1 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h1>
+              <p className="mt-3 leading-7 text-night-sky/65">Try refreshing Trailhead in a moment.</p>
             </div>
-          ) : (
-            <TrailheadMap center={mapCenter} caches={trailheadCaches} />
-          )}
-        </section>
+          </div>
+        ) : (
+          <TrailheadMap center={mapCenter} caches={trailheadCaches} />
+        )}
 
-        <div className="mt-4 flex items-center justify-between gap-4 text-sm text-night-sky/60">
-          <p>The map gets you close. The adventure gets you there.</p>
-          <p className="shrink-0 font-semibold text-night-sky/70">
-            {trailheadCaches.length} {trailheadCaches.length === 1 ? "cache" : "caches"} nearby
-          </p>
+        <div className="pointer-events-none absolute left-4 top-4 z-20 lg:left-6 lg:top-6">
+          <div className="pointer-events-auto rounded-2xl border border-night-sky/10 bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:px-5">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal">Trailhead</p>
+            <p className="mt-1 text-sm font-semibold text-night-sky">
+              {trailheadCaches.length} {trailheadCaches.length === 1 ? "adventure nearby" : "adventures nearby"}
+            </p>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute bottom-4 left-4 z-20 hidden lg:block">
+          <div className="rounded-full bg-night-sky/85 px-4 py-2 text-xs font-medium text-white shadow-lg backdrop-blur">
+            The map gets you close. The adventure gets you there.
+          </div>
         </div>
       </div>
     </AppShell>
