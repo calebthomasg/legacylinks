@@ -80,7 +80,7 @@ export default async function TrailheadPage() {
               </div>
             </div>
           ) : (
-            <TrailheadMap center={mapCenter} />
+            <TrailheadMap center={mapCenter} caches={trailheadCaches} />
           )}
         </section>
 
