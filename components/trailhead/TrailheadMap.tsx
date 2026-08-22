@@ -9,6 +9,7 @@ declare global {
       Map: new (options: Record<string, unknown>) => MapboxMap;
       Marker: new (options?: Record<string, unknown>) => MapboxMarker;
       NavigationControl: new (options?: Record<string, unknown>) => unknown;
+      GeolocateControl: new (options?: Record<string, unknown>) => unknown;
       workerUrl?: string;
     };
   }
@@ -151,7 +152,19 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
         const message = event?.error?.message;
         setMapError(message ? `Mapbox error: ${message}` : "Trailhead could not load the map right now.");
       });
+
       map.addControl(new window.mapboxgl.NavigationControl({ showCompass: true }), "top-right");
+      map.addControl(
+        new window.mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserLocation: true,
+          showAccuracyCircle: true,
+          showUserHeading: true,
+          fitBoundsOptions: { maxZoom: 15 },
+        }),
+        "top-right",
+      );
       mapRef.current = map;
     } catch (error) {
       setMapError(error instanceof Error ? `Mapbox error: ${error.message}` : "Trailhead could not load the map right now.");
