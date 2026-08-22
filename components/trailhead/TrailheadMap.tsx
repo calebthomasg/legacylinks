@@ -21,8 +21,10 @@ type MapboxErrorEvent = {
 
 type MapboxMap = {
   addControl: (control: unknown, position?: string) => void;
-  on: (event: "load", handler: () => void) => void;
-  on: (event: "error", handler: (event: MapboxErrorEvent) => void) => void;
+  on: (
+    event: "load" | "error",
+    handler: (() => void) | ((event: MapboxErrorEvent) => void),
+  ) => void;
   resize: () => void;
   remove: () => void;
 };
@@ -69,8 +71,8 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
         setMapError(null);
       });
 
-      map.on("error", (event) => {
-        const message = event.error?.message;
+      map.on("error", (event?: MapboxErrorEvent) => {
+        const message = event?.error?.message;
         setMapError(message ? `Mapbox error: ${message}` : "Trailhead could not load the map right now.");
       });
 
