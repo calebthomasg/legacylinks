@@ -8,6 +8,7 @@ declare global {
     mapboxgl?: {
       Map: new (options: Record<string, unknown>) => MapboxMap;
       NavigationControl: new (options?: Record<string, unknown>) => unknown;
+      workerUrl?: string;
     };
   }
 }
@@ -22,6 +23,7 @@ type MapboxMap = {
   addControl: (control: unknown, position?: string) => void;
   on: (event: "load", handler: () => void) => void;
   on: (event: "error", handler: (event: MapboxErrorEvent) => void) => void;
+  resize: () => void;
   remove: () => void;
 };
 
@@ -30,6 +32,8 @@ type TrailheadMapProps = {
 };
 
 const MAPBOX_GL_VERSION = "3.26.0";
+const MAPBOX_CSP_SCRIPT = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp.js`;
+const MAPBOX_CSP_WORKER = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp-worker.js`;
 
 export default function TrailheadMap({ center }: TrailheadMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,15 +50,21 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
     }
 
     try {
+      window.mapboxgl.workerUrl = MAPBOX_CSP_WORKER;
+
       const map = new window.mapboxgl.Map({
         accessToken: token,
         container: containerRef.current,
-        style: "mapbox://styles/mapbox/standard",
+        // Use the classic Streets style while we validate strict CSP rendering.
+        // Mapbox Standard requires WebAssembly via script-src 'wasm-unsafe-eval'.
+        style: "mapbox://styles/mapbox/streets-v12",
         center,
         zoom: 12,
       });
 
       map.on("load", () => {
+        map.resize();
+        window.requestAnimationFrame(() => map.resize());
         setMapLoaded(true);
         setMapError(null);
       });
@@ -101,10 +111,10 @@ export default function TrailheadMap({ center }: TrailheadMapProps) {
         rel="stylesheet"
       />
       <Script
-        src={`https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl.js`}
+        src={MAPBOX_CSP_SCRIPT}
         strategy="afterInteractive"
         onLoad={() => setScriptReady(true)}
-        onError={() => setMapError("Trailhead could not load the Mapbox library right now.")}
+        onError={() => setMapError("Trailhead could not load the Mapbox CSP library right now.")}
       />
       <div
         ref={containerRef}
