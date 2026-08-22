@@ -22,6 +22,8 @@ type MapboxErrorEvent = {
 
 type MapboxMap = {
   addControl: (control: unknown, position?: string) => void;
+  addSource: (id: string, source: Record<string, unknown>) => void;
+  addLayer: (layer: Record<string, unknown>) => void;
   on: (
     event: "load" | "error",
     handler: (() => void) | ((event: MapboxErrorEvent) => void),
@@ -62,6 +64,50 @@ type TrailheadMapProps = {
 const MAPBOX_GL_VERSION = "3.26.0";
 const MAPBOX_CSP_SCRIPT = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp.js`;
 const MAPBOX_CSP_WORKER = "/mapbox-gl-csp-worker.js";
+const EARTH_RADIUS_METERS = 6371008.8;
+
+function createSearchAreaPolygon(cache: TrailheadCache) {
+  const latitudeRadians = (cache.search_latitude * Math.PI) / 180;
+  const longitudeRadians = (cache.search_longitude * Math.PI) / 180;
+  const angularDistance = cache.search_radius_meters / EARTH_RADIUS_METERS;
+  const coordinates: [number, number][] = [];
+
+  for (let step = 0; step <= 64; step += 1) {
+    const bearing = (step / 64) * Math.PI * 2;
+    const latitude = Math.asin(
+      Math.sin(latitudeRadians) * Math.cos(angularDistance) +
+        Math.cos(latitudeRadians) * Math.sin(angularDistance) * Math.cos(bearing),
+    );
+    const longitude =
+      longitudeRadians +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitudeRadians),
+        Math.cos(angularDistance) - Math.sin(latitudeRadians) * Math.sin(latitude),
+      );
+
+    coordinates.push([(longitude * 180) / Math.PI, (latitude * 180) / Math.PI]);
+  }
+
+  return {
+    type: "Feature" as const,
+    properties: {
+      cache_id: cache.cache_id,
+      title: cache.title,
+      radius_meters: cache.search_radius_meters,
+    },
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [coordinates],
+    },
+  };
+}
+
+function createSearchAreaGeoJson(caches: TrailheadCache[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: caches.map(createSearchAreaPolygon),
+  };
+}
 
 function createCacheMarkerElement(cache: TrailheadCache) {
   const button = document.createElement("button");
@@ -113,6 +159,33 @@ export default function TrailheadMap({ center, caches }: TrailheadMapProps) {
       map.on("load", () => {
         map.resize();
         window.requestAnimationFrame(() => map.resize());
+
+        map.addSource("trailhead-search-areas", {
+          type: "geojson",
+          data: createSearchAreaGeoJson(caches),
+        });
+
+        map.addLayer({
+          id: "trailhead-search-areas-fill",
+          type: "fill",
+          source: "trailhead-search-areas",
+          paint: {
+            "fill-color": "#14b8a6",
+            "fill-opacity": 0.16,
+          },
+        });
+
+        map.addLayer({
+          id: "trailhead-search-areas-outline",
+          type: "line",
+          source: "trailhead-search-areas",
+          paint: {
+            "line-color": "#0f1d3a",
+            "line-width": 2,
+            "line-opacity": 0.55,
+            "line-dasharray": [2, 2],
+          },
+        });
 
         markerRefs.current = caches.map((cache) => {
           const marker = new window.mapboxgl!.Marker({
