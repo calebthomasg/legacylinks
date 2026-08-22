@@ -88,8 +88,9 @@ function Rating({ label, value }: { label: string; value: number }) {
 
 function CacheDetailPanel({ cache, onClose }: { cache: TrailheadCache; onClose: () => void }) {
   return (
-    <aside className="absolute inset-x-3 bottom-3 z-30 max-h-[58%] overflow-y-auto rounded-[1.75rem] border border-night-sky/10 bg-white shadow-2xl sm:inset-x-5 lg:inset-y-0 lg:left-0 lg:right-auto lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-y-0 lg:border-l-0">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-night-sky/10 bg-white/95 px-5 py-4 backdrop-blur lg:px-6">
+    <aside className="absolute inset-x-0 bottom-0 z-30 flex h-[82%] flex-col overflow-hidden rounded-t-[2rem] border-t border-night-sky/10 bg-white shadow-2xl sm:inset-x-4 sm:bottom-4 sm:h-[78%] sm:rounded-[2rem] sm:border lg:inset-y-0 lg:left-0 lg:right-auto lg:h-auto lg:w-[390px] lg:rounded-none lg:border-y-0 lg:border-l-0">
+      <div className="mx-auto mt-2 h-1.5 w-12 shrink-0 rounded-full bg-night-sky/15 sm:mt-3 lg:hidden" aria-hidden="true" />
+      <div className="flex shrink-0 items-center justify-between border-b border-night-sky/10 bg-white/95 px-5 py-4 backdrop-blur lg:px-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal">Adventure</p>
           <p className="mt-1 text-sm font-semibold text-night-sky/65">{cache.adventure_title}</p>
@@ -97,7 +98,7 @@ function CacheDetailPanel({ cache, onClose }: { cache: TrailheadCache; onClose: 
         <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-night-sky/10 text-2xl leading-none text-night-sky transition hover:bg-sand" aria-label="Close cache details">×</button>
       </div>
 
-      <div className="px-5 py-6 lg:px-6 lg:py-7">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 pb-8 lg:px-6 lg:py-7">
         {cache.chapter_number && <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Chapter {cache.chapter_number}</p>}
         <h2 className="mt-2 text-3xl font-bold tracking-tight text-night-sky">{cache.title}</h2>
         {cache.description && <p className="mt-3 text-[15px] leading-7 text-night-sky/65">{cache.description}</p>}
