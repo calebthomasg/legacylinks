@@ -43,12 +43,13 @@ export default async function GalleryPage() {
   const { data: trailRows, error: trailError } = await supabase.from("gallery_media").select("id, storage_bucket, storage_path, file_name, created_at, treasure_box_id, caches(title)").eq("user_id", user.id).eq("source_type", "trailhead_find").order("created_at", { ascending:false });
   if (trailError) console.error("Trailhead gallery query error:", trailError.message);
 
-  const trailheadImages = await Promise.all((trailRows ?? []).map(async (image) => {
+  const trailheadImages = (trailRows ?? []).map((image) => {
     const storage = supabase.storage.from(image.storage_bucket);
-    const [full, thumb] = await Promise.all([storage.createSignedUrl(image.storage_path, 3600), storage.createSignedUrl(image.storage_path, 3600, { transform:{ width:500,height:500,resize:"cover",quality:70 } })]);
+    const publicResult = storage.getPublicUrl(image.storage_path);
+    const publicUrl = publicResult.data.publicUrl;
     const treasure = Array.isArray(image.caches) ? image.caches[0] : image.caches;
-    return { id:image.id, signedUrl:full.data?.signedUrl ?? null, thumbnailUrl:thumb.data?.signedUrl ?? full.data?.signedUrl ?? null, fileName:image.file_name, dateAdded:image.created_at, treasureBoxId:image.treasure_box_id, treasureBoxTitle:treasure?.title ?? "Trailhead treasure box" };
-  }));
+    return { id:image.id, signedUrl:publicUrl, thumbnailUrl:publicUrl, fileName:image.file_name, dateAdded:image.created_at, treasureBoxId:image.treasure_box_id, treasureBoxTitle:treasure?.title ?? "Trailhead treasure box" };
+  });
 
   const currentUserName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user.email || "You";
 
