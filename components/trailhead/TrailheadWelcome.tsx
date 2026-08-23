@@ -55,12 +55,12 @@ const cards = [
   },
   {
     eyebrow: "YOU FOUND IT!",
-    title: "Every adventure leaves a story behind.",
+    title: "Found the treasure box? Here’s what to do next.",
     body: (
       <>
-        <p>Found the treasure box? Open it and look for the <strong>Scan Here</strong> marker inside. Tap it with your phone to mark your find and reveal what you’ve discovered.</p>
+        <p>Open the treasure box and look for the <strong>Scan Here</strong> marker inside. Tap it with your phone to mark your find and reveal what you’ve discovered.</p>
         <p>Sometimes it’s a story. Sometimes it’s treasure. Sometimes it’s the first step toward wherever the trail leads next.</p>
-        <p className="font-bold text-night-sky">Now get out there, trailblazer. There’s a story waiting for you.</p>
+        <p className="font-bold text-[#0d2144]">Now get out there, trailblazer. There’s a story waiting for you.</p>
       </>
     ),
     button: "Start exploring",
@@ -86,49 +86,62 @@ export default function TrailheadWelcome() {
     setOpen(false);
   }
 
-  if (!open) return null;
+  function replay() {
+    setStep(0);
+    setOpen(true);
+  }
 
   const card = cards[step];
   const isLast = step === cards.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-night-sky/55 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="trailhead-welcome-title">
-      <div className="relative flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-night-sky/10 bg-sand shadow-2xl md:min-h-[570px] md:flex-row">
-        <button onClick={finish} className="absolute right-4 top-4 z-10 rounded-full bg-white/80 px-3 py-2 text-xs font-semibold text-night-sky/60 transition hover:text-night-sky" aria-label="Skip Trailhead introduction">Skip introduction</button>
+    <>
+      <button
+        type="button"
+        onClick={replay}
+        className="fixed bottom-5 right-5 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#0d2144] text-xl font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#54b1ee]/35 lg:bottom-6 lg:right-6"
+        aria-label="How to use Trailhead"
+        title="How to use Trailhead"
+      >
+        ?
+      </button>
 
-        <div className="relative flex min-h-[180px] items-end justify-center overflow-hidden bg-teal/10 px-6 pt-12 md:min-h-full md:w-[38%] md:px-8">
-          <div className="absolute left-6 top-7 h-16 w-16 rounded-full bg-sunshine/35 blur-xl" />
-          <div className="absolute bottom-10 right-4 h-24 w-24 rounded-full bg-sky-blue/30 blur-2xl" />
-          <div className="relative mb-5 flex h-36 w-36 items-center justify-center rounded-full border-2 border-dashed border-teal/30 bg-white/70 text-center shadow-sm md:mb-16 md:h-52 md:w-52">
-            <div>
-              <div className="mx-auto mb-2 text-5xl md:text-7xl">🧭</div>
-              <p className="px-4 text-xs font-bold uppercase tracking-[0.16em] text-teal">Ranger Rowan</p>
-              <p className="mt-1 px-5 text-[11px] leading-4 text-night-sky/55">Character art placeholder for this draft</p>
+      {open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d2144]/55 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="trailhead-welcome-title">
+          <div className="relative flex h-[min(700px,94dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[#0d2144]/10 bg-[#f5f2e8] shadow-2xl md:h-[640px] md:flex-row">
+            <button onClick={finish} className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-[#0d2144]/65 transition hover:text-[#0d2144]" aria-label="Skip Trailhead introduction">Skip introduction</button>
+
+            <div className="relative flex h-[210px] shrink-0 items-end justify-center overflow-hidden bg-[#16b7aa]/10 px-6 pt-12 md:h-full md:w-[38%] md:px-8">
+              <div className="absolute left-6 top-7 h-16 w-16 rounded-full bg-[#ddb647]/35 blur-xl" />
+              <div className="absolute bottom-10 right-4 h-24 w-24 rounded-full bg-[#54b1ee]/30 blur-2xl" />
+              <div className="relative flex h-full w-full items-end justify-center">
+                <img src="/images/ranger-rowan.svg" alt="Ranger Rowan" className="max-h-[185px] w-auto md:mb-12 md:max-h-[440px]" />
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col bg-white px-6 pb-6 pt-14 sm:px-9 md:px-12 md:pb-10 md:pt-14">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0aa99d]">{card.eyebrow}</p>
+                <h2 id="trailhead-welcome-title" className="mt-3 max-w-xl text-3xl font-bold leading-tight text-[#0d2144] sm:text-4xl">{card.title}</h2>
+                <div className="mt-5 space-y-4 text-[15px] leading-7 text-[#667085] sm:text-base">{card.body}</div>
+              </div>
+
+              <div className="mt-5 shrink-0 border-t border-[#0d2144]/10 pt-5">
+                <div className="mb-5 flex items-center gap-2" aria-label={`Step ${step + 1} of ${cards.length}`}>
+                  {cards.map((_, index) => (
+                    <span key={index} className={`h-2 rounded-full transition-all ${index === step ? "w-8 bg-[#16b7aa]" : "w-2 bg-[#0d2144]/15"}`} />
+                  ))}
+                  <span className="ml-2 text-xs font-semibold text-[#667085]">{step + 1} of {cards.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <button onClick={() => setStep((value) => Math.max(0, value - 1))} disabled={step === 0} className="rounded-xl px-3 py-3 text-sm font-semibold text-[#667085] transition hover:text-[#0d2144] disabled:invisible">Back</button>
+                  <button onClick={() => isLast ? finish() : setStep((value) => value + 1)} className="rounded-xl bg-[#54b1ee] px-5 py-3 text-sm font-bold text-[#0d2144] shadow-[0_4px_0_#168bd2] transition hover:-translate-y-0.5 active:translate-y-0 active:shadow-none sm:px-6">{card.button}</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        <div className="flex min-h-0 flex-1 flex-col bg-white px-6 pb-6 pt-16 sm:px-9 md:px-12 md:pb-10 md:pt-14">
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal">{card.eyebrow}</p>
-            <h2 id="trailhead-welcome-title" className="mt-3 max-w-xl text-3xl font-bold leading-tight text-night-sky sm:text-4xl">{card.title}</h2>
-            <div className="mt-5 space-y-4 text-[15px] leading-7 text-night-sky/70 sm:text-base">{card.body}</div>
-          </div>
-
-          <div className="mt-7 border-t border-night-sky/10 pt-5">
-            <div className="mb-5 flex items-center gap-2" aria-label={`Step ${step + 1} of ${cards.length}`}>
-              {cards.map((_, index) => (
-                <span key={index} className={`h-2 rounded-full transition-all ${index === step ? "w-8 bg-teal" : "w-2 bg-night-sky/15"}`} />
-              ))}
-              <span className="ml-2 text-xs font-semibold text-night-sky/45">{step + 1} of {cards.length}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <button onClick={() => setStep((value) => Math.max(0, value - 1))} disabled={step === 0} className="rounded-xl px-3 py-3 text-sm font-semibold text-night-sky/60 transition hover:text-night-sky disabled:invisible">Back</button>
-              <button onClick={() => isLast ? finish() : setStep((value) => value + 1)} className="rounded-xl bg-sky-blue px-5 py-3 text-sm font-bold text-white shadow-[0_4px_0_#168bd2] transition hover:-translate-y-0.5 active:translate-y-0 active:shadow-none sm:px-6">{card.button}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }
