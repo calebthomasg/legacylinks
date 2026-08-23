@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import TrailheadMap from "@/components/trailhead/TrailheadMap";
+import TrailheadWelcome from "@/components/trailhead/TrailheadWelcome";
 import { createClient } from "@/utils/supabase/server";
 import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
@@ -82,6 +83,8 @@ export default async function TrailheadPage() {
           </div>
         </div>
       </div>
+
+      <TrailheadWelcome />
     </AppShell>
   );
 }
