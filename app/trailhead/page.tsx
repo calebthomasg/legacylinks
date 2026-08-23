@@ -5,6 +5,13 @@ import TrailheadWelcome from "@/components/trailhead/TrailheadWelcome";
 import { createClient } from "@/utils/supabase/server";
 import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
+type TrailheadComment = {
+  first_name: string;
+  comment: string;
+  rating: number | null;
+  found_at: string;
+};
+
 type TrailheadCache = {
   cache_id: string;
   public_code: string;
@@ -21,6 +28,9 @@ type TrailheadCache = {
   search_radius_meters: number;
   arrival_latitude: number | null;
   arrival_longitude: number | null;
+  unique_find_count: number;
+  average_rating: number | null;
+  recent_comments: TrailheadComment[];
 };
 
 const DEFAULT_TRAILHEAD_CENTER: [number, number] = [-97.3759, 33.0455];
