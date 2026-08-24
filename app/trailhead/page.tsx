@@ -31,7 +31,7 @@ export default async function TrailheadPage(){
   const mapCenter:[number,number]=firstDiscovery?[firstDiscovery.longitude,firstDiscovery.latitude]:firstCache?[firstCache.search_longitude,firstCache.search_latitude]:DEFAULT_TRAILHEAD_CENTER;
   return <AppShell active="trailhead" userName={profile?.first_name||"Trailblazer"} userEmail={user.email} profileHref={profileHref} contentClassName="relative overflow-hidden bg-sand">
     <div className="relative h-[calc(100dvh-77px)] min-h-[560px] lg:h-screen lg:min-h-[640px]">
-      {error?<div className="flex h-full items-center justify-center bg-sand px-6 text-center"><div className="max-w-md"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p><h1 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h1><p className="mt-3 leading-7 text-night-sky/65">Try refreshing Trailhead in a moment.</p></div></div>:<TrailheadMap center={mapCenter} caches={trailheadCaches} myBoxes={ownedBoxes} discoveryItems={discoveries}/>} 
+      {error?<div className="flex h-full items-center justify-center bg-sand px-6 text-center"><div className="max-w-md"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p><h1 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h1><p className="mt-3 leading-7 text-night-sky/65">Try refreshing Trailhead in a moment.</p></div></div>:<TrailheadMap center={mapCenter} caches={trailheadCaches} myBoxes={ownedBoxes}/>} 
     </div>
     <TrailheadWelcome/>
   </AppShell>;
