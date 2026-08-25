@@ -278,7 +278,7 @@ export default function TrailheadMap({ center, caches, myBoxes: _myBoxes, discov
     try {
       setError(null);
       window.mapboxgl.workerUrl = MAPBOX_CSP_WORKER;
-      const map = new window.mapboxgl.Map({ accessToken: token, container: containerRef.current, style: "mapbox://styles/mapbox/streets-v12", center, zoom: 12 });
+      const map = new window.mapboxgl.Map({ accessToken: token, container: containerRef.current, style: "mapbox://styles/mapbox/streets-v12", center, zoom: 4 });
       mapRef.current = map;
       map.on("load", () => {
         map.resize();
