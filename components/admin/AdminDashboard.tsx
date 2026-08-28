@@ -5,7 +5,6 @@ import {createClient} from "@/utils/supabase/client";
 
 type AdminRow={user_id:string;email:string|null;role:"super_admin"|"admin"|"fulfillment";created_at:string};
 type ProvisionedBox={physical_box_id:string;box_id:string;activation_pin:string;nfc_public_token:string;nfc_path:string};
-
 type Props={initialAdmins:AdminRow[];isSuperAdmin:boolean};
 
 export default function AdminDashboard({initialAdmins,isSuperAdmin}:Props){
@@ -15,7 +14,6 @@ export default function AdminDashboard({initialAdmins,isSuperAdmin}:Props){
  const[role,setRole]=useState<"admin"|"fulfillment">("admin");
  const[adminBusy,setAdminBusy]=useState(false);
  const[adminError,setAdminError]=useState<string|null>(null);
- const[edition,setEdition]=useState("");
  const[provisioning,setProvisioning]=useState(false);
  const[provisionError,setProvisionError]=useState<string|null>(null);
  const[provisioned,setProvisioned]=useState<ProvisionedBox|null>(null);
@@ -23,14 +21,14 @@ export default function AdminDashboard({initialAdmins,isSuperAdmin}:Props){
  async function refreshAdmins(){const{data}=await supabase.rpc("list_legacy_link_admins");if(data)setAdmins(data as AdminRow[])}
  async function addAdmin(e:FormEvent){e.preventDefault();setAdminError(null);setAdminBusy(true);const{error}=await supabase.rpc("grant_legacy_link_admin",{p_email:email.trim(),p_role:role});setAdminBusy(false);if(error){setAdminError(error.message);return}setEmail("");await refreshAdmins()}
  async function removeAdmin(userId:string){if(!confirm("Remove this admin's access?"))return;setAdminError(null);const{error}=await supabase.rpc("revoke_legacy_link_admin",{p_user_id:userId});if(error){setAdminError(error.message);return}await refreshAdmins()}
- async function provisionBox(){setProvisionError(null);setProvisioned(null);setProvisioning(true);const{data,error}=await supabase.rpc("admin_provision_physical_treasure_box",{p_edition:edition.trim()||null});setProvisioning(false);if(error){setProvisionError(error.message);return}const row=Array.isArray(data)?data[0]:data;if(row)setProvisioned(row as ProvisionedBox)}
+ async function provisionBox(){setProvisionError(null);setProvisioned(null);setProvisioning(true);const{data,error}=await supabase.rpc("admin_provision_physical_treasure_box",{});setProvisioning(false);if(error){setProvisionError(error.message);return}const row=Array.isArray(data)?data[0]:data;if(row)setProvisioned(row as ProvisionedBox)}
  const fullNfcUrl=provisioned?`${window.location.origin}${provisioned.nfc_path}`:"";
  return <div className="mx-auto w-full max-w-6xl px-5 py-8 lg:px-8 lg:py-10">
    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-teal">LegacyLink Admin</p><h1 className="mt-2 text-3xl font-bold text-night-sky">Operations</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-night-sky/60">Internal tools for fulfillment, physical Treasure Box provisioning, and administrative access.</p></div><a href="/trailhead" className="text-sm font-bold text-teal">Back to Trailhead →</a></div>
    <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_.95fr]">
-     <section className="rounded-3xl border border-night-sky/10 bg-white p-5 shadow-sm lg:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-teal">Treasure Box fulfillment</p><h2 className="mt-1 text-xl font-bold text-night-sky">Prepare a physical box</h2></div><span className="rounded-full bg-sand px-3 py-1 text-xs font-bold text-night-sky/55">Internal</span></div><p className="mt-3 text-sm leading-6 text-night-sky/60">Generate the permanent Box ID, one-time activation PIN, and NFC URL together. Keep this screen open until the labels and NFC chip are prepared—the full PIN is only returned at provisioning time.</p>
-       <label className="mt-5 block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Edition <span className="normal-case tracking-normal text-night-sky/35">optional</span><input value={edition} onChange={e=>setEdition(e.target.value)} placeholder="Standard / First Edition" className="mt-2 w-full rounded-2xl border border-night-sky/15 px-4 py-3 text-sm outline-none focus:border-teal"/></label>
-       <button onClick={provisionBox} disabled={provisioning} className="mt-4 w-full rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{provisioning?"Preparing box…":"Prepare New Treasure Box"}</button>
+     <section className="rounded-3xl border border-night-sky/10 bg-white p-5 shadow-sm lg:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-teal">Treasure Box fulfillment</p><h2 className="mt-1 text-xl font-bold text-night-sky">Prepare a physical box</h2></div><span className="rounded-full bg-sand px-3 py-1 text-xs font-bold text-night-sky/55">Internal</span></div><p className="mt-3 text-sm leading-6 text-night-sky/60">Create the permanent identity for a new Treasure Box before packaging it. LegacyLink will generate the Box ID, one-time activation PIN, and permanent NFC URL together.</p>
+       <button onClick={provisionBox} disabled={provisioning} className="mt-5 w-full rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{provisioning?"Preparing box…":"Prepare New Treasure Box"}</button>
+       <p className="mt-3 text-xs leading-5 text-night-sky/45">Only prepare a box when you are ready to program and label that physical unit. The full activation PIN is shown only at provisioning time.</p>
        {provisionError&&<p className="mt-3 rounded-2xl bg-coral/10 p-3 text-sm font-semibold text-night-sky">{provisionError}</p>}
        {provisioned&&<div className="mt-5 rounded-2xl border-2 border-teal/30 bg-teal/5 p-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-teal">Provisioning complete</p><dl className="mt-4 space-y-4"><div><dt className="text-xs font-semibold text-night-sky/45">Box ID</dt><dd className="mt-1 font-mono text-lg font-bold text-night-sky">{provisioned.box_id}</dd></div><div><dt className="text-xs font-semibold text-night-sky/45">Activation PIN</dt><dd className="mt-1 font-mono text-2xl font-bold tracking-[.18em] text-night-sky">{provisioned.activation_pin}</dd></div><div><dt className="text-xs font-semibold text-night-sky/45">Permanent NFC URL</dt><dd className="mt-1 break-all font-mono text-sm font-semibold text-night-sky">{fullNfcUrl}</dd></div></dl><div className="mt-4 rounded-xl bg-white p-3 text-xs leading-5 text-night-sky/55"><strong>Fulfillment check:</strong> put the Box ID on the durable box label; put the Box ID + activation PIN on the instruction-card label; program the NFC chip with the permanent URL above.</div></div>}
      </section>
