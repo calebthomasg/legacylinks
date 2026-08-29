@@ -1,0 +1,110 @@
+"use client";
+
+import {useEffect,useMemo,useRef,useState} from "react";
+
+type ReaderChapter={title:string;body:string};
+type StoryReaderProps={title:string;summary:string;chapters:ReaderChapter[];onClose:()=>void};
+type Theme="paper"|"sepia"|"night";
+type Page={chapterIndex:number;chapterTitle:string;paragraphs:string[];startsChapter:boolean};
+
+const themeClasses:Record<Theme,{shell:string;text:string;muted:string;line:string;button:string}>={
+ paper:{shell:"bg-[#fbfaf7]",text:"text-[#20201d]",muted:"text-[#20201d]/45",line:"bg-[#20201d]/12",button:"border-[#20201d]/15 bg-white/70 text-[#20201d]"},
+ sepia:{shell:"bg-[#f3ead7]",text:"text-[#382f25]",muted:"text-[#382f25]/45",line:"bg-[#382f25]/14",button:"border-[#382f25]/15 bg-[#f8f0df]/80 text-[#382f25]"},
+ night:{shell:"bg-[#17191c]",text:"text-[#ece9e2]",muted:"text-[#ece9e2]/45",line:"bg-white/12",button:"border-white/15 bg-white/5 text-[#ece9e2]"},
+};
+
+function splitLongParagraph(text:string,maxChars:number){
+ if(text.length<=maxChars)return[text];
+ const sentences=text.match(/[^.!?]+[.!?]+(?:[”\"])?|[^.!?]+$/g)?.map(s=>s.trim()).filter(Boolean)??[text];
+ const chunks:string[]=[];let current="";
+ for(const sentence of sentences){
+  if(current&&`${current} ${sentence}`.length>maxChars){chunks.push(current);current=sentence;}
+  else current=current?`${current} ${sentence}`:sentence;
+ }
+ if(current)chunks.push(current);
+ return chunks;
+}
+
+function paginate(chapters:ReaderChapter[],capacity:number){
+ const pages:Page[]=[];
+ chapters.forEach((chapter,chapterIndex)=>{
+  const raw=chapter.body.split(/\n\s*\n/).map(p=>p.replace(/\s*\n\s*/g," ").trim()).filter(Boolean);
+  const paragraphs=raw.flatMap(p=>splitLongParagraph(p,Math.max(360,Math.floor(capacity*.72))));
+  let current:string[]=[];let count=0;let first=true;
+  const push=()=>{if(!current.length)return;pages.push({chapterIndex,chapterTitle:chapter.title,paragraphs:current,startsChapter:first});first=false;current=[];count=0;};
+  for(const paragraph of paragraphs){
+   const cost=paragraph.length+120;
+   const headingCost=first?260:0;
+   if(current.length&&count+cost+headingCost>capacity)push();
+   current.push(paragraph);count+=cost;
+  }
+  push();
+ });
+ return pages;
+}
+
+function Chevron({direction}:{direction:"left"|"right"}){
+ return <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={direction==="left"?"m15 18-6-6 6-6":"m9 18 6-6-6-6"}/></svg>;
+}
+
+export default function StoryReader({title,summary,chapters,onClose}:StoryReaderProps){
+ const[fontSize,setFontSize]=useState(18);const[theme,setTheme]=useState<Theme>("paper");const[showType,setShowType]=useState(false);const[pageIndex,setPageIndex]=useState(-1);const[viewport,setViewport]=useState({width:390,height:700});const touchStart=useRef<number|null>(null);
+ const classes=themeClasses[theme];
+ useEffect(()=>{const update=()=>setViewport({width:window.innerWidth,height:window.innerHeight});update();window.addEventListener("resize",update);const previous=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{window.removeEventListener("resize",update);document.body.style.overflow=previous}},[]);
+ const capacity=useMemo(()=>{const horizontal=viewport.width<640?56:viewport.width<1024?150:320;const vertical=viewport.width<640?190:170;const usableWidth=Math.min(760,viewport.width-horizontal);const usableHeight=Math.max(360,viewport.height-vertical);const charsPerLine=Math.max(28,usableWidth/(fontSize*.52));const lines=usableHeight/(fontSize*1.72);return Math.max(650,Math.floor(charsPerLine*lines*.86));},[viewport,fontSize]);
+ const pages=useMemo(()=>paginate(chapters,capacity),[chapters,capacity]);
+ useEffect(()=>{setPageIndex(current=>Math.min(current,pages.length-1))},[pages.length]);
+ const readingPage=pageIndex>=0?pages[pageIndex]:null;const progress=pageIndex<0?0:((pageIndex+1)/Math.max(1,pages.length))*100;
+ function previous(){setShowType(false);setPageIndex(p=>Math.max(-1,p-1))}
+ function next(){setShowType(false);setPageIndex(p=>Math.min(pages.length-1,p+1))}
+ useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==="ArrowLeft")previous();if(event.key==="ArrowRight"||event.key===" "){event.preventDefault();next()}if(event.key==="Escape")onClose()};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[pages.length,onClose]);
+ function endSwipe(x:number){if(touchStart.current===null)return;const delta=x-touchStart.current;touchStart.current=null;if(Math.abs(delta)<45)return;if(delta<0)next();else previous()}
+ const chapterNumber=readingPage?readingPage.chapterIndex+1:0;
+ return <div className={`fixed inset-0 z-[100] ${classes.shell} ${classes.text}`} role="dialog" aria-modal="true" aria-label={`Reading ${title}`}>
+  <div className="flex h-full flex-col">
+   <header className="relative z-20 flex h-16 shrink-0 items-center justify-between px-4 sm:h-[72px] sm:px-7">
+    <button type="button" onClick={onClose} className={`inline-flex h-10 items-center gap-1 rounded-full border px-3 text-sm font-semibold backdrop-blur ${classes.button}`} aria-label="Close reader"><Chevron direction="left"/><span className="hidden sm:inline">Treasure Box</span></button>
+    <div className="pointer-events-none absolute left-1/2 max-w-[46vw] -translate-x-1/2 text-center"><p className="truncate text-[13px] font-semibold tracking-[.01em]">{title}</p>{readingPage&&<p className={`mt-0.5 text-[10px] ${classes.muted}`}>Chapter {chapterNumber}</p>}</div>
+    <div className="relative">
+     <button type="button" onClick={()=>setShowType(v=>!v)} className={`flex h-10 min-w-10 items-center justify-center rounded-full border px-3 font-serif text-[17px] font-semibold backdrop-blur ${classes.button}`} aria-label="Reading appearance">Aa</button>
+     {showType&&<div className={`absolute right-0 top-12 w-64 rounded-2xl border p-4 shadow-xl ${theme==="night"?"border-white/10 bg-[#25272b]":"border-black/10 bg-white"}`}>
+      <p className={`text-[11px] font-bold uppercase tracking-[.14em] ${classes.muted}`}>Text size</p>
+      <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={()=>setFontSize(s=>Math.max(16,s-1))} className={`rounded-xl border py-2 font-serif text-sm ${classes.button}`}>A</button><button type="button" onClick={()=>setFontSize(s=>Math.min(23,s+1))} className={`rounded-xl border py-2 font-serif text-xl ${classes.button}`}>A</button></div>
+      <p className={`mt-4 text-[11px] font-bold uppercase tracking-[.14em] ${classes.muted}`}>Appearance</p>
+      <div className="mt-3 grid grid-cols-3 gap-2"><button type="button" onClick={()=>setTheme("paper")} className={`h-10 rounded-xl border border-black/10 bg-[#fbfaf7] ${theme==="paper"?"ring-2 ring-teal ring-offset-2":""}`} aria-label="Paper theme"/><button type="button" onClick={()=>setTheme("sepia")} className={`h-10 rounded-xl border border-black/10 bg-[#f3ead7] ${theme==="sepia"?"ring-2 ring-teal ring-offset-2":""}`} aria-label="Sepia theme"/><button type="button" onClick={()=>setTheme("night")} className={`h-10 rounded-xl border border-white/20 bg-[#17191c] ${theme==="night"?"ring-2 ring-teal ring-offset-2":""}`} aria-label="Night theme"/></div>
+     </div>}
+    </div>
+   </header>
+
+   <main className="relative min-h-0 flex-1 overflow-hidden" onTouchStart={e=>{touchStart.current=e.touches[0]?.clientX??null}} onTouchEnd={e=>endSwipe(e.changedTouches[0]?.clientX??0)}>
+    {pageIndex===-1?<div className="flex h-full items-center justify-center overflow-y-auto px-7 py-8 sm:px-12"><div className="w-full max-w-xl text-center">
+      <p className={`text-[11px] font-bold uppercase tracking-[.22em] ${classes.muted}`}>A Legacy Link Story</p>
+      <h1 className="mx-auto mt-6 max-w-[16ch] font-serif text-[clamp(2.5rem,9vw,5rem)] font-semibold leading-[.98] tracking-[-.035em]">{title}</h1>
+      <div className={`mx-auto my-7 h-px w-12 ${classes.line}`}/>
+      {summary&&<p className={`mx-auto max-w-lg font-serif text-[17px] leading-8 sm:text-[19px] ${theme==="night"?"text-[#ece9e2]/68":"text-current opacity-65"}`}>{summary}</p>}
+      <p className={`mt-7 text-xs ${classes.muted}`}>{chapters.length} {chapters.length===1?"chapter":"chapters"}</p>
+      <button type="button" onClick={()=>setPageIndex(0)} className="mt-8 inline-flex min-w-48 items-center justify-center rounded-full bg-night-sky px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:scale-[1.01]">Begin reading</button>
+      <p className={`mt-5 text-[11px] ${classes.muted}`}>Swipe or use the arrows to turn pages</p>
+    </div></div>:
+    readingPage?<div className="mx-auto h-full max-w-[920px] px-7 pb-4 pt-3 sm:px-16 sm:pt-8 lg:px-20">
+      <article className="mx-auto flex h-full max-w-[700px] flex-col overflow-hidden">
+       <div className="min-h-0 flex-1 overflow-hidden">
+        {readingPage.startsChapter&&<div className="mb-7 sm:mb-9"><p className={`text-[10px] font-bold uppercase tracking-[.2em] ${classes.muted}`}>Chapter {chapterNumber}</p><h2 className="mt-3 font-serif text-[clamp(1.75rem,5.5vw,2.7rem)] font-semibold leading-tight tracking-[-.025em]">{readingPage.chapterTitle}</h2></div>}
+        <div className="font-serif" style={{fontSize:`${fontSize}px`,lineHeight:1.72}}>{readingPage.paragraphs.map((paragraph,i)=><p key={i} className="mb-[1.05em] indent-[1.35em] first:indent-0">{paragraph}</p>)}</div>
+       </div>
+      </article>
+    </div>:null}
+    {pageIndex>=0&&<><button type="button" onClick={previous} disabled={pageIndex<0} className={`absolute left-2 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full transition md:flex ${classes.muted} hover:bg-black/5`} aria-label="Previous page"><Chevron direction="left"/></button><button type="button" onClick={next} disabled={pageIndex>=pages.length-1} className={`absolute right-2 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full transition md:flex ${classes.muted} hover:bg-black/5 disabled:opacity-20`} aria-label="Next page"><Chevron direction="right"/></button></>}
+   </main>
+
+   <footer className="shrink-0 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-2 sm:px-8">
+    <div className={`mx-auto h-[2px] w-full max-w-2xl overflow-hidden rounded-full ${classes.line}`}><div className="h-full bg-teal transition-[width] duration-300" style={{width:`${progress}%`}}/></div>
+    <div className="mx-auto mt-3 flex max-w-2xl items-center justify-between">
+     <button type="button" onClick={previous} disabled={pageIndex===-1} className={`inline-flex h-10 items-center gap-1 rounded-full px-2 text-xs font-semibold disabled:opacity-20 ${classes.muted}`}><Chevron direction="left"/>Previous</button>
+     <p className={`text-[11px] tabular-nums ${classes.muted}`}>{pageIndex===-1?"Cover":`Page ${pageIndex+1} of ${pages.length}`}</p>
+     <button type="button" onClick={next} disabled={pageIndex>=pages.length-1} className={`inline-flex h-10 items-center gap-1 rounded-full px-2 text-xs font-semibold disabled:opacity-20 ${classes.muted}`}>Next<Chevron direction="right"/></button>
+    </div>
+   </footer>
+  </div>
+ </div>;
+}
