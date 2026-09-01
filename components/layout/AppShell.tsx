@@ -92,7 +92,7 @@ export default function AppShell({
         </aside>
 
         <section className={`min-w-0 flex-1 ${contentClassName}`}>
-          <header className="relative z-50 border-b border-night-sky/10 bg-white px-4 py-4 shadow-sm lg:hidden">
+          <header className="fixed left-0 right-0 top-0 z-50 border-b border-night-sky/10 bg-white px-4 py-4 shadow-sm lg:hidden">
             <div className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
               <button type="button" onClick={() => setIsMobileNavOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-xl border border-night-sky/15 bg-white text-night-sky shadow-sm" aria-label="Open navigation" aria-expanded={isMobileNavOpen}>
                 <span className="flex w-5 flex-col gap-1.5"><span className="h-0.5 rounded-full bg-current" /><span className="h-0.5 rounded-full bg-current" /><span className="h-0.5 rounded-full bg-current" /></span>
@@ -101,6 +101,7 @@ export default function AppShell({
               <div aria-hidden="true" />
             </div>
           </header>
+          <div className="h-[77px] lg:hidden" aria-hidden="true" />
 
           <div className={`fixed inset-0 z-[70] lg:hidden ${isMobileNavOpen ? "pointer-events-auto" : "pointer-events-none"}`} aria-hidden={!isMobileNavOpen}>
             <button type="button" onClick={() => setIsMobileNavOpen(false)} className={`absolute inset-0 bg-night-sky/40 transition-opacity ${isMobileNavOpen ? "opacity-100" : "opacity-0"}`} aria-label="Close navigation" />
