@@ -2,7 +2,6 @@
 
 import {useEffect,useMemo,useState} from "react";
 import Link from "next/link";
-import {useRouter} from "next/navigation";
 import {createClient} from "@/utils/supabase/client";
 import TreasureBoxStoryBuilder from "@/components/treasure-box/TreasureBoxStoryBuilder";
 import {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED} from "@/utils/featureFlags";
@@ -59,7 +58,6 @@ function contentOptionToStep(option:ContentOption):Step{
 
 export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const supabase=useMemo(()=>createClient(),[]);
-  const router=useRouter();
   const[title,setTitle]=useState(initial.title==="Untitled Treasure Box"?"":initial.title);
   const[description,setDescription]=useState(initial.description??"");
   const[difficulty,setDifficulty]=useState(initial.difficulty||1);
@@ -68,7 +66,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[longitude,setLongitude]=useState(initial.longitude?.toString()??"");
   const[radius,setRadius]=useState(initial.search_radius_meters??75);
   const[selected,setSelected]=useState<ContentOption[]>([]);
-  const[step,setStep]=useState<Step>("details");
+  const[step,setStep]=useState<Step>(initial.setup_status==="ready_to_publish"?"review":"details");
   const[busy,setBusy]=useState(false);
   const[locating,setLocating]=useState(false);
   const[error,setError]=useState<string|null>(null);
@@ -234,7 +232,6 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       return;
     }
     setStep("published");
-    router.refresh();
   }
 
   const score=(label:string,value:number,setter:(v:number)=>void)=><label className="block">
