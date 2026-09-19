@@ -14,7 +14,6 @@ type PhysicalExperience={
   status:string;
   visibility:string;
 };
-type PhysicalScan={event_id:string;experience_id:string;experience_type:string;title:string};
 type TreasureFind={find_id:string;cache_id:string;is_first_find:boolean};
 type PhysicalBoxState={
   physical_box_id:string;
@@ -103,7 +102,7 @@ export default async function PhysicalNfcPage({params}:Props){
         return <Shell>
           <p className="text-sm font-semibold uppercase tracking-wide text-teal">Treasure Box claimed</p>
           <h1 className="mt-3 text-4xl font-bold tracking-tight text-night-sky">This box belongs to you.</h1>
-          <p className="mt-6 rounded-2xl bg-coral/10 p-4 text-sm font-semibold text-night-sky">We couldn't open setup yet. {setupError?.message??"Try scanning the box again."}</p>
+          <p className="mt-6 rounded-2xl bg-coral/10 p-4 text-sm font-semibold text-night-sky">We couldn’t open setup yet. {setupError?.message??"Try scanning the box again."}</p>
         </Shell>;
       }
 
@@ -121,13 +120,11 @@ export default async function PhysicalNfcPage({params}:Props){
     .maybeSingle<PhysicalExperience>();
   if(error||!experience)notFound();
 
-  let scan:PhysicalScan|null=null;
   let find:TreasureFind|null=null;
   let nfcVerified=false;
 
   if(isSignedIn){
-    const{data}=await supabase.rpc("record_physical_nfc_scan",{p_public_token:token}).maybeSingle<PhysicalScan>();
-    scan=data??null;
+    await supabase.rpc("record_physical_nfc_scan",{p_public_token:token});
 
     if(boxState?.is_owner&&boxState.setup_status==="published"){
       const{error:verifyError}=await supabase.rpc("verify_published_treasure_box_nfc",{p_nfc_public_token:token});
@@ -139,13 +136,13 @@ export default async function PhysicalNfcPage({params}:Props){
   }
 
   const statusMessage=nfcVerified
-    ?"✓ Published Treasure Box NFC verified."
+    ?"✓ You found the box—and its NFC connection is verified."
     :experience.experience_type==="treasure_box"&&find
       ?"✓ Treasure Box find connected to your account."
       :"✓ Physical NFC scan recorded.";
 
   const statusDetail=nfcVerified
-    ?"This confirms that the NFC tag installed in your physical box opens the live, published LegacyLink experience."
+    ?"Because this is your Treasure Box, LegacyLink confirmed the NFC tag without adding an owner find to the public activity. Other Trailblazers will have their discovery recorded here."
     :experience.experience_type==="treasure_box"&&find
       ?(find.is_first_find
         ?"This physical discovery has been added to your Trailhead activity."
@@ -154,7 +151,7 @@ export default async function PhysicalNfcPage({params}:Props){
 
   return <Shell>
     <p className="text-sm font-semibold uppercase tracking-wide text-teal">{typeLabel(experience.experience_type)}</p>
-    <h1 className="mt-3 text-4xl font-bold tracking-tight text-night-sky">{nfcVerified?"Your box is live and connected.":heading(experience.experience_type)}</h1>
+    <h1 className="mt-3 text-4xl font-bold tracking-tight text-night-sky">{heading(experience.experience_type)}</h1>
     <div className="mt-8 rounded-2xl bg-sand p-6">
       <h2 className="text-2xl font-bold text-night-sky">{experience.title}</h2>
       {experience.description&&<p className="mt-3 whitespace-pre-line leading-7 text-night-sky/70">{experience.description}</p>}
