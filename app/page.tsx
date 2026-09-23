@@ -3,45 +3,76 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="relative min-h-[100svh] min-w-0 overflow-hidden bg-[#39bbb1] bg-[url('/images/homepage-background-mobile.webp')] bg-[length:100%_auto] bg-bottom bg-no-repeat px-6 pb-[58vh] pt-7 sm:px-10 lg:bg-[url('/images/homepage-background.webp')] lg:bg-cover lg:bg-center lg:px-[3.65vw] lg:pb-32 lg:pt-[6.8vh]">
-      <section className="relative z-10 w-[320px] min-w-0 max-w-full sm:w-[560px] lg:w-full lg:max-w-[860px]">
-        <Link href="/" className="inline-block" aria-label="LegacyLink home">
-          <Image
-            src="/images/ll-logo-light.svg"
-            alt="LegacyLink"
-            width={451}
-            height={80}
-            className="h-auto w-[190px] max-w-full sm:w-[280px] lg:w-[390px]"
-            priority
-          />
-        </Link>
+    <main className="relative isolate min-h-[100svh] min-w-0 overflow-hidden bg-[#071a3a] text-white">
+      <Image
+        src="/images/homepage-sci-fi.webp"
+        alt=""
+        fill
+        priority
+        quality={90}
+        sizes="100vw"
+        className="z-0 object-cover object-[43%_center] sm:object-center"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[1] bg-gradient-to-b from-[#061735]/20 via-transparent to-[#061735]/35 sm:hidden"
+      />
 
-        <h1 className="mt-5 max-w-[860px] break-words text-[1.25rem] font-bold leading-[1.08] tracking-tight text-[#f5f2e8] sm:mt-9 sm:text-[2rem] lg:mt-12 lg:text-[2.5rem]">
-          A family connection platform for stories, memories, and the people
-          who made you.
-        </h1>
-
-        <p className="mt-3 max-w-[820px] text-[0.8rem] font-normal leading-5 text-[#f5f2e8] sm:mt-5 sm:text-lg sm:leading-7 lg:mt-6 lg:text-xl lg:leading-8">
-          LegacyLink helps families preserve memories, share stories, explore
-          their family history, and stay connected across generations.
-        </p>
-
-        <div className="mt-3 flex flex-nowrap gap-3 sm:mt-6 sm:gap-4 lg:mt-8">
+      <div className="relative z-10 min-h-[100svh] w-full px-5 pb-8 pt-6 sm:px-9 sm:pb-10 sm:pt-8 lg:px-[3.25vw] lg:pb-[5vh] lg:pt-[4.3vh]">
+        <header className="flex flex-col items-start gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <Link
-            href="/signup"
-            className="button-primary whitespace-nowrap px-3 text-[0.68rem] sm:px-5 sm:text-sm"
+            href="/"
+            className="inline-block shrink-0"
+            aria-label="LegacyLink home"
           >
-            Create an account
+            <Image
+              src="/images/legacy-link-logo-white.svg"
+              alt="LegacyLink — For Every Trailblazer"
+              width={678}
+              height={168}
+              className="h-auto w-[190px] sm:w-[245px] lg:w-[315px]"
+              priority
+            />
           </Link>
 
-          <Link
-            href="/login"
-            className="button-secondary whitespace-nowrap px-3 text-[0.68rem] sm:px-5 sm:text-sm"
+          <nav
+            aria-label="Account"
+            className="flex w-full flex-wrap gap-2.5 sm:w-auto sm:flex-nowrap sm:gap-3"
           >
-            Log in
-          </Link>
-        </div>
-      </section>
+            <Link
+              href="/signup"
+              className="button-primary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/24%)] sm:flex-none sm:px-6 sm:text-xs lg:min-h-16 lg:px-8 lg:text-sm"
+            >
+              Create an account
+            </Link>
+
+            <Link
+              href="/login"
+              className="button-secondary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/20%)] sm:flex-none sm:px-6 sm:text-xs lg:min-h-16 lg:px-8 lg:text-sm"
+            >
+              Log in
+            </Link>
+          </nav>
+        </header>
+
+        <section className="mt-8 max-w-[900px] sm:mt-10 lg:mt-9">
+          <h1 className="text-[clamp(2rem,4vw,4.25rem)] font-bold leading-[0.98] tracking-[-0.025em] text-[#f5f2e8] [text-shadow:0_3px_22px_rgb(3_13_34/55%)]">
+            A family connection
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
+            platform for stories,
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
+            memories, and the people
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
+            who made you.
+          </h1>
+        </section>
+      </div>
     </main>
   );
 }
