@@ -18,7 +18,7 @@ export default function Home() {
         className="absolute inset-0 z-[1] bg-gradient-to-b from-[#061735]/20 via-transparent to-[#061735]/35 sm:hidden"
       />
 
-      <div className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-[1600px] flex-col px-5 pb-8 pt-6 sm:px-9 sm:pb-10 sm:pt-8 lg:px-[4.8vw] lg:pb-[7vh] lg:pt-[4.8vh]">
+      <div className="relative z-10 min-h-[100svh] w-full px-5 pb-8 pt-6 sm:px-9 sm:pb-10 sm:pt-8 lg:px-[3.25vw] lg:pb-[5vh] lg:pt-[4.3vh]">
         <header className="flex flex-col items-start gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <Link
             href="/"
@@ -30,7 +30,7 @@ export default function Home() {
               alt="LegacyLink — For Every Trailblazer"
               width={678}
               height={168}
-              className="h-auto w-[190px] sm:w-[230px] lg:w-[260px]"
+              className="h-auto w-[190px] sm:w-[245px] lg:w-[315px]"
               priority
             />
           </Link>
@@ -41,23 +41,34 @@ export default function Home() {
           >
             <Link
               href="/signup"
-              className="button-primary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/24%)] sm:flex-none sm:px-5 sm:text-xs"
+              className="button-primary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/24%)] sm:flex-none sm:px-6 sm:text-xs lg:min-h-16 lg:px-8 lg:text-sm"
             >
               Create an account
             </Link>
 
             <Link
               href="/login"
-              className="button-secondary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/20%)] sm:flex-none sm:px-5 sm:text-xs"
+              className="button-secondary min-h-11 flex-1 whitespace-nowrap px-4 text-[0.65rem] shadow-[0_7px_18px_rgb(4_18_47/20%)] sm:flex-none sm:px-6 sm:text-xs lg:min-h-16 lg:px-8 lg:text-sm"
             >
               Log in
             </Link>
           </nav>
         </header>
 
-        <section className="mt-auto max-w-[800px] pb-[1vh] pt-16 sm:pb-[2vh] lg:max-w-[850px] lg:pb-0">
-          <h1 className="text-[clamp(2rem,5.2vw,3.75rem)] font-bold leading-[1.03] tracking-[-0.025em] text-[#f5f2e8] [text-wrap:balance] [text-shadow:0_3px_22px_rgb(3_13_34/70%)]">
-            A family connection platform for stories, memories, and the people
+        <section className="mt-8 max-w-[900px] sm:mt-10 lg:mt-9">
+          <h1 className="text-[clamp(2rem,4vw,4.25rem)] font-bold leading-[0.98] tracking-[-0.025em] text-[#f5f2e8] [text-shadow:0_3px_22px_rgb(3_13_34/55%)]">
+            A family connection
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
+            platform for stories,
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
+            memories, and the people
+            <span className="hidden lg:inline">
+              <br />
+            </span>{" "}
             who made you.
           </h1>
         </section>
