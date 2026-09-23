@@ -11,14 +11,14 @@ export default function Home() {
         priority
         quality={90}
         sizes="100vw"
-        className="-z-20 object-cover object-[43%_center] sm:object-center"
+        className="z-0 object-cover object-[43%_center] sm:object-center"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-gradient-to-b from-[#061735]/20 via-transparent to-[#061735]/35 sm:hidden"
+        className="absolute inset-0 z-[1] bg-gradient-to-b from-[#061735]/20 via-transparent to-[#061735]/35 sm:hidden"
       />
 
-      <div className="mx-auto flex min-h-[100svh] w-full max-w-[1600px] flex-col px-5 pb-8 pt-6 sm:px-9 sm:pb-10 sm:pt-8 lg:px-[4.8vw] lg:pb-[7vh] lg:pt-[4.8vh]">
+      <div className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-[1600px] flex-col px-5 pb-8 pt-6 sm:px-9 sm:pb-10 sm:pt-8 lg:px-[4.8vw] lg:pb-[7vh] lg:pt-[4.8vh]">
         <header className="flex flex-col items-start gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
           <Link
             href="/"
