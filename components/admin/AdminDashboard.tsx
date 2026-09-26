@@ -34,7 +34,8 @@ const TEST_NFC_BASE_URL = (
   "https://legacylinks-git-feature-treasure-23d764-calebthomasgs-projects.vercel.app"
 ).replace(/\/$/, "");
 const PRODUCTION_NFC_BASE_URL = (
-  process.env.NEXT_PUBLIC_NFC_PRODUCTION_BASE_URL ?? ""
+  process.env.NEXT_PUBLIC_NFC_PRODUCTION_BASE_URL ??
+  "https://www.legacylinks.io"
 ).replace(/\/$/, "");
 function nfcUrl(path: string, environment: "production" | "testing") {
   const base =
@@ -286,18 +287,41 @@ export default function AdminDashboard({ initialAdmins, isSuperAdmin }: Props) {
                       : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {nfcUrl(i.nfc_path, i.item_environment) ? (
-                      <a
-                        href={nfcUrl(i.nfc_path, i.item_environment) ?? undefined}
-                        className="font-bold text-teal"
-                      >
-                        Open {i.item_environment === "testing" ? "test" : "production"} URL ↗
-                      </a>
-                    ) : (
-                      <span className="text-xs font-semibold text-coral">
-                        {i.item_environment === "testing" ? "Testing" : "Production"} domain not configured
-                      </span>
-                    )}
+                    <div className="flex flex-col items-start gap-2">
+                      {i.item_environment === "testing" &&
+                        (nfcUrl(i.nfc_path, "testing") ? (
+                          <a
+                            href={
+                              nfcUrl(i.nfc_path, "testing") ?? undefined
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-teal"
+                          >
+                            Open preview URL ↗
+                          </a>
+                        ) : (
+                          <span className="text-xs font-semibold text-coral">
+                            Preview domain not configured
+                          </span>
+                        ))}
+                      {nfcUrl(i.nfc_path, "production") ? (
+                        <a
+                          href={
+                            nfcUrl(i.nfc_path, "production") ?? undefined
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-teal"
+                        >
+                          Open production URL ↗
+                        </a>
+                      ) : (
+                        <span className="text-xs font-semibold text-coral">
+                          Production domain not configured
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {i.item_type === "Treasure Box" ? (
