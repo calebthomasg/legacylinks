@@ -4,6 +4,7 @@ import {notFound} from "next/navigation";
 import {createClient} from "@/utils/supabase/server";
 import {withReturnPath} from "@/utils/auth/returnPath";
 import TreasureBoxActivationForm from "@/components/trailhead/TreasureBoxActivationForm";
+import TreasureFindFeedback from "@/components/trailhead/TreasureFindFeedback";
 import TreasureBoxSetupForm from "@/components/treasure-box/TreasureBoxSetupForm";
 
 type PhysicalExperience={
@@ -160,6 +161,7 @@ export default async function PhysicalNfcPage({params}:Props){
       ?<div className="mt-8">
         <div className="rounded-2xl bg-teal/10 p-4 text-sm font-semibold text-night-sky">{statusMessage}</div>
         <p className="mt-4 text-sm leading-6 text-night-sky/60">{statusDetail}</p>
+        {experience.experience_type==="treasure_box"&&find&&<TreasureFindFeedback token={token}/>}
         <Link href="/trailhead" className="button-primary mt-8 inline-flex">Continue to Trailhead</Link>
       </div>
       :<div className="mt-8">
