@@ -12,6 +12,7 @@ type DiscoveryItem={experience_id:string;experience_type:"treasure_box"|"memoria
 type MyTreasureItem={experience_id:string;experience_type:"treasure_box"|"memorial"|"token_hunt"|"traveling_token";cache_id:string|null;title:string;description:string|null;status:string;visibility:string;latitude:number|null;longitude:number|null;created_at:string;nfc_public_token?:string|null;token_code?:string|null;mission?:string|null;from_box_code?:string|null;current_box_code?:string|null;total_miles?:number|null;stop_count?:number|null};
 type CarriedToken={token_id:string;nfc_public_token:string;token_code:string;name:string|null;mission:string|null;status:string;picked_up_at:string|null;from_box_code:string|null;total_miles:number;stop_count:number};
 type OwnedToken={token_id:string;token_code:string;nfc_public_token:string;name:string|null;mission:string|null;status:string;current_box_code:string|null;circulation_started_at:string|null;stop_count:number;total_miles:number};
+type MyTreasureFind={find_id:string;cache_id:string;nfc_public_token:string;public_code:string;title:string;description:string|null;found_at:string;feedback_updated_at:string;rating:number|null;comment:string|null;photo_paths:string[]};
 
 const CENTER:[number,number]=[-98.5795,39.8283];
 
@@ -20,12 +21,13 @@ export default async function TrailheadPage(){
  const{data:{user}}=await supabase.auth.getUser();
  if(!user)redirect("/login?next=/trailhead");
  const profileHref=await getProfileNavHref(user.id);
- const[{data:profile},{data:caches,error},{data:myBoxes},{data:discoveryItems},{data:myItems},{data:carriedTokens},{data:ownedTokens},{data:isAdmin}]=await Promise.all([
+ const[{data:profile},{data:caches,error},{data:myBoxes},{data:discoveryItems},{data:myItems},{data:myFinds},{data:carriedTokens},{data:ownedTokens},{data:isAdmin}]=await Promise.all([
   supabase.from("profiles").select("first_name").eq("id",user.id).single(),
   supabase.rpc("get_trailhead_caches"),
   supabase.rpc("get_my_treasure_boxes"),
   supabase.rpc("get_trailhead_discovery_items"),
   supabase.rpc("get_my_trailhead_items"),
+  supabase.rpc("get_my_treasure_box_find_history"),
   supabase.rpc("get_carried_traveling_tokens"),
   supabase.rpc("get_owned_traveling_tokens"),
   supabase.rpc("is_legacy_link_admin")
@@ -71,5 +73,5 @@ export default async function TrailheadPage(){
   stop_count:t.stop_count
  });
  const ownedItems=[...tokens.values(),...base];
- return <AppShell active="trailhead" userName={profile?.first_name||"Trailblazer"} userEmail={user.email} profileHref={profileHref} isAdmin={Boolean(isAdmin)} contentClassName="relative overflow-hidden bg-sand"><div className="relative h-[calc(100dvh-77px)] min-h-[560px] lg:h-screen lg:min-h-[640px]">{error?<div className="flex h-full items-center justify-center bg-sand px-6 text-center"><div className="max-w-md"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p><h1 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h1></div></div>:<TrailheadMap center={CENTER} caches={(caches??[]) as TrailheadCache[]} myBoxes={(myBoxes??[]) as MyTreasureBox[] as any} discoveryItems={(discoveryItems??[]) as DiscoveryItem[]} myItems={ownedItems}/>}</div><TrailheadWelcome/></AppShell>;
+ return <AppShell active="trailhead" userName={profile?.first_name||"Trailblazer"} userEmail={user.email} profileHref={profileHref} isAdmin={Boolean(isAdmin)} contentClassName="relative overflow-hidden bg-sand"><div className="relative h-[calc(100dvh-77px)] min-h-[560px] lg:h-screen lg:min-h-[640px]">{error?<div className="flex h-full items-center justify-center bg-sand px-6 text-center"><div className="max-w-md"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Trailhead unavailable</p><h1 className="mt-3 text-2xl font-bold text-night-sky">We couldn’t load nearby adventures.</h1></div></div>:<TrailheadMap center={CENTER} caches={(caches??[]) as TrailheadCache[]} myBoxes={(myBoxes??[]) as MyTreasureBox[]} discoveryItems={(discoveryItems??[]) as DiscoveryItem[]} myItems={ownedItems} myFinds={(myFinds??[]) as MyTreasureFind[]}/>}</div><TrailheadWelcome/></AppShell>;
 }
