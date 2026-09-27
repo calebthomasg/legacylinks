@@ -16,6 +16,7 @@ type PhysicalExperience={
   visibility:string;
 };
 type TreasureFind={find_id:string;cache_id:string;is_first_find:boolean};
+type FindFeedback={rating:number|null;comment:string|null;photo_paths:string[]};
 type PhysicalBoxState={
   physical_box_id:string;
   box_id:string;
@@ -122,6 +123,7 @@ export default async function PhysicalNfcPage({params}:Props){
   if(error||!experience)notFound();
 
   let find:TreasureFind|null=null;
+  let existingFeedback:FindFeedback|null=null;
   let nfcVerified=false;
 
   if(isSignedIn){
@@ -133,6 +135,14 @@ export default async function PhysicalNfcPage({params}:Props){
     }else if(experience.experience_type==="treasure_box"){
       const{data:findData}=await supabase.rpc("record_treasure_box_find",{p_public_token:token}).maybeSingle<TreasureFind>();
       find=findData??null;
+      if(find){
+        const{data:feedback}=await supabase
+          .from("treasure_box_finds")
+          .select("rating,comment,photo_paths")
+          .eq("id",find.find_id)
+          .maybeSingle<FindFeedback>();
+        existingFeedback=feedback??null;
+      }
     }
   }
 
@@ -161,7 +171,7 @@ export default async function PhysicalNfcPage({params}:Props){
       ?<div className="mt-8">
         <div className="rounded-2xl bg-teal/10 p-4 text-sm font-semibold text-night-sky">{statusMessage}</div>
         <p className="mt-4 text-sm leading-6 text-night-sky/60">{statusDetail}</p>
-        {experience.experience_type==="treasure_box"&&find&&<TreasureFindFeedback token={token}/>}
+        {experience.experience_type==="treasure_box"&&find&&<TreasureFindFeedback token={token} initialRating={existingFeedback?.rating} initialComment={existingFeedback?.comment} initialPhotoPaths={existingFeedback?.photo_paths}/>}
         <Link href="/trailhead" className="button-primary mt-8 inline-flex">Continue to Trailhead</Link>
       </div>
       :<div className="mt-8">
