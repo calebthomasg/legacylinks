@@ -10,11 +10,18 @@ type TestResult = {
   endedAt?: string;
   elapsedMs?: number;
 };
-type TestKey = "standard" | "high";
+type TestKey = "standard" | "high" | "watch";
 
 const initialResults: Record<TestKey, TestResult> = {
   standard: { status: "idle", message: "Not tested yet." },
   high: { status: "idle", message: "Not tested yet." },
+  watch: { status: "idle", message: "Not tested yet." },
+};
+
+const testLabels: Record<TestKey, string> = {
+  standard: "Standard GPS",
+  high: "High-accuracy GPS",
+  watch: "Tracking GPS",
 };
 
 function labelForError(error: GeolocationPositionError) {
@@ -36,6 +43,7 @@ export default function GpsDiagnosticsClient() {
   const [permission, setPermission] = useState<string>("Checking...");
   const requestId = useRef(0);
   const timers = useRef<number[]>([]);
+  const watchId = useRef<number | null>(null);
   useEffect(() => {
     let disposed = false;
     let permissionStatus: PermissionStatus | undefined;
@@ -61,6 +69,10 @@ export default function GpsDiagnosticsClient() {
       permissionStatus?.removeEventListener("change", updatePermission);
       requestId.current += 1;
       timers.current.forEach(window.clearTimeout);
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+      }
     };
   }, []);
   const canUseGeolocation = typeof navigator !== "undefined" && "geolocation" in navigator;
@@ -94,7 +106,7 @@ export default function GpsDiagnosticsClient() {
       ...current,
       [key]: {
         status: "running",
-        message: enableHighAccuracy ? "Requesting high-accuracy GPS..." : "Requesting standard browser location...",
+        message: key === "watch" ? "Waiting for the first tracking GPS update..." : enableHighAccuracy ? "Requesting high-accuracy GPS..." : "Requesting standard browser location...",
         startedAt,
       },
     }));
@@ -105,6 +117,10 @@ export default function GpsDiagnosticsClient() {
       completed = true;
       timers.current.forEach(window.clearTimeout);
       timers.current = [];
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+      }
       setActiveTest(null);
       setResults((current) => ({ ...current, [key]: result }));
     };
@@ -125,24 +141,25 @@ export default function GpsDiagnosticsClient() {
     timers.current.push(window.setTimeout(() => {
       finish({
         status: "no-response",
-        message: "No success or error callback arrived within 60 seconds. This observation ended; the browser request cannot be cancelled. Reload before another test.",
+        message: key === "watch"
+          ? "No tracking callback arrived within 60 seconds. The GPS watch was stopped. Reload before another test."
+          : "No success or error callback arrived within 60 seconds. This observation ended; the browser request cannot be cancelled. Reload before another test.",
         startedAt,
         endedAt: new Date().toLocaleTimeString(),
         elapsedMs: Math.round(performance.now() - started),
       });
     }, 60000));
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    const onSuccess = (position: GeolocationPosition) => {
         finish({
           status: "success",
-          message: `Location callback succeeded. Accuracy was about ${Math.round(position.coords.accuracy)} meters. Coordinates were intentionally not shown or stored.`,
+          message: `${key === "watch" ? "First tracking update succeeded; the GPS watch was stopped." : "Location callback succeeded."} Accuracy was about ${Math.round(position.coords.accuracy)} meters. Coordinates were intentionally not shown or stored.`,
           startedAt,
           endedAt: new Date().toLocaleTimeString(),
           elapsedMs: Math.round(performance.now() - started),
         });
-      },
-      (error) => {
+      };
+    const onError = (error: GeolocationPositionError) => {
         finish({
           status: "error",
           message: `Location callback failed: ${labelForError(error)} (code ${error.code}).`,
@@ -150,9 +167,15 @@ export default function GpsDiagnosticsClient() {
           endedAt: new Date().toLocaleTimeString(),
           elapsedMs: Math.round(performance.now() - started),
         });
-      },
-      { enableHighAccuracy, timeout: 12000, maximumAge: 0 },
-    );
+      };
+    const options = { enableHighAccuracy, timeout: 12000, maximumAge: 0 };
+    if (key === "watch") {
+      const id = navigator.geolocation.watchPosition(onSuccess, onError, options);
+      if (completed) navigator.geolocation.clearWatch(id);
+      else watchId.current = id;
+    } else {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+    }
   };
 
   const statusClass = (status: TestStatus) => {
@@ -190,13 +213,22 @@ export default function GpsDiagnosticsClient() {
             High-accuracy GPS
             <span className="block pt-1 text-xs font-normal text-white/80">enableHighAccuracy: true</span>
           </button>
+          <button
+            type="button"
+            disabled={activeTest !== null || needsReload}
+            onClick={() => runTest("watch", true)}
+            className="rounded-2xl bg-night-sky px-5 py-4 text-left font-bold text-white disabled:opacity-50"
+          >
+            Tracking GPS
+            <span className="block pt-1 text-xs font-normal text-white/70">First watchPosition update</span>
+          </button>
         </section>
 
         <section className="mt-6 grid gap-4">
-          {(["standard", "high"] as TestKey[]).map((key) => (
+          {(["standard", "high", "watch"] as TestKey[]).map((key) => (
             <article key={key} className={`rounded-2xl border p-4 ${statusClass(results[key].status)}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-bold">{key === "standard" ? "Standard GPS" : "High-accuracy GPS"}</h2>
+                <h2 className="font-bold">{testLabels[key]}</h2>
                 <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold uppercase tracking-[.12em]">
                   {results[key].status.replace("-", " ")}
                 </span>
