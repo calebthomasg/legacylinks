@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type TestStatus = "idle" | "running" | "success" | "error" | "no-response";
 type TestResult = {
@@ -32,6 +32,37 @@ function formatElapsed(ms?: number) {
 export default function GpsDiagnosticsClient() {
   const [results, setResults] = useState(initialResults);
   const [activeTest, setActiveTest] = useState<TestKey | null>(null);
+  const needsReload = Object.values(results).some((result) => result.status === "no-response");
+  const [permission, setPermission] = useState<string>("Checking...");
+  const requestId = useRef(0);
+  const timers = useRef<number[]>([]);
+  useEffect(() => {
+    let disposed = false;
+    let permissionStatus: PermissionStatus | undefined;
+    const updatePermission = () => {
+      if (!disposed && permissionStatus) setPermission(permissionStatus.state);
+    };
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: "geolocation" }).then((status) => {
+        if (disposed) return;
+        permissionStatus = status;
+        updatePermission();
+        status.addEventListener("change", updatePermission);
+      }).catch(() => {
+        if (!disposed) setPermission("Not reported by this browser");
+      });
+    } else {
+      Promise.resolve().then(() => {
+        if (!disposed) setPermission("Not reported by this browser");
+      });
+    }
+    return () => {
+      disposed = true;
+      permissionStatus?.removeEventListener("change", updatePermission);
+      requestId.current += 1;
+      timers.current.forEach(window.clearTimeout);
+    };
+  }, []);
   const canUseGeolocation = typeof navigator !== "undefined" && "geolocation" in navigator;
   const context = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -44,6 +75,7 @@ export default function GpsDiagnosticsClient() {
   }, []);
 
   const runTest = (key: TestKey, enableHighAccuracy: boolean) => {
+    if (activeTest !== null || needsReload) return;
     if (!canUseGeolocation) {
       setResults((current) => ({
         ...current,
@@ -53,6 +85,9 @@ export default function GpsDiagnosticsClient() {
     }
 
     const started = performance.now();
+    const id = ++requestId.current;
+    timers.current.forEach(window.clearTimeout);
+    timers.current = [];
     const startedAt = new Date().toLocaleTimeString();
     setActiveTest(key);
     setResults((current) => ({
@@ -66,22 +101,36 @@ export default function GpsDiagnosticsClient() {
 
     let completed = false;
     const finish = (result: TestResult) => {
-      if (completed) return;
+      if (completed || id !== requestId.current) return;
       completed = true;
-      window.clearTimeout(watchdog);
+      timers.current.forEach(window.clearTimeout);
+      timers.current = [];
       setActiveTest(null);
       setResults((current) => ({ ...current, [key]: result }));
     };
 
-    const watchdog = window.setTimeout(() => {
+    timers.current.push(window.setTimeout(() => {
+      if (completed || id !== requestId.current) return;
+      setResults((current) => ({
+        ...current,
+        [key]: {
+          status: "running",
+          message: "No callback after 15 seconds. Still observing until 60 seconds; keep this page open.",
+          startedAt,
+          elapsedMs: Math.round(performance.now() - started),
+        },
+      }));
+    }, 15000));
+
+    timers.current.push(window.setTimeout(() => {
       finish({
         status: "no-response",
-        message: "No success or error callback arrived within 15 seconds.",
+        message: "No success or error callback arrived within 60 seconds. This observation ended; the browser request cannot be cancelled. Reload before another test.",
         startedAt,
         endedAt: new Date().toLocaleTimeString(),
         elapsedMs: Math.round(performance.now() - started),
       });
-    }, 15000);
+    }, 60000));
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -125,7 +174,7 @@ export default function GpsDiagnosticsClient() {
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
-            disabled={activeTest !== null}
+            disabled={activeTest !== null || needsReload}
             onClick={() => runTest("standard", false)}
             className="rounded-2xl bg-night-sky px-5 py-4 text-left font-bold text-white disabled:opacity-50"
           >
@@ -134,7 +183,7 @@ export default function GpsDiagnosticsClient() {
           </button>
           <button
             type="button"
-            disabled={activeTest !== null}
+            disabled={activeTest !== null || needsReload}
             onClick={() => runTest("high", true)}
             className="rounded-2xl bg-teal px-5 py-4 text-left font-bold text-white disabled:opacity-50"
           >
@@ -152,7 +201,7 @@ export default function GpsDiagnosticsClient() {
                   {results[key].status.replace("-", " ")}
                 </span>
               </div>
-              <p className="mt-2 text-sm leading-6 text-night-sky/70">{results[key].message}</p>
+              <p role="status" className="mt-2 text-sm leading-6 text-night-sky/70">{results[key].message}</p>
               {results[key].elapsedMs !== undefined && (
                 <p className="mt-2 text-xs font-semibold text-night-sky/50">Elapsed: {formatElapsed(results[key].elapsedMs)}</p>
               )}
@@ -169,6 +218,10 @@ export default function GpsDiagnosticsClient() {
         <section className="mt-6 rounded-2xl border border-night-sky/10 bg-white p-4">
           <h2 className="font-bold">Page context</h2>
           <dl className="mt-3 grid gap-2 text-sm text-night-sky/65">
+            <div className="flex justify-between gap-4">
+              <dt>Location permission</dt>
+              <dd className="text-right font-semibold text-night-sky">{permission}</dd>
+            </div>
             <div className="flex justify-between gap-4">
               <dt>Secure context</dt>
               <dd className="font-semibold text-night-sky">{context?.secure ? "Yes" : "No"}</dd>
