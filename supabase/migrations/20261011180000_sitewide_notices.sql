@@ -12,4 +12,6 @@ alter table public.sitewide_notices enable row level security;
 create policy "Everyone can read published notices" on public.sitewide_notices for select to anon, authenticated using (status = 'published' or public.is_legacy_link_admin());
 create policy "Administrators can create notices" on public.sitewide_notices for insert to authenticated with check (exists(select 1 from public.admin_users where user_id=auth.uid() and role in ('admin','super_admin')));
 create policy "Administrators can update notices" on public.sitewide_notices for update to authenticated using (exists(select 1 from public.admin_users where user_id=auth.uid() and role in ('admin','super_admin'))) with check (exists(select 1 from public.admin_users where user_id=auth.uid() and role in ('admin','super_admin')));
+grant select on public.sitewide_notices to anon, authenticated;
+grant insert, update on public.sitewide_notices to authenticated;
 create index sitewide_notices_published_idx on public.sitewide_notices (created_at desc) where status = 'published';
