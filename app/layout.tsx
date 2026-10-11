@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
+import SitewideNotice from "@/components/notices/SitewideNotice";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -25,7 +26,7 @@ export default function RootLayout({
       lang="en"
       className={`${nunito.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">{children}<SitewideNotice /></body>
     </html>
   );
 }
