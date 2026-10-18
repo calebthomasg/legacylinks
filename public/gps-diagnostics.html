@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Browser GPS diagnostic · LegacyLink</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; background: #f7f4ec; color: #102b3a; }
+      body { margin: 0; }
+      main { box-sizing: border-box; max-width: 680px; margin: 0 auto; padding: 32px 20px 64px; }
+      h1 { font-size: 2rem; margin: 0 0 12px; }
+      h2 { font-size: 1.1rem; margin: 0 0 12px; }
+      p, li { line-height: 1.55; }
+      section { background: white; border: 1px solid #d9e2df; border-radius: 16px; padding: 20px; margin-top: 20px; }
+      dl { margin: 0; }
+      dt { color: #527073; margin-top: 12px; }
+      dd { margin: 3px 0 0; overflow-wrap: anywhere; font-weight: 600; }
+      button { border: 0; border-radius: 10px; background: #086b69; color: white; font: inherit; font-weight: 700; padding: 14px 20px; min-height: 48px; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: not-allowed; }
+      .muted { color: #527073; }
+      .result { font-size: 1.1rem; font-weight: 700; }
+      .small { font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Browser GPS diagnostic</h1>
+      <p>This page calls the browser’s location API directly. Coordinates appear only on this screen; the page has no map, account request, or code that sends them to a server. Do not share a screenshot unless you are comfortable sharing your location.</p>
+
+      <section>
+        <h2>Device and page</h2>
+        <dl>
+          <dt>Secure context</dt><dd id="secure">Checking…</dd>
+          <dt>Geolocation available</dt><dd id="available">Checking…</dd>
+          <dt>Location permission (if reported)</dt><dd id="permission">Checking…</dd>
+          <dt>Browser and platform</dt><dd id="browser">Checking…</dd>
+          <dt>User agent</dt><dd id="user-agent" class="small">Checking…</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>One-time location request</h2>
+        <p class="muted small">Runs only when you tap the button. Requests a fresh, high-accuracy position with a 15-second browser timeout. This page also watches for a callback for up to 60 seconds. The reported permission state may differ from what a browser prompt does.</p>
+        <button id="start" type="button">Test GPS</button>
+        <p id="status" class="result" role="status" aria-live="polite">Ready to test.</p>
+        <dl>
+          <dt>Latitude</dt><dd id="latitude">—</dd>
+          <dt>Longitude</dt><dd id="longitude">—</dd>
+          <dt>Accuracy</dt><dd id="accuracy">—</dd>
+          <dt>Elapsed time</dt><dd id="elapsed">—</dd>
+          <dt>Error details</dt><dd id="error">—</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>Compare Safari and Chrome on iPhone</h2>
+        <ol>
+          <li>Open this exact preview URL in Safari and Chrome on the same iPhone. Keep the same Wi-Fi or cellular connection for both tests.</li>
+          <li>In each browser, tap <strong>Test GPS</strong> and respond to any location prompt. Keep the page open for up to 60 seconds.</li>
+          <li>Compare permission, success or error, elapsed time, and accuracy. Note whether a website location prompt appeared. Coordinates are for your own inspection; you can omit them when reporting results.</li>
+          <li>If a request receives no callback, reload before another test. You can repeat the comparison on cellular after recording the first pair.</li>
+        </ol>
+      </section>
+    </main>
+    <script>
+      const fields = Object.fromEntries(
+        ["secure", "available", "permission", "browser", "user-agent", "start", "status", "latitude", "longitude", "accuracy", "elapsed", "error"]
+          .map((name) => [name, document.getElementById(name)])
+      );
+      const userAgent = navigator.userAgent;
+      const browser = /CriOS/.test(userAgent) ? "Chrome on iOS" : /FxiOS/.test(userAgent) ? "Firefox on iOS" : /Safari/.test(userAgent) && !/Chrome|Chromium|Edg/.test(userAgent) ? "Safari" : /Edg/.test(userAgent) ? "Edge" : /Chrome|Chromium/.test(userAgent) ? "Chrome" : "Unknown browser";
+      const platform = /iPhone/.test(userAgent) ? "iPhone" : /iPad/.test(userAgent) ? "iPad" : navigator.userAgentData?.platform || navigator.platform || "Unknown platform";
+      fields.secure.textContent = window.isSecureContext ? "Yes" : "No";
+      fields.available.textContent = navigator.geolocation ? "Yes" : "No";
+      fields.browser.textContent = `${browser} · ${platform}`;
+      fields["user-agent"].textContent = userAgent;
+
+      if (navigator.permissions?.query) {
+        navigator.permissions.query({ name: "geolocation" }).then((permission) => {
+          const update = () => { fields.permission.textContent = permission.state; };
+          update();
+          permission.addEventListener?.("change", update);
+        }).catch(() => { fields.permission.textContent = "Not reported by this browser"; });
+      } else {
+        fields.permission.textContent = "Not reported by this browser";
+      }
+
+      let requestNumber = 0;
+      let observationTimer;
+      let running = false;
+      let reloadRequired = false;
+      const resetResult = () => {
+        for (const name of ["latitude", "longitude", "accuracy", "elapsed", "error"]) fields[name].textContent = "—";
+      };
+
+      fields.start.addEventListener("click", () => {
+        if (running || reloadRequired) return;
+        resetResult();
+        if (!window.isSecureContext || !navigator.geolocation) {
+          fields.status.textContent = "Location cannot run in this browser context.";
+          fields.error.textContent = !window.isSecureContext ? "This page needs a secure HTTPS connection." : "Geolocation API unavailable.";
+          return;
+        }
+
+        running = true;
+        fields.start.disabled = true;
+        fields.status.textContent = "Waiting for a location callback…";
+        const currentRequest = ++requestNumber;
+        const startedAt = performance.now();
+        const finish = (status, error, position) => {
+          if (!running || currentRequest !== requestNumber) return;
+          running = false;
+          clearTimeout(observationTimer);
+          fields.start.disabled = false;
+          fields.status.textContent = status;
+          fields.elapsed.textContent = `${((performance.now() - startedAt) / 1000).toFixed(1)} seconds`;
+          if (error) fields.error.textContent = error;
+          if (position) {
+            fields.latitude.textContent = position.coords.latitude.toFixed(6);
+            fields.longitude.textContent = position.coords.longitude.toFixed(6);
+            fields.accuracy.textContent = `±${Math.round(position.coords.accuracy)} meters`;
+          }
+        };
+
+        observationTimer = setTimeout(() => {
+          finish("No callback within 60 seconds.", "The browser did not call success or error. Reload before testing again.");
+          reloadRequired = true;
+          fields.start.disabled = true;
+          requestNumber++;
+        }, 60000);
+
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (position) => finish("Location received.", null, position),
+            (error) => {
+              const kind = { 1: "Permission denied", 2: "Position unavailable", 3: "Browser timeout" }[error.code] || "Unknown error";
+              finish("Location request failed.", `${kind} (code ${error.code}): ${error.message || "No message provided."}`);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+        } catch (error) {
+          finish("Location request failed.", error instanceof Error ? error.message : "Unexpected browser error.");
+        }
+      });
+
+      window.addEventListener("pagehide", () => {
+        clearTimeout(observationTimer);
+        requestNumber++;
+        if (running) {
+          running = false;
+          reloadRequired = true;
+          fields.start.disabled = true;
+          fields.status.textContent = "Page was left during the request. Reload before testing again.";
+        }
+      });
+    </script>
+  </body>
+</html>
