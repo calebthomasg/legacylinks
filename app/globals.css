@@ -242,6 +242,48 @@ input:-webkit-autofill:focus {
     inset 0 0 0 1000px #ffffff,
     inset 0 1px 0 rgb(255 255 255 / 80%);
 }
-.trailhead-map .mapboxgl-ctrl-geolocate {
+.trailhead-user-marker {
+  position: relative;
+  z-index: 30 !important;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+}
+
+.trailhead-user-marker__halo {
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgb(41 152 233 / 45%);
+  border-radius: 50%;
+  background: rgb(41 152 233 / 20%);
+}
+
+.trailhead-user-marker__dot {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: #2998e9;
+  box-shadow: 0 1px 5px rgb(15 29 58 / 45%);
+}
+
+.trailhead-user-marker__heading {
+  position: absolute;
+  inset: 0;
   display: none;
+}
+
+.trailhead-user-marker__heading::before {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  width: 0;
+  height: 0;
+  border-right: 6px solid transparent;
+  border-bottom: 15px solid #2998e9;
+  border-left: 6px solid transparent;
+  content: "";
 }
