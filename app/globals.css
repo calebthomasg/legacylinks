@@ -243,7 +243,7 @@ input:-webkit-autofill:focus {
     inset 0 1px 0 rgb(255 255 255 / 80%);
 }
 .trailhead-user-marker {
-  position: relative;
+  position: absolute;
   z-index: 30 !important;
   width: 48px;
   height: 48px;
