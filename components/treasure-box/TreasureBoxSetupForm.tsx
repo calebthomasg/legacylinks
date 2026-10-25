@@ -13,6 +13,7 @@ type Props={
   token:string;
   boxId:string;
   initial:{
+    cache_id:string;
     title:string;
     description:string|null;
     difficulty:number;
@@ -60,6 +61,8 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const supabase=useMemo(()=>createClient(),[]);
   const[title,setTitle]=useState(initial.title==="Untitled Treasure Box"?"":initial.title);
   const[description,setDescription]=useState(initial.description??"");
+  const[hint,setHint]=useState("");
+  const[hintLoaded,setHintLoaded]=useState(false);
   const[difficulty,setDifficulty]=useState(initial.difficulty||1);
   const[terrain,setTerrain]=useState(initial.terrain||1);
   const[latitude,setLatitude]=useState(initial.latitude?.toString()??"");
@@ -73,6 +76,16 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[message,setMessage]=useState<string|null>(null);
   const[optionsLoaded,setOptionsLoaded]=useState(!TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED);
   const[review,setReview]=useState<ReviewState|null>(null);
+
+  useEffect(()=>{
+    let active=true;
+    supabase.rpc("get_owned_treasure_box_hint",{p_cache_id:initial.cache_id}).then(({data,error:loadError})=>{
+      if(!active)return;
+      if(loadError)setError("We couldn't load this box's hint. Please reopen setup.");
+      else{setHint(typeof data==="string"?data:"");setHintLoaded(true);}
+    });
+    return()=>{active=false};
+  },[supabase,initial.cache_id]);
 
   useEffect(()=>{
     if(!TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED)return;
@@ -163,6 +176,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       setError("Add the Treasure Box location before continuing.");
       return;
     }
+    if(!hintLoaded){setError("Wait for this box's hint to load before continuing.");return;}
     setBusy(true);
     const{error:e}=await supabase.rpc("save_claimed_treasure_box_setup",{
       p_nfc_public_token:token,
@@ -174,11 +188,14 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       p_longitude:lng,
       p_search_radius_meters:radius,
     });
-    setBusy(false);
     if(e){
+      setBusy(false);
       setError(e.message);
       return;
     }
+    const{error:hintError}=await supabase.rpc("save_treasure_box_hint",{p_cache_id:initial.cache_id,p_hint:hint.trim()||null});
+    setBusy(false);
+    if(hintError){setError(hintError.message);return;}
     go(TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED?"contents":"review");
   }
 
@@ -286,6 +303,9 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
         <label className="block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Short description
           <textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4} placeholder="What should Trailblazers know before they start looking?" className="mt-2 w-full resize-none rounded-2xl border border-night-sky/15 px-4 py-3 text-sm leading-6"/>
         </label>
+        <label className="block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Hint <span className="normal-case font-normal">(optional)</span>
+          <textarea value={hint} onChange={e=>setHint(e.target.value)} maxLength={1000} rows={3} placeholder="A clue Trailblazers can open if they need help" className="mt-2 w-full resize-none rounded-2xl border border-night-sky/15 px-4 py-3 text-sm leading-6"/>
+        </label>
         <div className="grid gap-4 sm:grid-cols-2">{score("Difficulty",difficulty,setDifficulty)}{score("Terrain",terrain,setTerrain)}</div>
       </div>
       <WizardError error={error}/>
@@ -341,6 +361,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
         <ReviewRow label="Treasure Box" value={review.box_id}/>
         <ReviewRow label="Name" value={review.title}/>
         <ReviewRow label="Description" value={review.description||"No description"}/>
+        <ReviewRow label="Hint" value={hint||"No hint"}/>
         <ReviewRow label="Difficulty / Terrain" value={`${review.difficulty}/5 · ${review.terrain}/5`}/>
         <ReviewRow label="Exact placement" value={`${review.latitude.toFixed(5)}, ${review.longitude.toFixed(5)} (private)`}/>
         <ReviewRow label="Public search area" value={`${review.search_radius_meters} meter radius around an approximate map point`}/>
