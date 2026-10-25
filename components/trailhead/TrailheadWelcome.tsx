@@ -26,7 +26,7 @@ const cards = [
   {
     eyebrow: "FOLLOW THE TRAIL",
     title: "We’ll help you find your way.",
-    body: (<><p>Once your adventure begins, look for the <strong>blue dot</strong> on your map—that’s you. The blue arrow points in the direction your device is facing.</p><p>Follow the map toward the treasure. When you reach the <strong>green search area</strong>, you’re close! Somewhere inside that circle is the treasure box.</p><p>From there, the map takes a back seat. Look around, check the hiding spots, and start hunting.</p></>),
+    body: (<><p>Once your adventure begins, look for the <strong>blue dot</strong> on your map—that’s you. The blue arrow points in the direction your device is facing.</p><p>The map follows you and turns with your phone. Pinch or move the map to explore freely; tap <strong>Recenter</strong> when you want it to follow you again.</p><p>When you reach the <strong>green search area</strong>, you’re close! Somewhere inside that circle is the treasure box. GPS is approximate, so look around and start hunting.</p></>),
     button: "Got it",
   },
   {

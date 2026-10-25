@@ -242,3 +242,6 @@ input:-webkit-autofill:focus {
     inset 0 0 0 1000px #ffffff,
     inset 0 1px 0 rgb(255 255 255 / 80%);
 }
+.trailhead-map .mapboxgl-ctrl-geolocate {
+  display: none;
+}
