@@ -66,6 +66,7 @@ const SEARCH_FILL = "active-search-area-fill";
 const SEARCH_LINE = "active-search-area-line";
 const ROUTE_SOURCE = "trailhead-walking-route";
 const ROUTE_LINE = "trailhead-walking-route-line";
+const ROUTE_HALO = "trailhead-walking-route-halo";
 
 type CompassEvent = DeviceOrientationEvent & { webkitCompassHeading?: number; webkitCompassAccuracy?: number };
 function headingDelta(target: number, current: number) { return ((target - current + 540) % 360) - 180; }
@@ -179,7 +180,7 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
  const showMap=useCallback(()=>{mobileViewRef.current="map";setMobileView("map");setTimeout(()=>{mapRef.current?.resize();updateVisible();},50);},[updateVisible]);
  const showList=useCallback(()=>{updateVisible();mobileViewRef.current="list";setMobileView("list");},[updateVisible]);
  const selectItem=useCallback((item:DiscoveryItem)=>{setSelectedMine(null);const cache=item.cache_id?cacheById.get(item.cache_id):undefined;if(cache){setPreviewCache(cache);setSelectedCache(null);setSelectedItem(null);if(isCompact()){mobileViewRef.current="map";setMobileView("map");window.setTimeout(()=>mapRef.current?.resize(),50);}return;}setPreviewCache(null);setSelectedItem(item);setSelectedCache(null);if(isCompact()){mobileViewRef.current="list";setMobileView("list");}else{mapRef.current?.flyTo({center:[item.longitude,item.latitude],zoom:15,duration:700,essential:true});}},[cacheById]);
- const clearRoute=useCallback(()=>{routeAbortRef.current?.abort();routeAbortRef.current=null;routeRequestRef.current++;routeLastRef.current=null;insideRadiusRef.current=false;const map=mapRef.current;if(!map)return;if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);if(map.getSource(ROUTE_SOURCE))map.removeSource(ROUTE_SOURCE);},[]);
+ const clearRoute=useCallback(()=>{routeAbortRef.current?.abort();routeAbortRef.current=null;routeRequestRef.current++;routeLastRef.current=null;insideRadiusRef.current=false;const map=mapRef.current;if(!map)return;if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);if(map.getLayer(ROUTE_HALO))map.removeLayer(ROUTE_HALO);if(map.getSource(ROUTE_SOURCE))map.removeSource(ROUTE_SOURCE);},[]);
  const clearArea=useCallback(()=>{const map=mapRef.current;if(!map)return;if(map.getLayer(SEARCH_LINE))map.removeLayer(SEARCH_LINE);if(map.getLayer(SEARCH_FILL))map.removeLayer(SEARCH_FILL);if(map.getSource(SEARCH_SOURCE))map.removeSource(SEARCH_SOURCE);},[]);
  const updateHeadingMarker=useCallback(()=>{
   const headingElement=headingElementRef.current;
@@ -234,7 +235,7 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
   }
   if(insideRadiusRef.current){
    routeAbortRef.current?.abort();routeAbortRef.current=null;routeRequestRef.current++;
-   if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);
+   if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);if(map.getLayer(ROUTE_HALO))map.removeLayer(ROUTE_HALO);
    routeLastRef.current=null;
    setRouteStatus("You reached the search area. Time to explore!");
    return;
@@ -244,7 +245,8 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
   routeLastRef.current={...location,time:Date.now(),cacheId:active.cache_id};
   routeAbortRef.current?.abort();const controller=new AbortController();routeAbortRef.current=controller;
   const request=++routeRequestRef.current;
-  setRouteStatus("Finding a walking route…");
+  // Keep follow-route guidance visible while an existing route refreshes.
+  if(!map.getLayer(ROUTE_LINE))setRouteStatus("Finding a walking route…");
   // Aim at the near edge of the approximate search area, never the hidden box location.
   const fraction=Math.max(0,1-Math.max(0,active.search_radius_meters-5)/distance);
   const destination:[number,number]=[
@@ -264,11 +266,12 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
    const source=map.getSource(ROUTE_SOURCE);
    if(source?.setData)source.setData(feature);
    else map.addSource(ROUTE_SOURCE,{type:"geojson",data:feature});
-   if(!map.getLayer(ROUTE_LINE))map.addLayer({id:ROUTE_LINE,type:"line",source:ROUTE_SOURCE,layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#6dbf67","line-width":6,"line-opacity":.95}});
-   setRouteStatus("Follow the green walking route toward the search area");
+   if(!map.getLayer(ROUTE_HALO))map.addLayer({id:ROUTE_HALO,type:"line",source:ROUTE_SOURCE,layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#0F1D3A","line-width":9,"line-opacity":.55,"line-blur":.5}});
+   if(!map.getLayer(ROUTE_LINE))map.addLayer({id:ROUTE_LINE,type:"line",source:ROUTE_SOURCE,layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#FFC83D","line-width":6,"line-opacity":.95}});
+   setRouteStatus("Follow the yellow walking route toward the search area");
   }).catch(error=>{
    if(controller.signal.aborted||request!==routeRequestRef.current)return;
-   if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);
+   if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);if(map.getLayer(ROUTE_HALO))map.removeLayer(ROUTE_HALO);
    setRouteStatus("No mapped walking route available here. Use the visible trails and search area.");
   });
  },[active,loaded,location,token]);
