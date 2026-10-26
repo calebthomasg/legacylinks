@@ -57,7 +57,7 @@ export default function TrailheadWelcome() {
   const isLast = step === cards.length - 1;
 
   return (<>
-    <button type="button" onClick={replay} className="fixed bottom-5 right-5 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#0d2144] text-xl font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#54b1ee]/35 lg:bottom-6 lg:right-6" aria-label="How to use Trailhead" title="How to use Trailhead">?</button>
+    <button type="button" onClick={replay} className="fixed top-4 right-4 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#0d2144] text-xl font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#54b1ee]/35 lg:top-6 lg:right-20" aria-label="How to use Trailhead" title="How to use Trailhead">?</button>
     {open && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d2144]/55 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="trailhead-welcome-title">
       <div className="relative flex h-[min(700px,94dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[#0d2144]/10 bg-[#f5f2e8] shadow-2xl md:h-[640px] md:flex-row">
         <button onClick={finish} className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-[#0d2144]/65 transition hover:text-[#0d2144]" aria-label="Skip Trailhead introduction">Skip introduction</button>
