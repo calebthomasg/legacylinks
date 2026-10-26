@@ -287,3 +287,9 @@ input:-webkit-autofill:focus {
   border-left: 6px solid transparent;
   content: "";
 }
+
+/* Size and center within the available map pane. */
+.trailhead-preview { left: 12px; right: 12px; }
+@media (min-width: 768px) and (orientation: landscape), (min-width: 1200px) {
+  .trailhead-preview { left: 50%; right: auto; width: calc(100% - 32px); max-width: 640px; transform: translateX(-50%); }
+}
