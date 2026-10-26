@@ -271,7 +271,6 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
    if(map.getLayer(ROUTE_LINE))map.removeLayer(ROUTE_LINE);
    setRouteStatus("No mapped walking route available here. Use the visible trails and search area.");
   });
-  return()=>{controller.abort();};
  },[active,loaded,location,token]);
  const pauseForExplore=useCallback(()=>{if(activeRef.current&&!sensorRotationRef.current){exploreRef.current=true;setExploring(true);if(headingFrameRef.current!==null)window.cancelAnimationFrame(headingFrameRef.current);headingFrameRef.current=null;}},[]);
  const recenter=useCallback(()=>{
