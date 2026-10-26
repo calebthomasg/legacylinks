@@ -1,22 +1,35 @@
 "use client";
 
-import {FormEvent, useMemo, useState} from "react";
+import {FormEvent, useEffect, useMemo, useState} from "react";
 import {createClient} from "@/utils/supabase/client";
 
 type Props={
   experienceId:string;
+  cacheId:string;
   initialTitle:string;
   initialDescription:string|null;
   onCancel:()=>void;
   onSaved:()=>void;
 };
 
-export default function TreasureBoxEditForm({experienceId,initialTitle,initialDescription,onCancel,onSaved}:Props){
+export default function TreasureBoxEditForm({experienceId,cacheId,initialTitle,initialDescription,onCancel,onSaved}:Props){
   const supabase=useMemo(()=>createClient(),[]);
   const[title,setTitle]=useState(initialTitle);
   const[description,setDescription]=useState(initialDescription??"");
+  const[hint,setHint]=useState("");
+  const[hintLoaded,setHintLoaded]=useState(false);
   const[saving,setSaving]=useState(false);
   const[error,setError]=useState<string|null>(null);
+
+  useEffect(()=>{
+    let active=true;
+    supabase.rpc("get_owned_treasure_box_hint",{p_cache_id:cacheId}).then(({data,error:loadError})=>{
+      if(!active)return;
+      if(loadError)setError("We couldn't load this box's hint. Please reopen the editor.");
+      else{setHint(typeof data==="string"?data:"");setHintLoaded(true);}
+    });
+    return()=>{active=false};
+  },[supabase,cacheId]);
 
   async function submit(event:FormEvent){
     event.preventDefault();
@@ -26,6 +39,8 @@ export default function TreasureBoxEditForm({experienceId,initialTitle,initialDe
       return;
     }
     setSaving(true);
+    const{error:hintError}=await supabase.rpc("save_treasure_box_hint",{p_cache_id:cacheId,p_hint:hint.trim()||null});
+    if(hintError){setSaving(false);setError(hintError.message);return;}
     const{error:saveError}=await supabase.rpc("update_published_treasure_box_metadata",{
       p_experience_id:experienceId,
       p_title:title.trim(),
@@ -53,10 +68,14 @@ export default function TreasureBoxEditForm({experienceId,initialTitle,initialDe
         <textarea value={description} onChange={event=>setDescription(event.target.value)} maxLength={4000} rows={7} className="mt-2 w-full resize-y rounded-2xl border border-night-sky/15 bg-white px-4 py-3 text-sm leading-6 text-night-sky outline-none focus:border-teal"/>
       </label>
       <p className="mt-2 text-right text-xs text-night-sky/40">{description.length}/4000</p>
+      <label className="mt-4 block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Hint <span className="normal-case font-normal">(optional)</span>
+        <textarea value={hint} onChange={event=>setHint(event.target.value)} maxLength={1000} rows={3} placeholder="A clue Trailblazers can open when they need help" className="mt-2 w-full resize-y rounded-2xl border border-night-sky/15 bg-white px-4 py-3 text-sm leading-6 text-night-sky outline-none focus:border-teal"/>
+      </label>
+      <p className="mt-2 text-right text-xs text-night-sky/40">{hint.length}/1000</p>
       {error&&<p className="mt-5 rounded-2xl bg-coral/10 p-4 text-sm font-semibold text-night-sky" role="alert">{error}</p>}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <button type="button" onClick={onCancel} disabled={saving} className="rounded-2xl border border-night-sky/15 bg-white px-5 py-4 text-sm font-bold text-night-sky disabled:opacity-50">Cancel</button>
-        <button disabled={saving||!title.trim()} className="rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{saving?"Saving…":"Save Changes"}</button>
+        <button disabled={saving||!hintLoaded||!title.trim()} className="rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{saving?"Saving…":!hintLoaded?"Loading…":"Save Changes"}</button>
       </div>
     </form>
   </div>;

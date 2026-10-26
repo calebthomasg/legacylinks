@@ -26,7 +26,7 @@ const cards = [
   {
     eyebrow: "FOLLOW THE TRAIL",
     title: "We’ll help you find your way.",
-    body: (<><p>Once your adventure begins, look for the <strong>blue dot</strong> on your map—that’s you. The blue arrow points in the direction your device is facing.</p><p>Follow the map toward the treasure. When you reach the <strong>green search area</strong>, you’re close! Somewhere inside that circle is the treasure box.</p><p>From there, the map takes a back seat. Look around, check the hiding spots, and start hunting.</p></>),
+    body: (<><p>Once your adventure begins, look for the <strong>blue dot</strong> on your map—that’s you. The blue arrow points in the direction your device is facing.</p><p>The map follows you and turns with your phone. Pinch or move the map to explore freely; tap <strong>Recenter</strong> when you want it to follow you again.</p><p>When you reach the <strong>green search area</strong>, you’re close! Somewhere inside that circle is the treasure box. GPS is approximate, so look around and start hunting.</p></>),
     button: "Got it",
   },
   {
@@ -57,7 +57,7 @@ export default function TrailheadWelcome() {
   const isLast = step === cards.length - 1;
 
   return (<>
-    <button type="button" onClick={replay} className="fixed bottom-5 right-5 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#0d2144] text-xl font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#54b1ee]/35 lg:bottom-6 lg:right-6" aria-label="How to use Trailhead" title="How to use Trailhead">?</button>
+    <button type="button" onClick={replay} className="fixed top-4 right-4 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#0d2144] text-xl font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#54b1ee]/35 lg:top-6 lg:right-20" aria-label="How to use Trailhead" title="How to use Trailhead">?</button>
     {open && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d2144]/55 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="trailhead-welcome-title">
       <div className="relative flex h-[min(700px,94dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[#0d2144]/10 bg-[#f5f2e8] shadow-2xl md:h-[640px] md:flex-row">
         <button onClick={finish} className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-[#0d2144]/65 transition hover:text-[#0d2144]" aria-label="Skip Trailhead introduction">Skip introduction</button>
