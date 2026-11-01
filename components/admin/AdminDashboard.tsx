@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import SitewideNoticeManager from "@/components/admin/SitewideNoticeManager";
+import AdminNotifications from "@/components/admin/AdminNotifications";
 import TreasureBoxAdminActions from "@/components/admin/TreasureBoxAdminActions";
 import { TRAVELING_TOKEN_ADMIN_ENABLED } from "@/utils/featureFlags";
 type AdminRow = {
@@ -162,6 +163,7 @@ export default function AdminDashboard({ initialAdmins, isSuperAdmin }: Props) {
         Internal fulfillment, physical-item provisioning, and administrative
         access.
       </p>
+      <AdminNotifications />
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <ProvisionCard
           eyebrow="Treasure Box fulfillment"
