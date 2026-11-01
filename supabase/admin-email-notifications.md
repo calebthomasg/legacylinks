@@ -17,6 +17,16 @@ restricted to `legacylinks.io` and stored in Supabase Vault as
 The domain uses a TXT record at `resend._domainkey` and CNAME records at `send` and
 `rsend`; existing Titan mailbox records remain in place.
 
+Branded emails include the existing logo and Ranger Rowan, sand/forest/teal brand
+colors, a person-first heading, event date, and a dashboard button. Treasure-find
+messages also include the box title/code. Hosted PNG assets under `/images/email/`
+are generated from existing SVGs with `node scripts/build-admin-email-assets.cjs`.
+HTML uses presentation tables and inline styles with a plain-text alternative.
+Nunito is requested by family name with Arial/Helvetica fallbacks; typography
+depends on fonts installed in the recipient's mail client. User content is escaped.
+Deploy the versioned image assets before applying the branded-template migration.
+The template affects newly queued messages; retries keep their original payloads.
+
 The account uses Resend Free with pay-as-you-go disabled. The worker conservatively
 limits attempts to 90 per rolling 24 hours and 2,900 per rolling 31 days, counting
 retries. Excess notifications stay queued. Other apps using the same Resend account
