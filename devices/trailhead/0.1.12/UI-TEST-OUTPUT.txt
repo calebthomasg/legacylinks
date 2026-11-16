@@ -1,0 +1,2 @@
+PASS: real LVGL swipe, rotation, snap, preview, Settings/Wi-Fi routes, drag guard, 100 screen cycles; 37584 bytes free
+PASS: eight selections, seam wrap, clockwise drag, center tap, drag-open guard, cancellation
