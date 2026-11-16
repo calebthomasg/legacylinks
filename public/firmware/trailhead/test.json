@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "channel": "test",
+  "release": {
+    "version": "0.1.9",
+    "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
+    "layout": "trailhead-16m-ota4m-v1",
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.9/trailhead-0.1.9-app.bin",
+    "size": 1926464,
+    "sha256": "81806a200cf516a14633ab79c20ae8eac2e2374600cbd1e090fa529756dbfd20",
+    "notes": "Test direct downloads and saved Wi-Fi after restart."
+  }
+}
