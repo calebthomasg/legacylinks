@@ -36,11 +36,12 @@ static String wifiStatus(){
 }
 
 // Diagnostics reads existing station data; it never scans or changes radio settings.
-static lv_obj_t *signalBars[4]={};static lv_obj_t *signalReading=nullptr,*signalDetails=nullptr;
+static lv_obj_t *signalBars[4]={};static lv_obj_t *signalReading=nullptr,*signalDetails=nullptr,*signalNetwork=nullptr;
 static int signalMin=0,signalMax=-127;static unsigned signalSamples=0;
 static void refreshSignal(){
  if(page!=SIGNAL)return;
  bool online=WiFi.status()==WL_CONNECTED;
+ lv_label_set_text(signalNetwork,online?WiFi.SSID().c_str():"Not connected");
  int rssi=online?WiFi.RSSI():0;bool valid=online&&validSignal(rssi);
  if(valid){if(!signalSamples){signalMin=signalMax=rssi;}else {signalMin=min(signalMin,rssi);signalMax=max(signalMax,rssi);}signalSamples++;}
  char text[190];
@@ -55,7 +56,7 @@ static void refreshSignal(){
 }
 static void showSignal(){
  clearPage(SIGNAL);signalSamples=0;label("Wi-Fi signal",52);
- auto *ssid=label(WiFi.status()==WL_CONNECTED?WiFi.SSID().c_str():"Not connected",82,290);lv_label_set_long_mode(ssid,LV_LABEL_LONG_DOT);lv_obj_set_height(ssid,22);
+ auto *ssid=label(WiFi.status()==WL_CONNECTED?WiFi.SSID().c_str():"Not connected",82,290);signalNetwork=ssid;lv_label_set_long_mode(ssid,LV_LABEL_LONG_DOT);lv_obj_set_height(ssid,22);
  for(int i=0;i<4;i++){auto *bar=lv_obj_create(lv_scr_act());signalBars[i]=bar;lv_obj_remove_style_all(bar);lv_obj_set_size(bar,26,14+i*12);lv_obj_set_pos(bar,170+i*36,178-(14+i*12));lv_obj_set_style_radius(bar,4,0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);lv_obj_clear_flag(bar,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);}
  signalReading=label("",195,340);signalDetails=label("",230,320);
  label("Signal levels are approximate",302,300);

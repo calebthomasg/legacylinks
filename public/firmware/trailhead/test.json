@@ -6,8 +6,8 @@
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
     "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.10/trailhead-0.1.10-app.bin",
-    "size": 1928048,
-    "sha256": "00d8c3376a93cfa7cdd169eb7a0ca333dce88bc961a3ba7824e05fa18c313def",
+    "size": 1928192,
+    "sha256": "7cc2a3084f7c773e46da5378e9666c51ab94dff6585be40a67260daed8e06734",
     "notes": "Adds live Wi-Fi signal bars, dBm readings, and signal diagnostics in Settings."
   }
 }
