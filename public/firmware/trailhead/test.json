@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.10",
+    "version": "0.1.11",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.10/trailhead-0.1.10-app.bin",
-    "size": 1928192,
-    "sha256": "7cc2a3084f7c773e46da5378e9666c51ab94dff6585be40a67260daed8e06734",
-    "notes": "Adds live Wi-Fi signal bars, dBm readings, and signal diagnostics in Settings."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.11/trailhead-0.1.11-app.bin",
+    "size": 1929248,
+    "sha256": "4b791a926e1cfdff809912218bd2a253c5d949fdc1715d4611e702eadf31b055",
+    "notes": "Faster retries after Wi-Fi failures, with connection time and attempt count."
   }
 }
