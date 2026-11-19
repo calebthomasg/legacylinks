@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.12",
+    "version": "0.1.15",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.12/trailhead-0.1.12-app.bin",
-    "size": 2550400,
-    "sha256": "dfb46ed2bd5fd78be055f94ec5b8c8f7ecde489221bdaed6b09d6ddd81d5c5a5",
-    "notes": "Dinglehopper swipe-up opener, rotating icon dial, brand palette, and Settings/Wi-Fi access. Other pages are previews."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.15/trailhead-0.1.15-app.bin",
+    "size": 2787392,
+    "sha256": "53aa3091274a8f659b1c580e86269d6592a9254ac0e059500f79e88dd20579e1",
+    "notes": "Save Petopia coat, pattern, nose, and eyes across restarts."
   }
 }
