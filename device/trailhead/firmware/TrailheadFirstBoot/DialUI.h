@@ -81,55 +81,183 @@ static void showDashboard(){
   batteryText=navLabel("",147,82,&lv_font_montserrat_16);lv_obj_align(batteryText,LV_ALIGN_TOP_MID,92,147);
   navLabel(greetings[greetingIndex],265,350,&nav_text);paintDial();
 }
-static const char *const settingsNames[]={"Wi-Fi","Firmware Updates","Storage","Brightness","Battery","Wi-Fi Signal","Forget Wi-Fi","Display Check"};
-static constexpr int rowHeight=56,halfList=140;
+static const char *const settingsNames[]={"Wi-Fi","Firmware Updates","Storage","Brightness","Battery","Wi-Fi Signal","Forget Wi-Fi"};
+static constexpr int rowHeight=56, menuWidth=342, menuInset=112;
+
 static void fadeRows(lv_obj_t *list){
-  settingsOffset=lv_obj_get_scroll_y(list);
-  for(unsigned i=0;i<sizeof(settingsNames)/sizeof(*settingsNames);i++){
-    auto *row=lv_obj_get_child(list,i);if(!row)continue;
-    int distance=std::abs(int(i)*rowHeight-settingsOffset);
+  const int offset=lv_obj_get_scroll_y(list);
+  for(unsigned i=0;i<lv_obj_get_child_cnt(list);i++){
+    auto *row=lv_obj_get_child(list,i);
+    int distance=std::abs(int(i)*rowHeight-offset);
     int opacity=255-distance*134/112;
     lv_obj_set_style_text_opa(lv_obj_get_child(row,0),opacity<58?58:opacity,0);
   }
 }
-static void showSettings(){
-  int offset=settingsOffset;
-  clearPage(SETTINGS);navBackground();navTitle(4,"Settings");
+static lv_obj_t *navMenu(int *offset=nullptr){
   auto *list=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(list);
-  lv_obj_set_pos(list,69,100);lv_obj_set_size(list,342,2*halfList);
+  lv_obj_set_pos(list,69,100);lv_obj_set_size(list,menuWidth,280);
   lv_obj_set_scroll_dir(list,LV_DIR_VER);lv_obj_set_scrollbar_mode(list,LV_SCROLLBAR_MODE_OFF);
-  lv_obj_set_scroll_snap_y(list,LV_SCROLL_SNAP_CENTER);lv_obj_set_style_pad_bottom(list,112,0);
+  lv_obj_set_scroll_snap_y(list,LV_SCROLL_SNAP_CENTER);
+  lv_obj_set_style_pad_bottom(list,menuInset,0);
+  lv_obj_add_event_cb(list,[](lv_event_t *e){
+    auto *menu=lv_event_get_target(e);
+    auto *position=(int*)lv_event_get_user_data(e);
+    if(position)*position=lv_obj_get_scroll_y(menu);
+    fadeRows(menu);
+  },LV_EVENT_SCROLL,offset);
+  for(int y:{212,268}){
+    auto *line=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(line);
+    lv_obj_set_size(line,324,1);lv_obj_set_pos(line,78,y);
+    lv_obj_set_style_bg_opa(line,115,0);lv_obj_set_style_bg_color(line,navSand(),0);
+    lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
+  }
+  return list;
+}
+static lv_obj_t *navMenuRow(lv_obj_t *list,const char *text,lv_event_cb_t cb,
+                            void *data=nullptr,const lv_font_t *font=&nav_row){
+  unsigned i=lv_obj_get_child_cnt(list);
+  auto *row=target(list,0,menuInset+i*rowHeight,menuWidth,rowHeight,cb,data);
+  lv_obj_add_flag(row,LV_OBJ_FLAG_SNAPPABLE);
+  auto *l=lv_label_create(row);lv_obj_set_width(l,menuWidth-28);
+  lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);lv_label_set_text(l,text);
+  lv_obj_set_style_text_font(l,font,0);lv_obj_set_style_text_color(l,navSand(),0);
+  lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(l);
+  return row;
+}
+static void positionMenu(lv_obj_t *list,int offset=0){
+  lv_obj_update_layout(list);lv_obj_scroll_to_y(list,offset,LV_ANIM_OFF);fadeRows(list);
+}
+static lv_obj_t *navAction(const char *text,int y,lv_event_cb_t cb,int width=230){
+  auto *o=target(lv_scr_act(),(480-width)/2,y,width,48,cb);
+  lv_obj_set_style_radius(o,12,0);
+  lv_obj_set_style_bg_color(o,lv_color_hex(0x0f1d3a),0);
+  lv_obj_set_style_bg_opa(o,90,0);
+  lv_obj_set_style_bg_opa(o,150,LV_STATE_PRESSED);
+  auto *l=lv_label_create(o);lv_label_set_text(l,text);
+  lv_obj_set_style_text_font(l,&nav_text,0);lv_obj_set_style_text_color(l,navSand(),0);
+  lv_obj_center(l);
+  return o;
+}
+static void showSettings(){
+  const int offset=settingsOffset;
+  clearPage(SETTINGS);navBackground();navTitle(4,"Settings");
+  auto *list=navMenu(&settingsOffset);
   for(unsigned i=0;i<sizeof(settingsNames)/sizeof(*settingsNames);i++){
-    auto *row=target(list,0,112+i*rowHeight,342,rowHeight,[](lv_event_t *e){
+    auto *row=navMenuRow(list,settingsNames[i],[](lv_event_t *e){
       settingsAction((uintptr_t)lv_event_get_user_data(e));
     },(void*)(uintptr_t)i);
-    lv_obj_add_flag(row,LV_OBJ_FLAG_SNAPPABLE);
-    lv_obj_set_style_text_font(row,&nav_row,0);lv_obj_set_style_text_color(row,navSand(),0);
-    auto *l=lv_label_create(row);lv_label_set_text(l,settingsNames[i]);lv_obj_center(l);
     if(i==1 && cloudAvailable)updateDot(row,310,23);
   }
-  for(int y:{212,268}){
-    auto *line=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(line);lv_obj_set_size(line,324,1);lv_obj_set_pos(line,78,y);
-    lv_obj_set_style_bg_opa(line,115,0);lv_obj_set_style_bg_color(line,navSand(),0);lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
-  }
-  lv_obj_update_layout(list);lv_obj_scroll_to_y(list,offset,LV_ANIM_OFF);fadeRows(list);
-  lv_obj_add_event_cb(list,[](lv_event_t *e){fadeRows(lv_event_get_target(e));},LV_EVENT_SCROLL,nullptr);
+  positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
-// Swipe opener: begin in lower half, move up at least 65px, reject sideways swipes.
-static int openerX=0,openerY=0;static bool openerPressed=false;
-static void openerInput(lv_event_t *e){
- auto *in=lv_indev_get_act();if(!in)return;lv_point_t p;lv_indev_get_point(in,&p);auto c=lv_event_get_code(e);
- if(c==LV_EVENT_PRESSED){openerX=p.x;openerY=p.y;openerPressed=true;}
- else if(c==LV_EVENT_PRESS_LOST)openerPressed=false;
- else if(c==LV_EVENT_RELEASED){bool swipe=openerPressed&&openerY>=260&&openerY-p.y>=65&&std::abs(p.x-openerX)<100;openerPressed=false;if(swipe)showDashboard();}
+static constexpr int openerSize = 480;
+static constexpr int openerStartY = 260;
+static constexpr int openerSwipeDistance = 65;
+static constexpr int openerHorizontalLimit = 100;
+static lv_point_t openerStart;
+static bool openerDragging;
+static bool openerSettling;
+
+static void moveOpener(void *object, int32_t y) {
+  lv_obj_set_y(static_cast<lv_obj_t *>(object), y);
 }
-static void floatArrow(void *obj,int32_t y){lv_obj_set_y((lv_obj_t*)obj,y);}
-static void showOpen(){
- clearPage(OPEN);showImage();
- auto *hint=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(hint);lv_obj_set_size(hint,120,50);lv_obj_set_pos(hint,180,365);lv_obj_set_style_bg_color(hint,blue(),0);lv_obj_set_style_bg_opa(hint,LV_OPA_COVER,0);lv_obj_set_style_radius(hint,25,0);
- auto *arrow=lv_label_create(hint);lv_label_set_text(arrow,LV_SYMBOL_UP);lv_obj_set_style_text_color(arrow,sand(),0);lv_obj_align(arrow,LV_ALIGN_TOP_MID,0,4);
- auto *caption=lv_label_create(hint);lv_label_set_text(caption,"Swipe up");lv_obj_set_style_text_color(caption,sand(),0);lv_obj_align(caption,LV_ALIGN_TOP_MID,0,25);
- lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,hint);lv_anim_set_exec_cb(&a,floatArrow);lv_anim_set_values(&a,372,362);lv_anim_set_time(&a,650);lv_anim_set_playback_time(&a,650);lv_anim_set_repeat_count(&a,LV_ANIM_REPEAT_INFINITE);lv_anim_set_path_cb(&a,lv_anim_path_ease_in_out);lv_anim_start(&a);
- auto *surface=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(surface);lv_obj_set_size(surface,480,480);lv_obj_clear_flag(surface,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(surface,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(surface,openerInput,LV_EVENT_ALL,nullptr);
+
+static void finishOpening(lv_anim_t *animation) {
+  auto *artworkLayer = static_cast<lv_obj_t *>(animation->var);
+  lv_obj_del_async(lv_obj_get_parent(artworkLayer));
+  page = DASH;
+  paintDial();
+}
+
+static void settleOpener(lv_obj_t *layer, bool open) {
+  const int destination = open ? -openerSize : 0;
+  lv_obj_update_layout(layer);
+  const int current = lv_obj_get_y(layer);
+  openerDragging = false;
+  if (current == destination) return;
+
+  openerSettling = true;
+  lv_anim_t animation;
+  lv_anim_init(&animation);
+  lv_anim_set_var(&animation, layer);
+  lv_anim_set_exec_cb(&animation, moveOpener);
+  lv_anim_set_values(&animation, current, destination);
+  lv_anim_set_time(&animation, open ? 240 : 160);
+  lv_anim_set_path_cb(&animation, lv_anim_path_ease_out);
+  lv_anim_set_ready_cb(&animation, open ? finishOpening : +[](lv_anim_t *) {
+    openerSettling = false;
+  });
+  lv_anim_start(&animation);
+}
+
+static void openerInput(lv_event_t *event) {
+  auto *input = lv_indev_get_act();
+  if (!input || openerSettling) return;
+  lv_point_t point;
+  lv_indev_get_point(input, &point);
+  const auto code = lv_event_get_code(event);
+  if (code == LV_EVENT_PRESSED) {
+    openerStart = point;
+    openerDragging = point.y >= openerStartY;
+    return;
+  }
+  if (!openerDragging) return;
+
+  auto *layer = lv_obj_get_child(lv_event_get_target(event), 0);
+  const int rise = openerStart.y - point.y;
+  const bool vertical = std::abs(point.x - openerStart.x) < openerHorizontalLimit;
+  if (code == LV_EVENT_PRESSING) {
+    lv_obj_set_y(layer, vertical && rise > 0 ? -rise : 0);
+  } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    settleOpener(layer, code == LV_EVENT_RELEASED && vertical && rise >= openerSwipeDistance);
+  }
+}
+
+static void showOpen() {
+  showDashboard();
+  page = OPEN;
+  openerDragging = openerSettling = false;
+
+  auto *surface = lv_obj_create(lv_scr_act());
+  lv_obj_remove_style_all(surface);
+  lv_obj_set_size(surface, openerSize, openerSize);
+  lv_obj_clear_flag(surface, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(surface, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
+  lv_obj_add_event_cb(surface, openerInput, LV_EVENT_ALL, nullptr);
+
+  auto *layer = lv_obj_create(surface);
+  lv_obj_remove_style_all(layer);
+  lv_obj_set_size(layer, openerSize, openerSize);
+  lv_obj_clear_flag(layer, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+  showImage(layer);
+
+  auto *hint = lv_obj_create(layer);
+  lv_obj_remove_style_all(hint);
+  lv_obj_set_size(hint, 120, 52);
+  lv_obj_set_pos(hint, 180, 372);
+  lv_obj_clear_flag(hint, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+  auto *arrow = lv_label_create(hint);
+  lv_label_set_text(arrow, LV_SYMBOL_UP);
+  lv_obj_set_style_text_color(arrow, blue(), 0);
+  lv_obj_align(arrow, LV_ALIGN_TOP_MID, 0, 4);
+
+  auto *caption = lv_label_create(hint);
+  lv_label_set_text(caption, "Swipe up");
+  lv_obj_set_style_text_color(caption, blue(), 0);
+  lv_obj_set_style_text_font(caption, &nav_text, 0);
+  lv_obj_align(caption, LV_ALIGN_TOP_MID, 0, 23);
+
+  lv_anim_t animation;
+  lv_anim_init(&animation);
+  lv_anim_set_var(&animation, hint);
+  lv_anim_set_exec_cb(&animation, moveOpener);
+  lv_anim_set_values(&animation, 372, 362);
+  lv_anim_set_time(&animation, 650);
+  lv_anim_set_playback_time(&animation, 650);
+  lv_anim_set_repeat_count(&animation, LV_ANIM_REPEAT_INFINITE);
+  lv_anim_set_path_cb(&animation, lv_anim_path_ease_in_out);
+  lv_anim_start(&animation);
+
 }

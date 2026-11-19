@@ -8,13 +8,13 @@
 struct String:std::string {using std::string::string;String(){}String(const std::string&s):std::string(s){}String(unsigned v):std::string(std::to_string(v)){}void toCharArray(char*p,size_t n)const{std::strncpy(p,c_str(),n);p[n-1]=0;}};
 String operator+(const String&a,unsigned b){return String(static_cast<const std::string&>(a)+std::to_string(b));}
 using wl_status_t=int;enum{WL_DISCONNECTED=0,WL_CONNECTED=1,WL_CONNECT_FAILED=2,WL_IDLE_STATUS=3,WIFI_SCAN_RUNNING=-1};
-struct FakeWiFi{int state=WL_DISCONNECTED,starts=0,scans=0;bool automatic=false;void setAutoReconnect(bool b){automatic=b;}void scanDelete(){}int scanNetworks(bool,bool){scans++;return WIFI_SCAN_RUNNING;}int begin(const char*,const char*){starts++;state=WL_IDLE_STATUS;return state;}int status(){return state;}}WiFi;
+struct FakeWiFi{int state=WL_DISCONNECTED,starts=0,scans=0,scanResult=WIFI_SCAN_RUNNING;bool automatic=false;void setAutoReconnect(bool b){automatic=b;}void scanDelete(){}int scanNetworks(bool,bool){scans++;return scanResult;}int begin(const char*,const char*){starts++;state=WL_IDLE_STATUS;return state;}int status(){return state;}}WiFi;
 struct Store{std::unordered_map<std::string,std::vector<char>> data;size_t getBytesLength(const char*k){return data[k].size();}size_t getBytes(const char*k,void*p,size_t n){auto&v=data[k];size_t z=std::min(n,v.size());memcpy(p,v.data(),z);return z;}size_t putBytes(const char*k,const void*p,size_t n){data[k]=std::vector<char>((const char*)p,(const char*)p+n);return n;}String getString(const char*,const char*d){return d;}}prefs;
 struct SerialMock{void println(const char*){}}diagnosticLog;
 static uint32_t clockMs=0;uint32_t millis(){return clockMs;}
 void esp_wifi_scan_stop(){}void esp_wifi_disconnect(){WiFi.state=WL_DISCONNECTED;}
-void lv_label_set_text(void*,const char*){}
-enum Page{DIAGNOSTIC,NETWORKS};static Page page=DIAGNOSTIC;static void *statusLabel=nullptr;
+static int displayedScanResult=0;
+static void populateNetworks(int found){displayedScanResult=found;}
 static bool scanning=false,connecting=false;static uint32_t connectStarted=0;
 // SOURCE_HELPERS
 // SOURCE_SERVICE
@@ -49,6 +49,7 @@ int main(){
  WiFi.state=WL_DISCONNECTED;recordDisconnect(204);step(162000);assert(scheduledAction==2&&actionAt==163000);step(163000);assert(connecting);
  scanRequested=true;serviceRequestedScan(true);assert(scanRequested&&!requestScan());recordDisconnect(204);step(164000);
  assert(!connecting&&scheduledAction==0);serviceRequestedScan(true);assert(scheduledAction==1&&!scanRequested);
+ WiFi.scanResult=-2;step(164350);assert(!scanning&&displayedScanResult==-2);
  // Millisecond wraparound keeps backoff and elapsed timing correct.
  cancelNetwork();clockMs=0xfffffff0u;retryStoredNetwork();step(984);assert(connecting);WiFi.state=WL_CONNECTED;step(1484);assert(lastConnectMs==1500);
  std::cout<<"PASS: early failure retry, 1s/2s backoff, 3-attempt bound, 30s watchdog, cancellation/late local event, saved credentials, failed replacement preservation, scan exclusion, connected scanning, scan priority, reconnect recovery, elapsed/attempt metrics and millis wraparound\n";

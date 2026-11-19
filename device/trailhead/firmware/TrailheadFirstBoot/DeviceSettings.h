@@ -17,10 +17,9 @@ static void homeValues(char *date,char *clock,char *battery){
   snprintf(battery,32,"%s%s",level,batteryValid(mv)?"":" ?");
 }
 static void settingsAction(unsigned i){
-  if(i==0){wifiFromHome=false;showNetworks();return;}
+  if(i==0){wifiFromHome=false;networksFromStatus=false;showNetworks();return;}
   if(i==1){showUpdates();return;}
   if(i==5){showSignal();return;}
-  if(i==7){showDiagnostics();return;}
   clearPage(PREVIEW);navBackground();navTitle(4,settingsNames[i]);
   if(i==2){
     char used[64],freeSpace[64];
@@ -49,7 +48,7 @@ static void settingsAction(unsigned i){
     navLabel(value,193,350,&nav_row);navLabel("Battery voltage",247,300,&nav_text);
   }else if(i==6){
     navLabel("Forget this device's saved Wi-Fi?",170,345,&nav_text);
-    button("Forget network",251,[](lv_event_t*){
+    navAction("Forget network",251,[](lv_event_t*){
       cancelNetwork();prefs.remove("network");prefs.remove("ssid");prefs.remove("pass");credentialsVerified=false;
       wifiMessage="Saved network removed";showSettings();
     });

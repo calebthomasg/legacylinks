@@ -25,7 +25,7 @@ static lv_obj_t* button(const char *text,int y,lv_event_cb_t cb,int width=240){a
 static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false;statusIcon=statusGlyph=nullptr;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
 
 static lv_img_dsc_t artwork={};
-static void showImage(){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=480*480*2;artwork.data=OPENING_PIXELS;image=lv_img_create(lv_scr_act());lv_img_set_src(image,&artwork);lv_obj_center(image);}
+static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=480*480*2;artwork.data=OPENING_PIXELS;image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "Petopia.h"
 #include "DialUI.h"
 static void homeValues(char *date,char *clock,char *battery){strcpy(date,"Thu Nov 19");strcpy(clock,"11:45");strcpy(battery,LV_SYMBOL_BATTERY_3);}
@@ -39,13 +39,34 @@ void flush(lv_disp_drv_t*d,const lv_area_t*a,lv_color_t*c){for(int y=a->y1;y<=a-
 void step(int x,int y,bool pressed,int time=40){touchPoint={lv_coord_t(x),lv_coord_t(y)};down=pressed;for(int i=0;i<time;i+=5){lv_tick_inc(5);lv_timer_handler();}}
 void shot(const char*name){lv_obj_update_layout(lv_scr_act());lv_refr_now(nullptr);std::ofstream o(name,std::ios::binary);o<<"P6\n480 480\n255\n";for(auto v:pixels){char rgb[3]={char(((v>>11)&31)*255/31),char(((v>>5)&63)*255/63),char((v&31)*255/31)};o.write(rgb,3);}}
 int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;lv_disp_draw_buf_init(&db,buf,nullptr,480*40);static lv_disp_drv_t d;lv_disp_drv_init(&d);d.hor_res=480;d.ver_res=480;d.draw_buf=&db;d.flush_cb=flush;lv_disp_drv_register(&d);static lv_indev_drv_t in;lv_indev_drv_init(&in);in.type=LV_INDEV_TYPE_POINTER;in.read_cb=readTouch;lv_indev_drv_register(&in);
- showOpen();step(240,400,false);shot("opener.ppm");step(240,400,true);step(240,300,true);step(240,300,false);assert(page==DASH);shot("dial-home.ppm");
+ showOpen();
+ step(240,400,false);
+ auto *openerSurface = lv_obj_get_child(lv_scr_act(), -1);
+ auto *openerLayer = lv_obj_get_child(openerSurface, 0);
+ shot("opener.ppm");
+ auto original = pixels[460*480+240];
+ step(240,400,true); step(240,370,true);
+ shot("opener-partial.ppm");
+ assert(page==OPEN && lv_obj_get_y(openerLayer)==-30);
+ assert(pixels[460*480+240]!=original);
+ step(240,370,false,250);
+ assert(page==OPEN && lv_obj_get_y(openerLayer)==0);
+ step(240,400,true); step(365,300,true); step(365,300,false,250);
+ assert(page==OPEN && lv_obj_get_y(openerLayer)==0);
+ step(240,400,true); step(240,400,false,250);
+ assert(page==OPEN);
+ step(240,400,true); step(240,300,true); step(240,300,false);
+ assert(page==OPEN);
+ step(240,300,false,350);
+ assert(page==DASH && !lv_obj_is_valid(openerSurface));
+ shot("dial-home.ppm");
  step(240,40,true);step(240,40,false);assert(page==SETTINGS);shot("settings.ppm");
  auto *list=lv_obj_get_child(lv_scr_act(),2);
  assert(lv_obj_get_style_text_opa(lv_obj_get_child(lv_obj_get_child(list,2),0),0)>lv_obj_get_style_text_opa(lv_obj_get_child(lv_obj_get_child(list,1),0),0));
  step(240,184,true);step(240,184,false);assert(visitedRow==1 && page==PREVIEW);
  showSettings();step(240,295,true);step(240,262,true);step(240,226,true);step(240,199,true);step(240,199,false,450);assert(page==SETTINGS && settingsOffset>112);
  int offset=settingsOffset;showSettings();assert(settingsOffset==offset);
+ step(30,239,false,120);
  step(30,239,true);step(30,239,false);assert(page==DASH);
  step(40,240,true);step(40,240,false);assert(page==CONNECTION);
  showDashboard();step(382,382,true);step(382,382,false);assert(page==PREVIEW && allocated==4);
@@ -84,7 +105,7 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  petopia::restoreCat();
  assert(petopia::coat==3 && petopia::pattern==1 && petopia::nose==1 && petopia::eye==1);
  petopia::mounted=false; SD_MMC.present=false;showPetopiaTest();assert(!allocated);
- SD_MMC.present=true;step(168,411,true);step(168,411,false);assert(allocated==4);
+ SD_MMC.present=true;step(168,411,false,120);step(168,411,true);step(168,411,false);assert(allocated==4);
  assert(petopia::coat==3 && petopia::pattern==1 && petopia::nose==1 && petopia::eye==1);
  prefs.stored[4]=255;
  petopia::coat=petopia::pattern=petopia::nose=petopia::eye=0;
