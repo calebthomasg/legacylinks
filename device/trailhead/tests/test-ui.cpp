@@ -37,9 +37,28 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  showDashboard();dial.angle=45;paintDial();activateDial();assert(page==PREVIEW && allocated==4);
  shot("petopia.ppm");step(160,306,true);step(160,306,false);assert(petopia::coat==1 && allocated==4);
  for(unsigned i=0;i<5;i++){step(320,306,true);step(320,306,false);assert(petopia::pattern==(i+1)%5);assert(allocated==(petopia::pattern==4?3:4));}
+ // Exercise every packaged coat/pattern combination, including wraparound.
+ for(unsigned c=0;c<4;c++){
+   step(160,306,true);step(160,306,false);
+   assert(petopia::coat==(2+c)%4 && allocated==4);
+   for(unsigned p=0;p<5;p++){
+     step(320,306,true);step(320,306,false);
+     assert(petopia::pattern==(p+1)%5 && allocated==(p==3?3:4));
+   }
+ }
+ // Remove exactly one pattern and recover via the coat control after re-entry.
+ String path=String(getenv("PETOPIA_TEST_CARD"))+"/trailhead/petopia/Spotted-Midnight-on-body.pet";
+ String backup=path+".bak";
+ assert(std::rename(path.c_str(),backup.c_str())==0);
+ step(160,306,true);step(160,306,false);assert(petopia::coat==2 && allocated==0);
+ step(312,411,true);step(312,411,false);assert(page==DASH);
+ dial.angle=45;paintDial();activateDial();assert(page==PREVIEW && allocated==0);
+ step(168,411,true);step(168,411,false);assert(!allocated);
+ step(160,306,true);step(160,306,false);assert(petopia::coat==3 && allocated==4);
+ assert(std::rename(backup.c_str(),path.c_str())==0);
  step(240,430,true);step(240,430,false);assert(page==DASH && allocated==0);
  petopia::mounted=false; SD_MMC.present=false;showPetopiaTest();assert(!allocated);
- SD_MMC.present=true;step(240,377,true);step(240,377,false);assert(allocated==4);
+ SD_MMC.present=true;step(168,411,true);step(168,411,false);assert(allocated==4);
  for(int i=0;i<100;i++){showPetopiaTest();showDashboard();assert(allocated==0);}
  for(int i=0;i<100;i++){showOpen();showDashboard();}lv_mem_monitor_t m;lv_mem_monitor(&m);assert(m.free_size>8000);printf("PASS: real LVGL swipe, rotation, snap, preview, Settings/Wi-Fi routes, drag guard, 100 screen cycles; %u bytes free\n",unsigned(m.free_size));
 }

@@ -1,4 +1,4 @@
-# Dinglehopper · Petopia v0.1.13
+# Dinglehopper · Petopia v0.1.14
 
 Source for the Waveshare ESP32-S3-Touch-LCD-2.8C, carried forward from the Petopia source candidate based on the v0.1.12 dial. The Pets entry reads four independently selectable layers on a 240 × 240 canvas. Coat-specific patterns follow the coat. The original embedded cat provides the fallback. Choices last until restart.
 

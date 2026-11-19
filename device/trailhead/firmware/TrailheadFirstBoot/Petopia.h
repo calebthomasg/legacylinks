@@ -63,13 +63,16 @@ static const char *loadLayer(Layer &layer, const String &stem) {
   return nullptr;
 }
 
-static const char *loadCat() {
+static const char *loadCat(String &failedFile) {
   if (!mountCard()) return "Card unavailable";
-  String stems[] = {coats[coat], String(patterns[pattern]) + "-" + coats[coat] + "-on-body",
+  // The base coat keeps spaces. The artwork pack uses hyphens in pattern filenames.
+  const char *patternCoat = !strcmp(coats[coat], "Orange Cream") ? "Orange-Cream" : coats[coat];
+  String stems[] = {coats[coat], String(patterns[pattern]) + "-" + patternCoat + "-on-body",
                     String(noses[nose]) + "-on-body", String(eyes[eye]) + "-on-body"};
   for (unsigned i = 0; i < 4; ++i) {
     if (i == 1 && !strcmp(patterns[pattern], "None")) continue;
     if (const char *error = loadLayer(layers[i], stems[i])) {
+      failedFile = stems[i] + ".pet";
       releaseLayers();
       SD_MMC.end();
       mounted = false;
@@ -90,13 +93,15 @@ static void showPetopiaTest() {
   using namespace petopia;
   clearPage(PREVIEW);
   label("Petopia", 24, 200);
-  const char *error = loadCat();
+  String failedFile;
+  const char *error = loadCat(failedFile);
   if (error) {
     auto *cat = lv_img_create(lv_scr_act());
     lv_img_set_src(cat, &PETOPIA_TEST_CAT);
-    lv_obj_align(cat, LV_ALIGN_TOP_MID, 0, 58);
-    label(error, 328);
-    button("Retry card", 355, [](lv_event_t*) { showPetopiaTest(); }, 170);
+    lv_img_set_zoom(cat, 144);
+    lv_obj_align(cat, LV_ALIGN_TOP_MID, 0, -4);
+    label(error, 214, 355);
+    label(failedFile.c_str(), 239, 380);
   } else {
     auto *art = lv_obj_create(lv_scr_act());
     lv_obj_remove_style_all(art);
@@ -111,17 +116,22 @@ static void showPetopiaTest() {
     }
     // Release the card buffers when this screen is torn down.
     lv_obj_add_event_cb(art, [](lv_event_t*) { releaseLayers(); }, LV_EVENT_DELETE, nullptr);
-    choice(coats, coat, -80, 283, [](lv_event_t*) { coat = (coat+1) % (sizeof(coats)/sizeof(*coats)); showPetopiaTest(); });
-    choice(patterns, pattern, 80, 283, [](lv_event_t*) { pattern = (pattern+1) % (sizeof(patterns)/sizeof(*patterns)); showPetopiaTest(); });
-    choice(noses, nose, -80, 334, [](lv_event_t*) { nose = (nose+1) % (sizeof(noses)/sizeof(*noses)); showPetopiaTest(); });
-    choice(eyes, eye, 80, 334, [](lv_event_t*) { eye = (eye+1) % (sizeof(eyes)/sizeof(*eyes)); showPetopiaTest(); });
   }
+  choice(coats, coat, -80, 283, [](lv_event_t*) { coat = (coat+1) % (sizeof(coats)/sizeof(*coats)); showPetopiaTest(); });
+  choice(patterns, pattern, 80, 283, [](lv_event_t*) { pattern = (pattern+1) % (sizeof(patterns)/sizeof(*patterns)); showPetopiaTest(); });
+  choice(noses, nose, -80, 334, [](lv_event_t*) { nose = (nose+1) % (sizeof(noses)/sizeof(*noses)); showPetopiaTest(); });
+  choice(eyes, eye, 80, 334, [](lv_event_t*) { eye = (eye+1) % (sizeof(eyes)/sizeof(*eyes)); showPetopiaTest(); });
   if (!error) {
     char memory[72];
     snprintf(memory, sizeof(memory), "SD  |  Heap %uK  |  PSRAM %uK",
              unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              unsigned(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     label(memory, 385, 290);
+    button("Back to dial", 410, [](lv_event_t*) { showDashboard(); }, 170);
+  } else {
+    auto *retry = button("Retry card", 389, [](lv_event_t*) { showPetopiaTest(); }, 134);
+    lv_obj_align(retry, LV_ALIGN_TOP_MID, -72, 389);
+    auto *back = button("Back to dial", 389, [](lv_event_t*) { showDashboard(); }, 134);
+    lv_obj_align(back, LV_ALIGN_TOP_MID, 72, 389);
   }
-  button("Back to dial", 410, [](lv_event_t*) { showDashboard(); }, 170);
 }
