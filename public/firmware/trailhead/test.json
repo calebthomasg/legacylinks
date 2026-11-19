@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.15",
+    "version": "0.1.16",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.15/trailhead-0.1.15-app.bin",
-    "size": 2787392,
-    "sha256": "53aa3091274a8f659b1c580e86269d6592a9254ac0e059500f79e88dd20579e1",
-    "notes": "Save Petopia coat, pattern, nose, and eyes across restarts."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.16/trailhead-0.1.16-app.bin",
+    "size": 2270896,
+    "sha256": "5c72b3adfdc3ca9bdf877ad5dcd1f7d908105a6b2983aa445f1bee32d261dcc4",
+    "notes": "New Home and Settings with fixed shortcuts, tap-to-open fading rows, local time, battery, brightness, and SD storage."
   }
 }
