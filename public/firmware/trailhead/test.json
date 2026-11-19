@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.16",
+    "version": "0.1.17",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.16/trailhead-0.1.16-app.bin",
-    "size": 2270896,
-    "sha256": "5c72b3adfdc3ca9bdf877ad5dcd1f7d908105a6b2983aa445f1bee32d261dcc4",
-    "notes": "New Home and Settings with fixed shortcuts, tap-to-open fading rows, local time, battery, brightness, and SD storage."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.17/trailhead-0.1.17-app.bin",
+    "size": 2269296,
+    "sha256": "5ce189b497eb94da7d2bf6cc4413ea2eae8bd895ed3bb2087199d3153b61cf0c",
+    "notes": "Restyled Wi-Fi and firmware updates with fading rows. Networks refresh automatically. Removed Display Check."
   }
 }
