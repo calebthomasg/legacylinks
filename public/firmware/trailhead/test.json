@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.18",
+    "version": "0.1.19",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.18/trailhead-0.1.18-app.bin",
-    "size": 2269728,
-    "sha256": "8ef453a6ac307b711080cbb90ae663d88ff1a1247da2c07f6bfdae0eb6572e2f",
-    "notes": "Dinglehopper opener follows your finger to reveal Home. A short swipe returns to the opener. Replaced the button with a Swipe up cue."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.19/trailhead-0.1.19-app.bin",
+    "size": 2270816,
+    "sha256": "082e3c67dc9f45d31f7c63d85da90f42657801ecfe57a0bb436f0b801e010f5f",
+    "notes": "Added Friends, Account, and Clock demo screens. Clock opens live Time and a sample alarm list."
   }
 }
