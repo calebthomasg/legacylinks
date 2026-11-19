@@ -1,4 +1,4 @@
-/* LegacyLink Trailhead Compass 0.1.15 — ESP32-S3-Touch-LCD-2.8C.
+/* LegacyLink Trailhead Compass 0.1.16 — ESP32-S3-Touch-LCD-2.8C.
    Hardware validation is required. See docs/DEVELOPMENT.md. */
 #include <Arduino.h>
 #if ARDUINO_USB_CDC_ON_BOOT
@@ -32,7 +32,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {DIAGNOSTIC,OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW};
+enum Page {DIAGNOSTIC,OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW};
 static Preferences prefs;
 static WebServer server(80);
 static lv_disp_drv_t displayDriver;
@@ -90,7 +90,7 @@ static bool retryStoredNetwork(){
 }
 static Page page=DIAGNOSTIC;
 static void showDiagnostics();static void startRadio();static void showOpen();static void showDashboard();static void showSettings();static void showNetworks();static void showPassword();static void showUpdates();static void showLocalUpdates();static void showSignal();static void refreshSignal();
-static void stopDialAnimation();static void showConnectionStatus();static void showPetopiaTest();
+static void showConnectionStatus();static void showPetopiaTest();
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -115,7 +115,7 @@ static void initLVGL(){
 }
 static lv_obj_t* label(const char *text,int y,int width=330){auto *o=lv_label_create(lv_scr_act());lv_label_set_text(o,text);lv_obj_set_width(o,width);lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(o,blue(),0);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);return o;}
 static lv_obj_t* button(const char *text,int y,lv_event_cb_t cb,int width=240){auto *o=lv_btn_create(lv_scr_act());lv_obj_set_size(o,width,46);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);lv_obj_set_style_bg_color(o,blue(),0);lv_obj_set_style_text_color(o,sand(),0);lv_obj_set_style_radius(o,23,0);auto *l=lv_label_create(o);lv_label_set_text(l,text);lv_obj_center(l);lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,nullptr);return o;}
-static void clearPage(Page next){stopDialAnimation();page=next;if(next!=NETWORKS)scanRequested=false;statusIcon=statusGlyph=nullptr;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
+static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false;statusIcon=statusGlyph=nullptr;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
 static String wifiStatus(){
  if(WiFi.status()==WL_CONNECTED)return String("Connected\n")+WiFi.SSID()+"\n"+WiFi.localIP().toString()+ (credentialsVerified?"\nSaved for next startup":"\nSettings not saved")+(lastConnectValid?String("\nJoined in ")+String(unsigned(lastConnectMs/1000))+"s / "+String(lastConnectAttempts)+" attempt(s)":"");
  if(connecting||scheduledAction==2)return String("Connecting...\nAttempt ")+String(unsigned(retryCount+1))+(retrySaved?" of 3":" of 1")+"\nElapsed "+String(unsigned((millis()-connectionCycleStarted)/1000))+"s";
@@ -133,16 +133,13 @@ static void refreshDashboard(){
  lv_label_set_text(statusGlyph,online?LV_SYMBOL_OK:(busy?"...":LV_SYMBOL_CLOSE));lv_obj_center(statusGlyph);
 }
 static void showConnectionStatus(){
- clearPage(CONNECTION);label("Trailhead Compass",70);label("Wireless update v0.1.15",110);
+ clearPage(CONNECTION);label("Trailhead Compass",70);label("Wireless update v0.1.16",110);
  statusIcon=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(statusIcon);lv_obj_set_size(statusIcon,30,30);lv_obj_align(statusIcon,LV_ALIGN_TOP_LEFT,62,180);
  lv_obj_set_style_radius(statusIcon,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(statusIcon,LV_OPA_COVER,0);lv_obj_clear_flag(statusIcon,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
  statusGlyph=lv_label_create(statusIcon);lv_obj_set_style_text_color(statusGlyph,lv_color_hex(0xf5f1e6),0);
  statusLabel=label("",180,300);lv_obj_align(statusLabel,LV_ALIGN_TOP_LEFT,104,180);lv_obj_set_style_text_align(statusLabel,LV_TEXT_ALIGN_LEFT,0);refreshDashboard();
- button("Choose network",300,[](lv_event_t*){showNetworks();});button("Back to dial",356,[](lv_event_t*){showDashboard();});
+ button("Choose network",300,[](lv_event_t*){showNetworks();});backArrow([](lv_event_t*){if(wifiFromHome)showDashboard();else showSettings();},blue());
 }
-static void showSettings(){clearPage(SETTINGS);label("Settings",50);button("Wi-Fi",95,[](lv_event_t*){showNetworks();});auto *updates=button("Firmware updates",150,[](lv_event_t*){showUpdates();});if(cloudAvailable){auto *dot=lv_obj_create(updates);lv_obj_remove_style_all(dot);lv_obj_set_size(dot,14,14);lv_obj_align(dot,LV_ALIGN_RIGHT_MID,0,0);lv_obj_set_style_radius(dot,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(dot,lv_color_hex(0xffc83d),0);lv_obj_set_style_bg_opa(dot,LV_OPA_COVER,0);}button("Wi-Fi signal",205,[](lv_event_t*){showSignal();});button("Forget Wi-Fi",260,[](lv_event_t*){
- cancelNetwork();prefs.remove("network");prefs.remove("ssid");prefs.remove("pass");credentialsVerified=false;wifiMessage="Saved network removed";showSettings();
- });button("Display check",315,[](lv_event_t*){showDiagnostics();});button("Back",375,[](lv_event_t*){showDashboard();});}
 // Diagnostics reads existing station data; it never scans or changes radio settings.
 static lv_obj_t *signalBars[4]={};static lv_obj_t *signalReading=nullptr,*signalDetails=nullptr,*signalNetwork=nullptr;
 static int signalMin=0,signalMax=-127;static unsigned signalSamples=0;
@@ -169,7 +166,7 @@ static void showSignal(){
  signalReading=label("",195,340);signalDetails=label("",230,320);
  label("Signal levels are approximate",302,300);
  button("Retry saved Wi-Fi",337,[](lv_event_t*){if(!retryStoredNetwork())wifiMessage="No saved network";showConnectionStatus();},230);
- button("Back",397,[](lv_event_t*){showSettings();},140);refreshSignal();
+ backArrow([](lv_event_t*){showSettings();},blue());refreshSignal();
 }
 static void networkPicked(lv_event_t *e){selectedSSID=String((const char*)lv_event_get_user_data(e));showPassword();}
 // SSIDs live in stable storage, never use the text as a printf format.
@@ -181,7 +178,7 @@ static void scanNetworks(){
 static void showNetworks(){
  clearPage(NETWORKS);label("Choose Wi-Fi",55);statusLabel=label("Scanning networks...",85);
  networkList=lv_list_create(lv_scr_act());lv_obj_set_style_bg_color(networkList,sand(),0);lv_obj_set_style_text_color(networkList,blue(),0);lv_obj_set_size(networkList,330,220);lv_obj_align(networkList,LV_ALIGN_TOP_MID,0,115);
- button("Scan",350,[](lv_event_t*){scanNetworks();},180);button("Back",408,[](lv_event_t*){showSettings();},140);
+ button("Scan",350,[](lv_event_t*){scanNetworks();},180);backArrow([](lv_event_t*){if(wifiFromHome)showConnectionStatus();else showSettings();},blue());
  scanNetworks();
 }
 static void connectToNetwork(){
@@ -227,9 +224,9 @@ static void showPassword(){
  }
  updateKeys();button("Connect",407,[](lv_event_t*){connectToNetwork();},160);
 }
-static void showLocalUpdates(){clearPage(LOCAL_UPDATES);label("Firmware updates",65);if(WiFi.status()!=WL_CONNECTED){label("Connect Wi-Fi in Settings first.",155);button("Back",335,[](lv_event_t*){showSettings();});return;}
+static void showLocalUpdates(){clearPage(LOCAL_UPDATES);label("Firmware updates",65);if(WiFi.status()!=WL_CONNECTED){label("Connect Wi-Fi in Settings first.",155);backArrow([](lv_event_t*){showUpdates();},blue());return;}
  String msg=otaEnabled?String("Open on this Wi-Fi network:\nhttp://")+WiFi.localIP().toString()+"/\nUser: admin\nPassword: "+otaPassword+"\nUpdate window: 10 minutes":"Enable a local update window.\nUse the app-only .bin file.\nKeep device power connected.";label(msg.c_str(),120,330);
- button(otaEnabled?"Disable updates":"Enable updates",310,[](lv_event_t*){otaEnabled=!otaEnabled;otaStarted=millis();showLocalUpdates();});button("Back",370,[](lv_event_t*){showSettings();});}
+ button(otaEnabled?"Disable updates":"Enable updates",310,[](lv_event_t*){otaEnabled=!otaEnabled;otaStarted=millis();showLocalUpdates();});backArrow([](lv_event_t*){showUpdates();},blue());}
 static bool authenticated(){return !cloudBusy&&otaEnabled&&WiFi.status()==WL_CONNECTED&&server.authenticate("admin",otaPassword.c_str());}
 static void initOTA(){
  char pass[17],token[33];snprintf(pass,sizeof(pass),"%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());otaPassword=pass;
@@ -267,7 +264,7 @@ static void showUpdates(){
   button("Download & install",290,[](lv_event_t*){if(startCloudJob(true)){otaEnabled=false;showUpdates();}},230);
  }else button("Check for updates",290,[](lv_event_t*){startCloudJob(false);showUpdates();},230);
  button("Local upload",345,[](lv_event_t*){showLocalUpdates();},190);
- button("Back",400,[](lv_event_t*){showSettings();},130);
+ backArrow([](lv_event_t*){showSettings();},blue());
 }
 static void serviceCloudUpdates(uint32_t now){
  bool changed=receiveCloudEvent();
@@ -291,6 +288,8 @@ static void startRadio(){
 }
 static lv_obj_t *tapLabel=nullptr;static uint32_t tapCount=0;
 #include "Petopia.h"
+#include "DeviceSettings.h"
+#include "HomeClock.h"
 static void showDiagnostics(){
  clearPage(DIAGNOSTIC);tapCount=0;
  auto *ring=lv_obj_create(lv_scr_act());lv_obj_set_size(ring,440,440);lv_obj_center(ring);
@@ -299,10 +298,10 @@ static void showDiagnostics(){
  lv_obj_clear_flag(ring,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
  auto *horizontal=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(horizontal);lv_obj_set_size(horizontal,100,2);lv_obj_center(horizontal);lv_obj_set_style_bg_color(horizontal,blue(),0);lv_obj_set_style_bg_opa(horizontal,LV_OPA_COVER,0);
  auto *vertical=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(vertical);lv_obj_set_size(vertical,2,100);lv_obj_center(vertical);lv_obj_set_style_bg_color(vertical,blue(),0);lv_obj_set_style_bg_opa(vertical,LV_OPA_COVER,0);
- label("Display check v0.1.15",70);label("Ring and cross must stay fixed",105);
+ label("Display check v0.1.16",70);label("Ring and cross must stay fixed",105);
  tapLabel=label("Tap count: 0",145);
  button("Tap test",305,[](lv_event_t*){tapCount++;lv_label_set_text_fmt(tapLabel,"Tap count: %lu",(unsigned long)tapCount);});
- button("Back",365,[](lv_event_t*){showSettings();},180);
+ backArrow([](lv_event_t*){showSettings();},blue());
  diagnosticLog.println("DISPLAY TEST: 10MHz / 64-byte cache / XIP; radio initially off");
 }
 
@@ -335,11 +334,17 @@ static void serviceNetwork(uint32_t now){
  }
 }
 void setup(){
- diagnosticLog.begin(115200);diagnosticLog.println("LegacyLink Trailhead 0.1.15");
+ diagnosticLog.begin(115200);diagnosticLog.println("LegacyLink Trailhead 0.1.16");
  WiFi.persistent(false);WiFi.mode(WIFI_OFF);prefs.begin("trailhead",false); // Before LCD starts: may initialize NVS.
  petopia::restoreCat();
  I2C_Init();delay(120);TCA9554PWR_Init(0x00);Set_EXIO(EXIO_PIN8,Low);LCD_Init();rgbActive=true;
- initLVGL();Set_Backlight(60);
+ brightness=constrain(int(prefs.getUChar("brightness",60)),5,100);
+ const unsigned count=sizeof(greetings)/sizeof(*greetings);
+ unsigned previous=prefs.getUChar("greeting",255);
+ greetingIndex=previous<count?(previous+1+esp_random()%(count-1))%count:esp_random()%count;
+ prefs.putUChar("greeting",greetingIndex);
+ startHomeClock();
+ initLVGL();Set_Backlight(brightness);
  showOpen();
 }
 void loop(){
@@ -350,7 +355,8 @@ void loop(){
  if(scanning){int n=WiFi.scanComplete();if(n>=0){scanning=false;if(page==NETWORKS&&networkList){lv_obj_clean(networkList);int count=0;for(int i=0;i<n&&count<20;i++){String s=WiFi.SSID(i);if(!s.length())continue;bool dup=false;for(int j=0;j<count;j++)if(networkNames[j]==s)dup=true;if(dup)continue;networkNames[count]=s;auto *b=lv_list_add_btn(networkList,nullptr,s.c_str());lv_obj_add_event_cb(b,networkPicked,LV_EVENT_CLICKED,(void*)networkNames[count].c_str());count++;}lv_label_set_text(statusLabel,count?"Tap a network":"No visible networks. Tap Rescan.");}WiFi.scanDelete();}else if(n==WIFI_SCAN_FAILED){scanning=false;if(page==NETWORKS&&statusLabel)lv_label_set_text(statusLabel,"Scan failed. Tap Rescan.");}}
  if(!cloudBusy)serviceNetwork(now);
  serviceCloudUpdates(now);
+ serviceHomeClock();
  serviceRequestedScan(page==NETWORKS);
- if(now-lastStatus>1000){lastStatus=now;if(page==CONNECTION&&statusLabel)refreshDashboard();if(page==DASH)paintDial();if(page==SIGNAL)refreshSignal();}
+ if(now-lastStatus>1000){lastStatus=now;if(page==CONNECTION&&statusLabel)refreshDashboard();if(page==DASH || page==CLOCK_VIEW)paintDial();if(page==SIGNAL)refreshSignal();}
  if(rgbActive)lv_timer_handler();delay(5);
 }

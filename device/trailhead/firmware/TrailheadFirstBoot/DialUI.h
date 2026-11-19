@@ -1,45 +1,121 @@
 #pragma once
 #include "DialAssets.h"
-#include "DialMotion.h"
-// All UI calls remain on the main LVGL thread. Only the model angle animates.
-static DialMotion dial;
-static lv_obj_t *dialIcons[8]={},*dialName=nullptr,*dialBadge=nullptr;
-static const char *dialNames[]={"Home","Favorites","Wi-Fi","Profile","Settings","Alarm","Explore","Pets"};
-static int dialLastSelected=-1;
-static void showConnectionStatus();static void showDialPreview(int);
-static void paintDial(){
- if(page!=DASH)return;
- int selected=dial.selected();
- for(int i=0;i<8;i++){
-  float a=(90+i*45+dial.angle)*3.14159265358979323846f/180;
-  lv_obj_set_pos(dialIcons[i],int(std::lround(240+176*std::cos(a)))-26,int(std::lround(240+176*std::sin(a)))-26);
-  if(selected!=dialLastSelected)lv_img_set_src(dialIcons[i],&DIAL_ICONS[i==selected][i]);
- }
- if(selected!=dialLastSelected){lv_label_set_text(dialName,dialNames[selected]);dialLastSelected=selected;}
- if(dialBadge){float a=(270+dial.angle)*3.14159265358979323846f/180;lv_obj_set_pos(dialBadge,int(std::lround(240+176*std::cos(a)))+16,int(std::lround(240+176*std::sin(a)))-26);if(cloudAvailable)lv_obj_clear_flag(dialBadge,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(dialBadge,LV_OBJ_FLAG_HIDDEN);}
+
+static lv_color_t navSand(){return lv_color_hex(0xf5f2e8);}
+static const char *const destinations[]={"Home","Friends","Wi-Fi","Account","Settings","Clock","Trailhead","Petopia"};
+static const char *const greetings[]={
+  "Have a fantastic day!","Take the scenic route.","Glad you're here, Trailblazer.","What will you discover today?",
+  "There's more around the bend.","Make a little time for wonder.","Take someone along.","Follow your curiosity.",
+  "A good day to explore.","Look for the little things.","Start with one small step.","Enjoy the way there.",
+  "You have a story to tell.","Make a memory today.","See where the trail leads.","Say hello along the way.",
+  "Something good is ahead.","Keep your eyes open.","Your next adventure awaits.","Leave a little kindness."
+};
+static unsigned greetingIndex;
+static lv_obj_t *dateText,*timeText,*batteryText,*homeBadge;
+static int settingsOffset=112;
+static bool wifiFromHome;
+static void settingsAction(unsigned index);
+static void homeValues(char *date,char *clock,char *battery);
+static void navBackground(){
+  auto *bg=lv_img_create(lv_scr_act());lv_img_set_src(bg,&NAV_BACKGROUND);
+  lv_obj_set_size(bg,480,480);lv_obj_set_pos(bg,0,0);
 }
-static void animateDial(void*,int32_t value){dial.angle=value/100.0f;paintDial();}
-static void snapDial(){lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,&dial);lv_anim_set_exec_cb(&a,animateDial);lv_anim_set_values(&a,int(dial.angle*100),int(dial.target()*100));lv_anim_set_time(&a,180);lv_anim_set_path_cb(&a,lv_anim_path_ease_out);lv_anim_start(&a);}
-static void activateDial(){int i=dial.selected();if(i==4)showSettings();else if(i==2)showConnectionStatus();else if(i==7)showPetopiaTest();else showDialPreview(i);}
-static void dialInput(lv_event_t *e){
- auto code=lv_event_get_code(e);auto *indev=lv_indev_get_act();if(!indev)return;lv_point_t p;lv_indev_get_point(indev,&p);
- if(code==LV_EVENT_PRESSED){lv_anim_del(&dial,animateDial);dial.begin(p.x,p.y);}
- else if(code==LV_EVENT_PRESSING){dial.move(p.x,p.y);paintDial();}
- else if(code==LV_EVENT_RELEASED){bool center=dial.release(p.x,p.y);if(center){dial.angle=dial.target();activateDial();}else snapDial();}
- else if(code==LV_EVENT_PRESS_LOST){dial.cancel();snapDial();}
+static lv_obj_t *navLabel(const char *text,int y,int width,const lv_font_t *font){
+  auto *o=label(text,y,width);lv_obj_set_style_text_font(o,font,0);lv_obj_set_style_text_color(o,navSand(),0);return o;
+}
+static lv_obj_t *navIcon(lv_obj_t *parent,unsigned id,int opacity){
+  auto *icon=lv_img_create(parent);lv_img_set_src(icon,&NAV_ICONS[id]);lv_obj_set_style_img_recolor(icon,navSand(),0);
+  lv_obj_set_style_img_recolor_opa(icon,255,0);lv_obj_set_style_img_opa(icon,opacity,0);return icon;
+}
+static lv_obj_t *target(lv_obj_t *parent,int x,int y,int w,int h,lv_event_cb_t cb,void *data=nullptr){
+  auto *o=lv_obj_create(parent);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);
+  lv_obj_clear_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+  lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,data);return o;
+}
+static void backArrow(lv_event_cb_t cb,lv_color_t color){
+  auto *o=target(lv_scr_act(),3,201,52,78,cb);auto *l=lv_label_create(o);lv_label_set_text(l,LV_SYMBOL_LEFT);
+  lv_obj_set_style_text_font(l,&lv_font_montserrat_24,0);lv_obj_set_style_text_color(l,color,0);lv_obj_center(l);
+}
+static void navTitle(unsigned id,const char *title){
+  auto *header=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(header);lv_obj_set_size(header,LV_SIZE_CONTENT,48);
+  lv_obj_set_flex_flow(header,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(header,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(header,8,0);lv_obj_clear_flag(header,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
+  navIcon(header,id,255);
+  auto *l=lv_label_create(header);lv_label_set_text(l,title);lv_obj_set_style_text_font(l,&nav_text,0);
+  lv_obj_set_style_text_color(l,navSand(),0);lv_obj_align(header,LV_ALIGN_TOP_MID,0,29);
+}
+static lv_obj_t *updateDot(lv_obj_t *parent,int x,int y){
+  auto *d=lv_obj_create(parent);lv_obj_remove_style_all(d);lv_obj_set_pos(d,x,y);lv_obj_set_size(d,10,10);
+  lv_obj_clear_flag(d,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_radius(d,LV_RADIUS_CIRCLE,0);
+  lv_obj_set_style_bg_color(d,lv_color_hex(0xffc83d),0);lv_obj_set_style_bg_opa(d,255,0);return d;
+}
+static void updateLabel(lv_obj_t *o,const char *s){if(strcmp(lv_label_get_text(o),s))lv_label_set_text(o,s);}
+static void paintDial(){
+  if(page!=DASH && page!=CLOCK_VIEW)return;
+  char date[40],clock[12],battery[32];homeValues(date,clock,battery);
+  updateLabel(dateText,date);updateLabel(timeText,clock);if(page==CLOCK_VIEW)return;
+  updateLabel(batteryText,battery);
+  if(cloudAvailable)lv_obj_clear_flag(homeBadge,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(homeBadge,LV_OBJ_FLAG_HIDDEN);
+}
+static void homeTap(lv_event_t *e){
+  unsigned i=(uintptr_t)lv_event_get_user_data(e);
+  if(i==0)return;
+  if(i==4){settingsOffset=112;wifiFromHome=false;showSettings();return;}
+  if(i==2){wifiFromHome=true;showConnectionStatus();return;}
+  if(i==7){showPetopiaTest();return;}
+  clearPage(i==5?CLOCK_VIEW:PREVIEW);navBackground();navTitle(i,destinations[i]);
+  if(i==5){dateText=navLabel("",177,300,&nav_text);timeText=navLabel("",210,270,&nav_time);paintDial();}
+  else navLabel("Page preview",215,280,&nav_text);
+  backArrow([](lv_event_t*){showDashboard();},navSand());
 }
 static void showDashboard(){
- clearPage(DASH);dial.angle=dial.target();dialLastSelected=-1;
- auto *bg=lv_img_create(lv_scr_act());lv_img_set_src(bg,&DIAL_BACKGROUND);lv_obj_set_pos(bg,0,0);
- for(int i=0;i<8;i++){dialIcons[i]=lv_img_create(lv_scr_act());lv_img_set_src(dialIcons[i],&DIAL_ICONS[0][i]);lv_obj_clear_flag(dialIcons[i],LV_OBJ_FLAG_CLICKABLE);}
- auto *word=lv_img_create(lv_scr_act());lv_img_set_src(word,&DIAL_OPEN);lv_obj_set_pos(word,170,207);
- dialName=label("",266,150);lv_obj_set_style_text_color(dialName,sand(),0);
- dialBadge=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(dialBadge);lv_obj_set_size(dialBadge,10,10);lv_obj_set_style_radius(dialBadge,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_color(dialBadge,lv_color_hex(0xffc83d),0);lv_obj_set_style_bg_opa(dialBadge,LV_OPA_COVER,0);
- // Last child is a single transparent touch surface: icon edges cannot steal drags.
- auto *surface=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(surface);lv_obj_set_size(surface,480,480);lv_obj_clear_flag(surface,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(surface,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(surface,dialInput,LV_EVENT_ALL,nullptr);
- paintDial();
+  clearPage(DASH);navBackground();
+  static const int centers[][2]={{240,438},{98,382},{40,240},{98,98},{240,40},{382,98},{440,240},{382,382}};
+  for(unsigned i=0;i<8;i++){
+    auto *o=target(lv_scr_act(),centers[i][0]-34,centers[i][1]-34,68,68,homeTap,(void*)(uintptr_t)i);
+    lv_obj_center(navIcon(o,i,i?166:255));
+  }
+  homeBadge=updateDot(lv_scr_act(),259,20);
+  dateText=navLabel("",145,230,&nav_text);lv_obj_align(dateText,LV_ALIGN_TOP_MID,-38,145);
+  timeText=navLabel("",174,265,&nav_time);lv_obj_align(timeText,LV_ALIGN_TOP_MID,-32,174);
+  batteryText=navLabel("",147,82,&lv_font_montserrat_16);lv_obj_align(batteryText,LV_ALIGN_TOP_MID,92,147);
+  navLabel(greetings[greetingIndex],265,350,&nav_text);paintDial();
 }
-static void showDialPreview(int index){clearPage(PREVIEW);label(dialNames[index],140);label("Page preview\nThis feature is not built yet.",215,280);button("Back to dial",335,[](lv_event_t*){showDashboard();},200);}
+static const char *const settingsNames[]={"Wi-Fi","Firmware Updates","Storage","Brightness","Battery","Wi-Fi Signal","Forget Wi-Fi","Display Check"};
+static constexpr int rowHeight=56,halfList=140;
+static void fadeRows(lv_obj_t *list){
+  settingsOffset=lv_obj_get_scroll_y(list);
+  for(unsigned i=0;i<sizeof(settingsNames)/sizeof(*settingsNames);i++){
+    auto *row=lv_obj_get_child(list,i);if(!row)continue;
+    int distance=std::abs(int(i)*rowHeight-settingsOffset);
+    int opacity=255-distance*134/112;
+    lv_obj_set_style_text_opa(lv_obj_get_child(row,0),opacity<58?58:opacity,0);
+  }
+}
+static void showSettings(){
+  int offset=settingsOffset;
+  clearPage(SETTINGS);navBackground();navTitle(4,"Settings");
+  auto *list=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(list);
+  lv_obj_set_pos(list,69,100);lv_obj_set_size(list,342,2*halfList);
+  lv_obj_set_scroll_dir(list,LV_DIR_VER);lv_obj_set_scrollbar_mode(list,LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_scroll_snap_y(list,LV_SCROLL_SNAP_CENTER);lv_obj_set_style_pad_bottom(list,112,0);
+  for(unsigned i=0;i<sizeof(settingsNames)/sizeof(*settingsNames);i++){
+    auto *row=target(list,0,112+i*rowHeight,342,rowHeight,[](lv_event_t *e){
+      settingsAction((uintptr_t)lv_event_get_user_data(e));
+    },(void*)(uintptr_t)i);
+    lv_obj_add_flag(row,LV_OBJ_FLAG_SNAPPABLE);
+    lv_obj_set_style_text_font(row,&nav_row,0);lv_obj_set_style_text_color(row,navSand(),0);
+    auto *l=lv_label_create(row);lv_label_set_text(l,settingsNames[i]);lv_obj_center(l);
+    if(i==1 && cloudAvailable)updateDot(row,310,23);
+  }
+  for(int y:{212,268}){
+    auto *line=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(line);lv_obj_set_size(line,324,1);lv_obj_set_pos(line,78,y);
+    lv_obj_set_style_bg_opa(line,115,0);lv_obj_set_style_bg_color(line,navSand(),0);lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
+  }
+  lv_obj_update_layout(list);lv_obj_scroll_to_y(list,offset,LV_ANIM_OFF);fadeRows(list);
+  lv_obj_add_event_cb(list,[](lv_event_t *e){fadeRows(lv_event_get_target(e));},LV_EVENT_SCROLL,nullptr);
+  backArrow([](lv_event_t*){showDashboard();},navSand());
+}
 // Swipe opener: begin in lower half, move up at least 65px, reject sideways swipes.
 static int openerX=0,openerY=0;static bool openerPressed=false;
 static void openerInput(lv_event_t *e){
@@ -57,4 +133,3 @@ static void showOpen(){
  lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,hint);lv_anim_set_exec_cb(&a,floatArrow);lv_anim_set_values(&a,372,362);lv_anim_set_time(&a,650);lv_anim_set_playback_time(&a,650);lv_anim_set_repeat_count(&a,LV_ANIM_REPEAT_INFINITE);lv_anim_set_path_cb(&a,lv_anim_path_ease_in_out);lv_anim_start(&a);
  auto *surface=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(surface);lv_obj_set_size(surface,480,480);lv_obj_clear_flag(surface,LV_OBJ_FLAG_SCROLLABLE);lv_obj_add_flag(surface,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(surface,openerInput,LV_EVENT_ALL,nullptr);
 }
-static void stopDialAnimation(){lv_anim_del(&dial,animateDial);dial.cancel();}

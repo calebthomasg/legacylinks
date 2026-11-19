@@ -1,6 +1,14 @@
-# Dinglehopper · Petopia v0.1.15
+# Dinglehopper · Home and Settings v0.1.16
 
 Source for the Waveshare ESP32-S3-Touch-LCD-2.8C, carried forward from the Petopia source candidate based on the v0.1.12 dial. The Pets entry reads four independently selectable layers on a 240 × 240 canvas. Coat-specific patterns follow the coat. The original embedded cat provides the fallback. Save cat commits all four traits together to internal flash. A restart restores the last explicitly saved combination. The SD card still supplies the artwork.
+
+## Home and Settings
+
+Home uses eight fixed touch targets based on the supplied vectors. Settings rows open directly and fade with distance from the center as the list scrolls. Back preserves the list position. The interface uses Nunito and a repeating four-pixel-high dithered strip of the supplied gradient for the round RGB565 display.
+
+The device picks one of 20 greetings at boot and avoids repeating the previous greeting. Time syncs over Wi-Fi and uses US Central time with daylight saving. After sync the firmware writes UTC to the onboard clock for offline startup while the clock retains power. An invalid clock displays a waiting state. Battery bars are approximate voltage bands using the vendor divider calibration. The Battery page shows measured voltage. Brightness persists on slider release, and Storage reports used and free space on the mounted FAT volume.
+
+Confirm direct taps, scroll smoothness, row selection throughout the fade, brightness after restart, storage readings, and offline clock retention on hardware. Account, Friends, and Trailhead are entry-point previews. Clock currently displays local time.
 
 ## Card layout
 

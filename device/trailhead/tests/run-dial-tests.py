@@ -13,11 +13,13 @@ with tempfile.TemporaryDirectory() as temp:
   subprocess.run(['gcc','-O1',*flags,'-c',str(f),'-o',str(obj)],check=True)
   return str(obj)
  with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:objects=list(pool.map(compile_one,sources))
+ for f in firmware.glob('nav_*.c'):
+  obj=p/(f.stem+'.o')
+  subprocess.run(['gcc',*flags,'-c',str(f),'-o',str(obj)],check=True)
+  objects.append(str(obj))
  artwork=(firmware/'OpeningArtwork.cpp').read_text().replace('#include <Arduino.h>','#define PROGMEM')
  (p/'artwork.cpp').write_text(artwork)
  subprocess.run(['g++','-std=c++17',*flags,str(root/'tests/test-ui.cpp'),str(firmware/'DialAssets.cpp'),str(firmware/'PetopiaTestAssets.cpp'),str(p/'artwork.cpp'),*objects,'-lm','-o',str(p/'ui')],check=True)
  card=p/'card'
  subprocess.run(['python3',str(root/'tools/pack_petopia.py'),str(card/'trailhead/petopia')],check=True)
  subprocess.run([str(p/'ui')],cwd=root,env={**os.environ,'PETOPIA_TEST_CARD':str(card)},check=True)
- subprocess.run(['g++','-std=c++17','-I'+str(firmware),str(root/'tests/test-motion.cpp'),'-o',str(p/'motion')],check=True)
- subprocess.run([str(p/'motion')],check=True)
