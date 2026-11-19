@@ -60,6 +60,27 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  step(240,300,false,350);
  assert(page==DASH && !lv_obj_is_valid(openerSurface));
  shot("dial-home.ppm");
+ for(const auto &shortcut : {lv_point_t{98,382}, lv_point_t{98,98}}) {
+   step(shortcut.x,shortcut.y,true); step(shortcut.x,shortcut.y,false);
+   assert(page==PREVIEW);
+   auto *rows=lv_obj_get_child(lv_scr_act(),2);
+   assert(lv_obj_get_child_cnt(rows)==(shortcut.y==382 ? 5 : 4));
+   step(30,239,true); step(30,239,false);
+   assert(page==DASH);
+ }
+ step(382,98,true); step(382,98,false);
+ assert(page==PREVIEW);
+ step(240,240,true); step(240,240,false);
+ assert(page==PREVIEW);
+ auto *alarms=lv_obj_get_child(lv_scr_act(),2);
+ assert(strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(alarms,2),0)), "6:45am")==0);
+ shot("alarm-preview.ppm");
+ step(30,239,true); step(30,239,false);
+ assert(page==PREVIEW);
+ step(240,184,true); step(240,184,false);
+ assert(page==CLOCK_VIEW && strcmp(lv_label_get_text(timeText),"11:45")==0);
+ step(30,239,true); step(30,239,false); assert(page==PREVIEW);
+ step(30,239,true); step(30,239,false); assert(page==DASH);
  step(240,40,true);step(240,40,false);assert(page==SETTINGS);shot("settings.ppm");
  auto *list=lv_obj_get_child(lv_scr_act(),2);
  assert(lv_obj_get_style_text_opa(lv_obj_get_child(lv_obj_get_child(list,2),0),0)>lv_obj_get_style_text_opa(lv_obj_get_child(lv_obj_get_child(list,1),0),0));

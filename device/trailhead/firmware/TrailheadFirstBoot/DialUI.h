@@ -30,7 +30,8 @@ static lv_obj_t *navIcon(lv_obj_t *parent,unsigned id,int opacity){
 static lv_obj_t *target(lv_obj_t *parent,int x,int y,int w,int h,lv_event_cb_t cb,void *data=nullptr){
   auto *o=lv_obj_create(parent);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);
   lv_obj_clear_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-  lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,data);return o;
+  if(cb) lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,data);
+  return o;
 }
 static void backArrow(lv_event_cb_t cb,lv_color_t color){
   auto *o=target(lv_scr_act(),3,201,52,78,cb);auto *l=lv_label_create(o);lv_label_set_text(l,LV_SYMBOL_LEFT);
@@ -57,15 +58,20 @@ static void paintDial(){
   updateLabel(batteryText,battery);
   if(cloudAvailable)lv_obj_clear_flag(homeBadge,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(homeBadge,LV_OBJ_FLAG_HIDDEN);
 }
+static void showDemoMenu(unsigned destination);
+
 static void homeTap(lv_event_t *e){
   unsigned i=(uintptr_t)lv_event_get_user_data(e);
   if(i==0)return;
   if(i==4){settingsOffset=112;wifiFromHome=false;showSettings();return;}
   if(i==2){wifiFromHome=true;showConnectionStatus();return;}
   if(i==7){showPetopiaTest();return;}
-  clearPage(i==5?CLOCK_VIEW:PREVIEW);navBackground();navTitle(i,destinations[i]);
-  if(i==5){dateText=navLabel("",177,300,&nav_text);timeText=navLabel("",210,270,&nav_time);paintDial();}
-  else navLabel("Page preview",215,280,&nav_text);
+  if(i==1 || i==3 || i==5) {
+    showDemoMenu(i);
+    return;
+  }
+  clearPage(PREVIEW);navBackground();navTitle(i,destinations[i]);
+  navLabel("Page preview",215,280,&nav_text);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
 static void showDashboard(){
@@ -151,6 +157,79 @@ static void showSettings(){
   positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
+static void showAlarmPreview() {
+  clearPage(PREVIEW);
+  navBackground();
+  navTitle(5, "Clock");
+  auto *list = navMenu();
+  static const char *const times[] = {"2:59am", "3:00am", "6:45am", "6:15am", "7:00am"};
+  for(unsigned i=0; i<5; ++i) {
+    auto *row = navMenuRow(list, times[i], nullptr);
+    auto *label = lv_obj_get_child(row, 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, -30, 0);
+
+    auto *toggle = lv_obj_create(row);
+    lv_obj_remove_style_all(toggle);
+    lv_obj_clear_flag(toggle, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(toggle, 66, 30);
+    lv_obj_align(toggle, LV_ALIGN_RIGHT_MID, -24, 0);
+    lv_obj_set_style_radius(toggle, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(toggle, navSand(), 0);
+    lv_obj_set_style_bg_opa(toggle, i==2 ? LV_OPA_COVER : LV_OPA_50, 0);
+
+    auto *knob = lv_obj_create(toggle);
+    lv_obj_remove_style_all(knob);
+    lv_obj_clear_flag(knob, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(knob, 22, 22);
+    lv_obj_align(knob, i==2 ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID, i==2 ? -4 : 4, 0);
+    lv_obj_set_style_radius(knob, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(knob, lv_color_hex(0x27b6a9), 0);
+    lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
+  }
+  positionMenu(list, 2*rowHeight);
+  backArrow([](lv_event_t *) { showDemoMenu(5); }, navSand());
+}
+
+static void showClockTime() {
+  clearPage(CLOCK_VIEW);
+  navBackground();
+  navTitle(5, "Clock");
+  dateText = navLabel("", 177, 300, &nav_text);
+  timeText = navLabel("", 210, 270, &nav_time);
+  paintDial();
+  backArrow([](lv_event_t *) { showDemoMenu(5); }, navSand());
+}
+
+static void showDemoMenu(unsigned destination) {
+  clearPage(PREVIEW);
+  navBackground();
+  navTitle(destination, destinations[destination]);
+  auto *list = navMenu();
+  if(destination==1) {
+    for(const char *name : {"Pops", "Mom", "Atticus", "Carmen", "Dad"}) {
+      auto *row = navMenuRow(list, name, nullptr);
+      auto *label = lv_obj_get_child(row, 0);
+      lv_obj_set_width(label, 198);
+      lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
+      lv_obj_align(label, LV_ALIGN_LEFT_MID, 105, 0);
+      auto *avatar = navIcon(row, 3, LV_OPA_70);
+      lv_obj_align(avatar, LV_ALIGN_LEFT_MID, 59, 0);
+    }
+  } else if(destination==3) {
+    for(const char *item : {"Profile", "Connected Account", "Parental Settings", "Sync to LegacyLink"}) {
+      navMenuRow(list, item, nullptr);
+    }
+  } else {
+    navMenuRow(list, "World Clocks", nullptr);
+    navMenuRow(list, "Time", [](lv_event_t *) { showClockTime(); });
+    navMenuRow(list, "Alarm Clock", [](lv_event_t *) { showAlarmPreview(); });
+    navMenuRow(list, "Timer", nullptr);
+    navMenuRow(list, "Stopwatch", nullptr);
+  }
+  positionMenu(list, 2*rowHeight);
+  backArrow([](lv_event_t *) { showDashboard(); }, navSand());
+}
+
 static constexpr int openerSize = 480;
 static constexpr int openerStartY = 260;
 static constexpr int openerSwipeDistance = 65;
