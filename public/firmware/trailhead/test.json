@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.17",
+    "version": "0.1.18",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.17/trailhead-0.1.17-app.bin",
-    "size": 2269296,
-    "sha256": "5ce189b497eb94da7d2bf6cc4413ea2eae8bd895ed3bb2087199d3153b61cf0c",
-    "notes": "Restyled Wi-Fi and firmware updates with fading rows. Networks refresh automatically. Removed Display Check."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.18/trailhead-0.1.18-app.bin",
+    "size": 2269728,
+    "sha256": "8ef453a6ac307b711080cbb90ae663d88ff1a1247da2c07f6bfdae0eb6572e2f",
+    "notes": "Dinglehopper opener follows your finger to reveal Home. A short swipe returns to the opener. Replaced the button with a Swipe up cue."
   }
 }
