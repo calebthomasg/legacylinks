@@ -1,6 +1,6 @@
-# Dinglehopper · Petopia v0.1.14
+# Dinglehopper · Petopia v0.1.15
 
-Source for the Waveshare ESP32-S3-Touch-LCD-2.8C, carried forward from the Petopia source candidate based on the v0.1.12 dial. The Pets entry reads four independently selectable layers on a 240 × 240 canvas. Coat-specific patterns follow the coat. The original embedded cat provides the fallback. Choices last until restart.
+Source for the Waveshare ESP32-S3-Touch-LCD-2.8C, carried forward from the Petopia source candidate based on the v0.1.12 dial. The Pets entry reads four independently selectable layers on a 240 × 240 canvas. Coat-specific patterns follow the coat. The original embedded cat provides the fallback. Save cat commits all four traits together to internal flash. A restart restores the last explicitly saved combination. The SD card still supplies the artwork.
 
 ## Card layout
 
@@ -20,6 +20,10 @@ Use Arduino CLI, Arduino-ESP32 3.0.2, LVGL 8.3.10, Python with esptool 4.6 depen
 - The web repository's release catalog and byte integrity tests run with `node --test scripts/test-firmware.mjs` from repository root.
 
 ## Hardware acceptance
+
+v0.1.14 coat cycling passed on the user’s Dinglehopper. This observation covers the coat fix.
+
+For v0.1.15, save Orange Cream with a non-default pattern, nose, and eyes. Confirm the same combination after leaving Pets and after a power cycle. With power off, remove the card, boot once, then power down to reinstall it. Confirm the saved cat returns.
 
 Use the existing local uploader for one prototype. On wall power, confirm a clean boot and saved Wi-Fi reconnect. Open Pets, change each feature, mix coat and pattern, and return via Back to dial. Repeat after a restart. Test the embedded fallback by powering down, removing the card, and rebooting. Power down before reinserting the card. Check the screen for drift and touch offset, and verify Settings, Wi-Fi, local upload, and Check for updates. The hosted test catalog still offers v0.1.12 during acceptance. Check GPS separately in the workflow actually used with the prototype. The supplied sketch has no GNSS receiver driver. Record observations before promoting this image.
 

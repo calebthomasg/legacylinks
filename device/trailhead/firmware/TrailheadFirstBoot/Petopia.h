@@ -10,6 +10,27 @@ static const char *const noses[] = {"button", "triangle", "half-moon", "rounded"
 static const char *const eyes[] = {"wonder", "shock", "annoyed", "side-eye", "focused", "gleaming", "dead", "twitchy", "XD", "glee"};
 static unsigned coat, pattern, nose, eye;
 
+// Version 1 stores the four trait indices in the order of the tables above.
+static void restoreCat() {
+  uint8_t data[5];
+  if (prefs.getBytesLength("petCat") != sizeof(data) ||
+      prefs.getBytes("petCat", data, sizeof(data)) != sizeof(data)) return;
+  if (data[0] != 1 || data[1] >= sizeof(coats)/sizeof(*coats) ||
+      data[2] >= sizeof(patterns)/sizeof(*patterns) ||
+      data[3] >= sizeof(noses)/sizeof(*noses) || data[4] >= sizeof(eyes)/sizeof(*eyes)) return;
+  coat = data[1];
+  pattern = data[2];
+  nose = data[3];
+  eye = data[4];
+}
+
+static void saveCat(lv_event_t *event) {
+  const uint8_t data[] = {1, uint8_t(coat), uint8_t(pattern), uint8_t(nose), uint8_t(eye)};
+  bool saved = prefs.putBytes("petCat", data, sizeof(data)) == sizeof(data);
+  auto *caption = lv_obj_get_child(lv_event_get_current_target(event), 0);
+  lv_label_set_text(caption, saved ? "Cat saved" : "Retry save");
+}
+
 struct Layer {
   lv_img_dsc_t image{};
   uint8_t *pixels = nullptr;
@@ -127,7 +148,10 @@ static void showPetopiaTest() {
              unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              unsigned(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     label(memory, 385, 290);
-    button("Back to dial", 410, [](lv_event_t*) { showDashboard(); }, 170);
+    auto *save = button("Save cat", 405, saveCat, 130);
+    lv_obj_align(save, LV_ALIGN_TOP_MID, -69, 405);
+    auto *back = button("Back to dial", 405, [](lv_event_t*) { showDashboard(); }, 130);
+    lv_obj_align(back, LV_ALIGN_TOP_MID, 69, 405);
   } else {
     auto *retry = button("Retry card", 389, [](lv_event_t*) { showPetopiaTest(); }, 134);
     lv_obj_align(retry, LV_ALIGN_TOP_MID, -72, 389);

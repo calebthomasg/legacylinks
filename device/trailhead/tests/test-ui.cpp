@@ -6,7 +6,19 @@
 enum Page {OPEN,DASH,SETTINGS,NETWORKS,PREVIEW,CONNECTION};
 static Page page=OPEN;static bool scanRequested=false,cloudAvailable=true;
 static lv_obj_t *statusIcon=nullptr,*statusGlyph=nullptr,*statusLabel=nullptr,*passwordBox=nullptr,*networkList=nullptr,*image=nullptr;
-static void stopDialAnimation();static void showDashboard();static void showConnectionStatus();static void showDialPreview(int);static void showSettings();static void showNetworks(){}static void showUpdates(){}static void showSignal(){}static void showDiagnostics(){}static void cancelNetwork(){}struct Prefs{void remove(const char*){}}prefs;static bool credentialsVerified=false;static const char *wifiMessage="";
+static void stopDialAnimation();static void showDashboard();static void showConnectionStatus();static void showDialPreview(int);static void showSettings();static void showNetworks(){}static void showUpdates(){}static void showSignal(){}static void showDiagnostics(){}static void cancelNetwork(){}struct Prefs {
+ uint8_t stored[5]{};
+ size_t length=0;
+ bool failWrite=false;
+ void remove(const char*){}
+ size_t getBytesLength(const char *key){assert(!strcmp(key,"petCat"));return length;}
+ size_t getBytes(const char*,void *dst,size_t n){assert(n==length);memcpy(dst,stored,n);return n;}
+ size_t putBytes(const char *key,const void *src,size_t n){
+   assert(!strcmp(key,"petCat") && n==sizeof(stored));
+   if(failWrite)return 0;
+   memcpy(stored,src,n);length=n;return n;
+ }
+} prefs;static bool credentialsVerified=false;static const char *wifiMessage="";
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static lv_obj_t* label(const char *text,int y,int width=330){auto *o=lv_label_create(lv_scr_act());lv_label_set_text(o,text);lv_obj_set_width(o,width);lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(o,blue(),0);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);return o;}
 static lv_obj_t* button(const char *text,int y,lv_event_cb_t cb,int width=240){auto *o=lv_btn_create(lv_scr_act());lv_obj_set_size(o,width,46);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);lv_obj_set_style_bg_color(o,blue(),0);lv_obj_set_style_text_color(o,sand(),0);lv_obj_set_style_radius(o,23,0);auto *l=lv_label_create(o);lv_label_set_text(l,text);lv_obj_center(l);lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,nullptr);return o;}
@@ -56,9 +68,25 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  step(168,411,true);step(168,411,false);assert(!allocated);
  step(160,306,true);step(160,306,false);assert(petopia::coat==3 && allocated==4);
  assert(std::rename(backup.c_str(),path.c_str())==0);
- step(240,430,true);step(240,430,false);assert(page==DASH && allocated==0);
+ step(320,306,true);step(320,306,false);
+ step(160,356,true);step(160,356,false);
+ step(320,356,true);step(320,356,false);
+ step(171,428,true);step(171,428,false);
+ assert(prefs.length==5 && petopia::coat==3 && petopia::pattern==1 && petopia::nose==1 && petopia::eye==1);
+ step(160,306,true);step(160,306,false);
+ prefs.failWrite=true;
+ step(171,428,true);step(171,428,false);
+ prefs.failWrite=false;
+ step(309,428,true);step(309,428,false);assert(page==DASH && allocated==0);
+ petopia::coat=petopia::pattern=petopia::nose=petopia::eye=0;
+ petopia::restoreCat();
+ assert(petopia::coat==3 && petopia::pattern==1 && petopia::nose==1 && petopia::eye==1);
  petopia::mounted=false; SD_MMC.present=false;showPetopiaTest();assert(!allocated);
  SD_MMC.present=true;step(168,411,true);step(168,411,false);assert(allocated==4);
+ assert(petopia::coat==3 && petopia::pattern==1 && petopia::nose==1 && petopia::eye==1);
+ prefs.stored[4]=255;
+ petopia::coat=petopia::pattern=petopia::nose=petopia::eye=0;
+ petopia::restoreCat();assert(!petopia::coat && !petopia::pattern && !petopia::nose && !petopia::eye);
  for(int i=0;i<100;i++){showPetopiaTest();showDashboard();assert(allocated==0);}
  for(int i=0;i<100;i++){showOpen();showDashboard();}lv_mem_monitor_t m;lv_mem_monitor(&m);assert(m.free_size>8000);printf("PASS: real LVGL swipe, rotation, snap, preview, Settings/Wi-Fi routes, drag guard, 100 screen cycles; %u bytes free\n",unsigned(m.free_size));
 }

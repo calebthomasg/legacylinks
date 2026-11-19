@@ -1,4 +1,4 @@
-/* LegacyLink Trailhead Compass 0.1.14 — ESP32-S3-Touch-LCD-2.8C.
+/* LegacyLink Trailhead Compass 0.1.15 — ESP32-S3-Touch-LCD-2.8C.
    Hardware validation is required. See docs/DEVELOPMENT.md. */
 #include <Arduino.h>
 #if ARDUINO_USB_CDC_ON_BOOT
@@ -133,7 +133,7 @@ static void refreshDashboard(){
  lv_label_set_text(statusGlyph,online?LV_SYMBOL_OK:(busy?"...":LV_SYMBOL_CLOSE));lv_obj_center(statusGlyph);
 }
 static void showConnectionStatus(){
- clearPage(CONNECTION);label("Trailhead Compass",70);label("Wireless update v0.1.14",110);
+ clearPage(CONNECTION);label("Trailhead Compass",70);label("Wireless update v0.1.15",110);
  statusIcon=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(statusIcon);lv_obj_set_size(statusIcon,30,30);lv_obj_align(statusIcon,LV_ALIGN_TOP_LEFT,62,180);
  lv_obj_set_style_radius(statusIcon,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(statusIcon,LV_OPA_COVER,0);lv_obj_clear_flag(statusIcon,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
  statusGlyph=lv_label_create(statusIcon);lv_obj_set_style_text_color(statusGlyph,lv_color_hex(0xf5f1e6),0);
@@ -299,7 +299,7 @@ static void showDiagnostics(){
  lv_obj_clear_flag(ring,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
  auto *horizontal=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(horizontal);lv_obj_set_size(horizontal,100,2);lv_obj_center(horizontal);lv_obj_set_style_bg_color(horizontal,blue(),0);lv_obj_set_style_bg_opa(horizontal,LV_OPA_COVER,0);
  auto *vertical=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(vertical);lv_obj_set_size(vertical,2,100);lv_obj_center(vertical);lv_obj_set_style_bg_color(vertical,blue(),0);lv_obj_set_style_bg_opa(vertical,LV_OPA_COVER,0);
- label("Display check v0.1.14",70);label("Ring and cross must stay fixed",105);
+ label("Display check v0.1.15",70);label("Ring and cross must stay fixed",105);
  tapLabel=label("Tap count: 0",145);
  button("Tap test",305,[](lv_event_t*){tapCount++;lv_label_set_text_fmt(tapLabel,"Tap count: %lu",(unsigned long)tapCount);});
  button("Back",365,[](lv_event_t*){showSettings();},180);
@@ -335,8 +335,9 @@ static void serviceNetwork(uint32_t now){
  }
 }
 void setup(){
- diagnosticLog.begin(115200);diagnosticLog.println("LegacyLink Trailhead 0.1.14");
+ diagnosticLog.begin(115200);diagnosticLog.println("LegacyLink Trailhead 0.1.15");
  WiFi.persistent(false);WiFi.mode(WIFI_OFF);prefs.begin("trailhead",false); // Before LCD starts: may initialize NVS.
+ petopia::restoreCat();
  I2C_Init();delay(120);TCA9554PWR_Init(0x00);Set_EXIO(EXIO_PIN8,Low);LCD_Init();rgbActive=true;
  initLVGL();Set_Backlight(60);
  showOpen();
