@@ -7,7 +7,7 @@ static int batteryMillivolts(){
 static bool batteryValid(int mv){return mv>=2800 && mv<=4350;}
 static void homeValues(char *date,char *clock,char *battery){
   time_t now=time(nullptr);struct tm local{};
-  if(now>=1735689600 && localtime_r(&now,&local)){
+  if(now>=firstValidClockTime && localtime_r(&now,&local)){
     strftime(date,40,"%a %b %d",&local);
     snprintf(clock,12,"%d:%02d",local.tm_hour%12?local.tm_hour%12:12,local.tm_min);
   }else{strcpy(date,"Waiting for time");strcpy(clock,"--:--");}

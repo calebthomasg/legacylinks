@@ -3,6 +3,8 @@
 
 // Store UTC in the PCF85063. Only trust dates written by this firmware after
 // network sync. The oscillator-stop flag invalidates time after power loss.
+static constexpr time_t firstValidClockTime=1735689600;
+static constexpr uint32_t clockRetryIntervalMs=60000;
 static constexpr char homeTimeZone[]="CST6CDT,M3.2.0,M11.1.0";
 static std::atomic<bool> rtcSyncPending{false};
 static int decodeBcd(uint8_t value){
@@ -24,14 +26,26 @@ static void startHomeClock(){
         utc.tm_hour=hr;utc.tm_min=min;utc.tm_sec=sec;
         setenv("TZ","UTC0",1);tzset();
         time_t t=mktime(&utc);
-        if(t>=1735689600 && utc.tm_mday==day){struct timeval tv{t,0};settimeofday(&tv,nullptr);}
+        if(t>=firstValidClockTime && utc.tm_mday==day){struct timeval tv{t,0};settimeofday(&tv,nullptr);}
       }
     }
   }
+  setenv("TZ",homeTimeZone,1);
+  tzset();
   sntp_set_time_sync_notification_cb([](struct timeval*){rtcSyncPending.store(true);});
-  configTzTime(homeTimeZone,"pool.ntp.org","time.google.com");
 }
-static void serviceHomeClock(){
+static void serviceHomeClock(uint32_t nowMs){
+  static bool wasOnline=false;
+  static uint32_t lastAttemptMs=0;
+  const bool online=WiFi.status()==WL_CONNECTED;
+  // Once the clock is set, SNTP handles periodic resyncs on its own.
+  if(online && (!wasOnline ||
+     (nowMs-lastAttemptMs>=clockRetryIntervalMs && time(nullptr)<firstValidClockTime))){
+    configTzTime(homeTimeZone,"pool.ntp.org","time.google.com");
+    lastAttemptMs=nowMs;
+  }
+  wasOnline=online;
+
   if(!rtcSyncPending.exchange(false))return;
   time_t now=time(nullptr);struct tm utc{};
   if(!gmtime_r(&now,&utc) || utc.tm_year<125 || utc.tm_year>199)return;

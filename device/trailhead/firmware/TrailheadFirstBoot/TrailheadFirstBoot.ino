@@ -18,7 +18,6 @@ static SilentLog diagnosticLog;
 #include <Preferences.h>
 #include <WebServer.h>
 #include <Update.h>
-#include "CloudUpdate.h"
 #include "SignalQuality.h"
 #include "Display_ST7701.h"
 #include "I2C_Driver.h"
@@ -34,6 +33,8 @@ static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
 enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW};
 static Preferences prefs;
+#include "HomeClock.h"
+#include "CloudUpdate.h"
 static WebServer server(80);
 static lv_disp_drv_t displayDriver;
 static lv_disp_draw_buf_t drawBuffer;
@@ -395,7 +396,7 @@ static void serviceCloudUpdates(uint32_t now){
  static bool wasOnline=false;static uint32_t onlineAt=0,lastCheck=0;static bool checked=false;
  bool online=WiFi.status()==WL_CONNECTED;
  if(online&&!wasOnline){onlineAt=now;checked=false;}wasOnline=online;
- if(online&&!cloudBusy&&!otaEnabled&&!uploadAllowed&&!rebootPending&&!connecting&&!scanning&&!scheduledAction&&((!checked&&now-onlineAt>10000)||(checked&&now-lastCheck>21600000))){
+ if(online&&time(nullptr)>=firstValidClockTime&&!cloudBusy&&!otaEnabled&&!uploadAllowed&&!rebootPending&&!connecting&&!scanning&&!scheduledAction&&((!checked&&now-onlineAt>10000)||(checked&&now-lastCheck>21600000))){
   if(startCloudJob(false)){checked=true;lastCheck=now;if(page==UPDATES)showUpdates();}
  }
 }
@@ -410,7 +411,6 @@ static void startRadio(){
 }
 #include "Petopia.h"
 #include "DeviceSettings.h"
-#include "HomeClock.h"
 
 static void serviceNetwork(uint32_t now){
  if(scheduledAction&&int32_t(now-actionAt)>=0){
@@ -477,8 +477,8 @@ void loop(){
   }
  }
  if(!cloudBusy)serviceNetwork(now);
+ serviceHomeClock(now);
  serviceCloudUpdates(now);
- serviceHomeClock();
  if(browsingNetworks && !cloudBusy && !otaEnabled && !scanning && !connecting && !scheduledAction && now-scanCompletedAt>=15000)scanRequested=true;
  serviceRequestedScan(browsingNetworks);
  if(now-lastStatus>1000){lastStatus=now;if(page==CONNECTION&&statusLabel)refreshConnectionStatus();if(page==DASH || page==CLOCK_VIEW)paintDial();if(page==SIGNAL)refreshSignal();}
