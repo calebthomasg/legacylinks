@@ -5,6 +5,7 @@ import Link from "next/link";
 import {createClient} from "@/utils/supabase/client";
 import TreasureBoxStoryBuilder from "@/components/treasure-box/TreasureBoxStoryBuilder";
 import {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED} from "@/utils/featureFlags";
+import {useMeasurementUnits} from "@/components/trailhead/TrailheadMeasurementSettings";
 
 type ContentOption="digital_story"|"traveling_token"|"specialty_token"|"quest";
 type Step="details"|"placement"|"contents"|"story"|"traveling_token"|"specialty_token"|"quest"|"review"|"published";
@@ -68,10 +69,8 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[latitude,setLatitude]=useState(initial.latitude?.toString()??"");
   const[longitude,setLongitude]=useState(initial.longitude?.toString()??"");
   const[radius,setRadius]=useState(initial.search_radius_meters??(20/3.280839895));
-  const[units,setUnits]=useState<"imperial"|"metric">("imperial");
+  const[units,changeUnits]=useMeasurementUnits();
   const[customRadius,setCustomRadius]=useState(false);
-  useEffect(()=>{try{setUnits(localStorage.getItem("legacylink:trailhead:units")==="metric"?"metric":"imperial");}catch{}},[]);
-  function changeUnits(value:"imperial"|"metric"){setUnits(value);try{localStorage.setItem("legacylink:trailhead:units",value);}catch{}}
   const[selected,setSelected]=useState<ContentOption[]>([]);
   const[step,setStep]=useState<Step>(initial.setup_status==="ready_to_publish"?"review":"details");
   const[busy,setBusy]=useState(false);
