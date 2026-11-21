@@ -205,10 +205,10 @@ static const char *const welcomeLines[] = {
   "Use the arrows to meet my babies. When one steals your heart, tap theirs.",
 };
 
-static lv_obj_t *speech(const char *line, int y, int height = 92) {
-  auto *box = surface(lv_scr_act(), 94, y, 292, height);
+static lv_obj_t *speech(const char *line, int y, int height = 92, int width = 292) {
+  auto *box = surface(lv_scr_act(), (displaySize - width) / 2, y, width, height);
   panel(box, 0x0f1d3a, 16);
-  auto *words = message(box, line, 10, 7, 272);
+  auto *words = message(box, line, 10, 7, width - 20);
   lv_obj_center(words);
   return words;
 }
@@ -263,11 +263,11 @@ static void browse(bool next) {
 
 static void showAdopted() {
   // Keep the cat and close-up scene in place throughout the reveal.
-  caption = speech("", 25, 80);
+  caption = speech("", 37, 64, 238);
   lv_label_set_text_fmt(caption, "Well, look at you two! This is %s.", adoption.pet().name);
   control(lv_scr_act(), "Continue", 169, 346, 142, [](lv_event_t *event) {
     lv_obj_del(lv_event_get_target(event));
-    lv_label_set_text_fmt(caption, "Take a little something for %s. First snack's on me! Come back for food or something for dress-up.",
+    lv_label_set_text_fmt(caption, "First snack's on me! Come back for more food or something for dress-up, and bring %s.",
                           adoption.pet().name);
     char goTo[nameCapacity + 7];
     snprintf(goTo, sizeof(goTo), "Go to %s", adoption.pet().name);
@@ -278,6 +278,7 @@ static void showAdopted() {
 static void showConfirmation() {
   if (outgoingCat || carousel.confirming() || adoption.adopted()) return;
   carousel.openConfirmation();
+  lv_obj_add_flag(carouselControls, LV_OBJ_FLAG_HIDDEN);
   confirmation = surface(lv_scr_act(), 0, 0, displaySize, displaySize);
   lv_obj_add_flag(confirmation, LV_OBJ_FLAG_CLICKABLE);
   auto *box = surface(confirmation, 94, 328, 292, 53);
@@ -286,6 +287,7 @@ static void showConfirmation() {
   lv_obj_center(prompt);
   control(confirmation, LV_SYMBOL_CLOSE, 161, 390, 48, [](lv_event_t *) {
     carousel.keepBrowsing();
+    lv_obj_clear_flag(carouselControls, LV_OBJ_FLAG_HIDDEN);
     lv_obj_del(confirmation);
     confirmation = nullptr;
   }, 0xc44850);
@@ -303,7 +305,6 @@ static void showConfirmation() {
     // The overlay blocks browsing up to the handoff. Keep it as the backdrop
     // for the reveal and remove its controls once adoption is committed.
     lv_obj_clean(confirmation);
-    lv_obj_add_flag(carouselControls, LV_OBJ_FLAG_HIDDEN);
     showAdopted();
   }, 0x087d70, prompt);
 }
@@ -346,6 +347,7 @@ static void showPetHome() {
   lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
   if (pet.hasStarterFood) {
     caption = message(lv_scr_act(), "1 starter snack", 110, 220, 260);
+    lv_obj_set_style_text_color(caption, blue(), 0);
     starterFoodButton = control(lv_scr_act(), "Feed", 176, 246, 128, [](lv_event_t *) {
       if (adoption.feedStarterFood(saveStarter) == StarterAction::Saved) {
         lv_label_set_text_fmt(caption, "%s enjoyed the snack!", adoption.pet().name);
