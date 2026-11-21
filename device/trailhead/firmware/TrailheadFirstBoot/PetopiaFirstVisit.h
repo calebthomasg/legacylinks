@@ -267,8 +267,7 @@ static void showAdopted() {
   lv_label_set_text_fmt(caption, "Well, look at you two! This is %s.", adoption.pet().name);
   control(lv_scr_act(), "Continue", 169, 346, 142, [](lv_event_t *event) {
     lv_obj_del(lv_event_get_target(event));
-    lv_label_set_text_fmt(caption, "First snack's on me! Come back for more food or something for dress-up, and bring %s.",
-                          adoption.pet().name);
+    lv_label_set_text(caption, "First snack's on me! Come back for food or something for dress-up.");
     char goTo[nameCapacity + 7];
     snprintf(goTo, sizeof(goTo), "Go to %s", adoption.pet().name);
     control(lv_scr_act(), goTo, 130, 346, 220, [](lv_event_t *) { showPetHome(); });

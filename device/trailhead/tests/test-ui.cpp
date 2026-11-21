@@ -86,6 +86,8 @@ static void testFirstVisit() {
  strcpy(savedName,adoption.pet().name);
  shot("petopia-adopted.ppm");
  tap(240,370);
+ lv_obj_update_layout(caption);
+ assert(lv_obj_get_height(caption) <= lv_obj_get_height(lv_obj_get_parent(caption)));
  tap(240,370);
  shot("petopia-home.ppm");
  showDashboard();
