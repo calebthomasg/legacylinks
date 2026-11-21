@@ -1,0 +1,41 @@
+name: Verify Petopia 0.1.21 on the public OTA endpoint
+on:
+  pull_request:
+    branches: [trailhead/petopia-first-visit]
+    paths: [.github/workflows/stage-petopia-ota-0.1.21.yml]
+permissions: {}
+jobs:
+  verify:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'trailhead/stage-petopia-ota-0.1.21'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify the public catalog and firmware
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, time, urllib.request
+          manifest = "https://www.legacylinks.io/firmware/trailhead/test.json"
+          expected = "https://www.legacylinks.io/firmware/trailhead/releases/0.1.21/trailhead-0.1.21-app.bin"
+          for attempt in range(24):
+              try:
+                  with urllib.request.urlopen(manifest, timeout=10) as response:
+                      catalog = json.load(response)
+                  release = catalog["release"]
+                  if catalog["channel"] != "test" or release["version"] != "0.1.21" or release["url"] != expected:
+                      raise ValueError("Petopia 0.1.21 test catalog not live yet")
+                  with urllib.request.urlopen(expected, timeout=12) as response:
+                      data = response.read(4194305)
+                  if len(data) != 2278224 or len(data) != release["size"]:
+                      raise ValueError("Hosted binary size mismatch")
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest != "9cc8c9bf0296e43f96788a2dded3d5677a53e27df0d978d3a364e72e74d079dc" or digest != release["sha256"]:
+                      raise ValueError("Hosted binary checksum mismatch")
+                  print(f"Verified live Petopia v0.1.21 test catalog and {len(data)}-byte firmware, SHA-256 {digest}", flush=True)
+                  break
+              except (OSError, ValueError, KeyError) as error:
+                  print(f"Attempt {attempt + 1}: {error}", flush=True)
+                  if attempt == 23:
+                      raise
+                  time.sleep(8)
+          PY
