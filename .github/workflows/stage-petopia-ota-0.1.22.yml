@@ -1,54 +1,65 @@
-name: Stage Petopia v0.1.22 and its artwork
+name: Verify the public Petopia v0.1.22 OTA release
 on:
   pull_request:
     branches: [trailhead/petopia-artwork-updates]
     paths: [.github/workflows/stage-petopia-ota-0.1.22.yml]
-permissions:
-  actions: read
-  contents: write
+permissions: {}
 jobs:
-  stage:
+  verify:
     if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'trailhead/stage-petopia-ota-0.1.22'
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 6
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: inputs
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          ref: 7d1ecb1a5eb7b4665fe1365605b893f73a832aea
-          path: hosted
-      - uses: actions/download-artifact@v4
-        with:
-          name: dinglehopper-0.1.22-local-upload
-          path: ${{ runner.temp }}/petopia-firmware
-          github-token: ${{ github.token }}
-          run-id: '44876093759'
-      - name: Verify firmware and artwork and stage the release pair
+      - name: Verify both public downloads exactly as the Dinglehopper receives them
         shell: bash
-        working-directory: hosted
         run: |
-          set -euo pipefail
-          binary="$RUNNER_TEMP/petopia-firmware/trailhead-0.1.22-app.bin"
-          echo "a1c14e02986c6826c6c2456bf95466af4927ddf1173f8737db217a91f70f834c  $binary" | sha256sum -c -
-          root=public/firmware/trailhead/petopia
-          pack="$root/releases/petopia-1.pack"
-          mkdir -p "$root/releases"
-          test ! -e "$pack"
-          gzip -dc "../inputs/device/trailhead/.release-input/petopia-1.pack.gz" > "$pack"
-          test "$(wc -c < "$pack")" -eq 3134769
-          echo "15718b0f4fb16261e53db8a85ec2724e6aadf9a8f55f0f766de64d9f3c773860  $pack" | sha256sum -c -
-          python3 - "$root/test.json" <<'PY'
-          import json, pathlib, sys
-          release = {"schema":1,"revision":1,"minimum_firmware":"0.1.22","size":3134769,"sha256":"15718b0f4fb16261e53db8a85ec2724e6aadf9a8f55f0f766de64d9f3c773860"}
-          pathlib.Path(sys.argv[1]).write_text(json.dumps(release, indent=2) + "\n")
+          python3 - <<'PY'
+          import hashlib, json, struct, time, urllib.request
+
+          site = "https://www.legacylinks.io/firmware/trailhead/"
+          firmware_url = "https://www.legacylinks.io/firmware/trailhead/releases/0.1.22/trailhead-0.1.22-app.bin"
+          artwork_url = site + "petopia/releases/petopia-1.pack"
+          expected_firmware = {"schema":1,"channel":"test","release":{"version":"0.1.22","hardware":"waveshare-esp32s3-touch-lcd-2.8c","layout":"trailhead-16m-ota4m-v1","url":"https://www.legacylinks.io/firmware/trailhead/releases/0.1.22/trailhead-0.1.22-app.bin","size":2107984,"sha256":"a1c14e02986c6826c6c2456bf95466af4927ddf1173f8737db217a91f70f834c","notes":"Petopia artwork now installs automatically over Wi-Fi. No manual microSD file copying."}}
+          expected_artwork = {"schema":1,"revision":1,"minimum_firmware":"0.1.22","size":3134769,"sha256":"15718b0f4fb16261e53db8a85ec2724e6aadf9a8f55f0f766de64d9f3c773860"}
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect())
+
+          def get(url, maximum):
+              request = urllib.request.Request(
+                  url, headers={"Accept-Encoding": "identity", "Cache-Control": "no-cache",
+                                "User-Agent": "Trailhead/0.1.20" if url == site + "test.json" else "Trailhead/0.1.22"}
+              )
+              with opener.open(request, timeout=12) as response:
+                  length = int(response.headers["Content-Length"])
+                  assert response.status == 200 and 0 < length <= maximum, "Unexpected response length"
+                  data = response.read(maximum + 1)
+              assert len(data) == length, "Incomplete response"
+              return data
+
+          for attempt in range(24):
+              try:
+                  firmware = json.loads(get(site + "test.json", 4096))
+                  assert firmware == expected_firmware and firmware["schema"] == 1, "v0.1.22 test catalog not live"
+                  assert tuple(map(int, firmware["release"]["version"].split("."))) > (0, 1, 20)
+                  assets = json.loads(get(site + "petopia/test.json", 1024))
+                  assert assets == expected_artwork, "Artwork catalog not live"
+                  code = get(firmware_url, 4194304)
+                  artwork = get(artwork_url, 8 * 1024 * 1024)
+                  assert code[0] == 0xe9 and struct.unpack_from("<H", code, 12)[0] == 9
+                  assert artwork[:4] == b"PTPK"
+                  assert struct.unpack_from("<II", artwork, 4) == (1, 45)
+                  for spec, payload in [(firmware["release"], code), (assets, artwork)]:
+                      assert len(payload) == spec["size"], "Unexpected payload size"
+                      assert hashlib.sha256(payload).hexdigest() == spec["sha256"], "Payload checksum mismatch"
+                  print("Verified live v0.1.22 test catalog, firmware and all 45 packed artwork entries", flush=True)
+                  break
+              except (OSError, AssertionError, ValueError, TypeError) as error:
+                  print(f"Attempt {attempt + 1}: {error}", flush=True)
+                  if attempt == 23:
+                      raise
+                  time.sleep(8)
           PY
-          node scripts/publish-firmware.mjs test 0.1.22 "$binary" 'Petopia artwork now installs automatically over Wi-Fi. No manual microSD file copying.'
-          node --test scripts/test-firmware.mjs
-          git add -- public/firmware/trailhead/test.json public/firmware/trailhead/releases/0.1.22/trailhead-0.1.22-app.bin "$root/test.json" "$pack"
-          git diff --cached --check
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Publish Petopia artwork installer v0.1.22 and artwork pack'
-          git push origin HEAD:refs/heads/trailhead/ota-petopia-payload-0.1.22
-          git rev-parse HEAD
