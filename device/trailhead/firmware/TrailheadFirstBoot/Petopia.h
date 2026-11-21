@@ -1,6 +1,7 @@
 #pragma once
 #include <SD_MMC.h>
 #include "PetopiaTestAssets.h"
+#include "PetopiaAdoption.h"
 
 namespace petopia {
 constexpr int canvas = 240;
@@ -8,6 +9,10 @@ static const char *const coats[] = {"Sky", "Sunshine", "Midnight", "Orange Cream
 static const char *const patterns[] = {"Spotted", "Calico", "Patched", "Stripped", "None"};
 static const char *const noses[] = {"button", "triangle", "half-moon", "rounded", "nostrils", "rectangle"};
 static const char *const eyes[] = {"wonder", "shock", "annoyed", "side-eye", "focused", "gleaming", "dead", "twitchy", "XD", "glee"};
+static_assert(sizeof(coats) / sizeof(*coats) == coatCount &&
+              sizeof(patterns) / sizeof(*patterns) == patternCount &&
+              sizeof(noses) / sizeof(*noses) == noseCount &&
+              sizeof(eyes) / sizeof(*eyes) == eyeCount, "Petopia artwork indices changed");
 static unsigned coat, pattern, nose, eye;
 
 // Version 1 stores the four trait indices in the order of the tables above.
@@ -49,8 +54,9 @@ static bool mountCard() {
   return mounted;
 }
 
-static void releaseLayers() {
-  for (auto &layer : layers) {
+static void releaseLayers(Layer (&catLayers)[4]) {
+  for (auto &layer : catLayers) {
+    if (layer.pixels) lv_img_cache_invalidate_src(&layer.image);
     heap_caps_free(layer.pixels);
     layer = Layer{};
   }
@@ -84,17 +90,18 @@ static const char *loadLayer(Layer &layer, const String &stem) {
   return nullptr;
 }
 
-static const char *loadCat(String &failedFile) {
+static const char *loadCat(CatAppearance traits, Layer (&catLayers)[4], String &failedFile) {
   if (!mountCard()) return "Card unavailable";
   // The base coat keeps spaces. The artwork pack uses hyphens in pattern filenames.
-  const char *patternCoat = !strcmp(coats[coat], "Orange Cream") ? "Orange-Cream" : coats[coat];
-  String stems[] = {coats[coat], String(patterns[pattern]) + "-" + patternCoat + "-on-body",
-                    String(noses[nose]) + "-on-body", String(eyes[eye]) + "-on-body"};
+  const char *coatName = coats[traits.coat];
+  const char *patternCoat = !strcmp(coatName, "Orange Cream") ? "Orange-Cream" : coatName;
+  String stems[] = {coatName, String(patterns[traits.pattern]) + "-" + patternCoat + "-on-body",
+                    String(noses[traits.nose]) + "-on-body", String(eyes[traits.eye]) + "-on-body"};
   for (unsigned i = 0; i < 4; ++i) {
-    if (i == 1 && !strcmp(patterns[pattern], "None")) continue;
-    if (const char *error = loadLayer(layers[i], stems[i])) {
+    if (i == 1 && !strcmp(patterns[traits.pattern], "None")) continue;
+    if (const char *error = loadLayer(catLayers[i], stems[i])) {
       failedFile = stems[i] + ".pet";
-      releaseLayers();
+      releaseLayers(catLayers);
       SD_MMC.end();
       mounted = false;
       return error;
@@ -115,7 +122,7 @@ static void showPetopiaTest() {
   clearPage(PREVIEW);
   label("Petopia", 24, 200);
   String failedFile;
-  const char *error = loadCat(failedFile);
+  const char *error = loadCat({uint8_t(coat), uint8_t(pattern), uint8_t(nose), uint8_t(eye)}, layers, failedFile);
   if (error) {
     auto *cat = lv_img_create(lv_scr_act());
     lv_img_set_src(cat, &PETOPIA_TEST_CAT);
@@ -136,7 +143,7 @@ static void showPetopiaTest() {
       lv_obj_set_pos(img, layer.x, layer.y);
     }
     // Release the card buffers when this screen is torn down.
-    lv_obj_add_event_cb(art, [](lv_event_t*) { releaseLayers(); }, LV_EVENT_DELETE, nullptr);
+    lv_obj_add_event_cb(art, [](lv_event_t*) { releaseLayers(layers); }, LV_EVENT_DELETE, nullptr);
   }
   choice(coats, coat, -80, 283, [](lv_event_t*) { coat = (coat+1) % (sizeof(coats)/sizeof(*coats)); showPetopiaTest(); });
   choice(patterns, pattern, 80, 283, [](lv_event_t*) { pattern = (pattern+1) % (sizeof(patterns)/sizeof(*patterns)); showPetopiaTest(); });

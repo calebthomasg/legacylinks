@@ -91,7 +91,7 @@ static bool retryStoredNetwork(){
 }
 static Page page=OPEN;
 static void startRadio();static void showOpen();static void showDashboard();static void showSettings();static void showNetworks();static void showPassword();static void showUpdates();static void showLocalUpdates();static void showSignal();static void refreshSignal();
-static void showConnectionStatus();static void showPetopiaTest();
+static void showConnectionStatus();static void showPetopia();
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -410,6 +410,7 @@ static void startRadio(){
  String ssid,password;credentialsVerified=loadNetwork(ssid,password);if(credentialsVerified)requestConnection(ssid,password,false,true);else wifiMessage="Choose a network to connect.";
 }
 #include "Petopia.h"
+#include "PetopiaFirstVisit.h"
 #include "DeviceSettings.h"
 
 static void serviceNetwork(uint32_t now){

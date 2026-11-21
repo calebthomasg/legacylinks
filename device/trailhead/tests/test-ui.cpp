@@ -2,20 +2,27 @@
 #include <fstream>
 #include <cassert>
 #include <cstdio>
+#include <array>
 #include "OpeningArtwork.h"
 enum Page {OPEN,DASH,SETTINGS,NETWORKS,PREVIEW,CONNECTION,CLOCK_VIEW};
 static Page page=OPEN;static bool scanRequested=false,cloudAvailable=true;
 static lv_obj_t *statusIcon=nullptr,*statusGlyph=nullptr,*statusLabel=nullptr,*passwordBox=nullptr,*networkList=nullptr,*image=nullptr;
+static void showPetopia();
 static void showDashboard();static void showConnectionStatus();static void showDialPreview(int);static void showSettings();static void showNetworks(){}static void showUpdates(){}static void showSignal(){}static void showDiagnostics(){}static void cancelNetwork(){}struct Prefs {
  uint8_t stored[5]{};
  size_t length=0;
+ std::array<uint8_t,38> starter{};
+ size_t starterLength=0;
  bool failWrite=false;
  void remove(const char*){}
- size_t getBytesLength(const char *key){assert(!strcmp(key,"petCat"));return length;}
- size_t getBytes(const char*,void *dst,size_t n){assert(n==length);memcpy(dst,stored,n);return n;}
+ size_t getBytesLength(const char *key){return strcmp(key,"petCat") ? starterLength : length;}
+ size_t getBytes(const char *key,void *dst,size_t n){assert(n==getBytesLength(key));memcpy(dst,strcmp(key,"petCat") ? starter.data() : stored,n);return n;}
  size_t putBytes(const char *key,const void *src,size_t n){
-   assert(!strcmp(key,"petCat") && n==sizeof(stored));
    if(failWrite)return 0;
+   if(!strcmp(key,"starterPet")){
+     assert(n==starter.size());memcpy(starter.data(),src,n);starterLength=n;return n;
+   }
+   assert(!strcmp(key,"petCat") && n==sizeof(stored));
    memcpy(stored,src,n);length=n;return n;
  }
 } prefs;static bool credentialsVerified=false;static const char *wifiMessage="";
@@ -28,6 +35,11 @@ static lv_img_dsc_t artwork={};
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=480*480*2;artwork.data=OPENING_PIXELS;image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "Petopia.h"
 #include "DialUI.h"
+static uint32_t esp_random() {
+  static uint32_t deterministic = 41;
+  return deterministic = deterministic * 1664525U + 1013904223U;
+}
+#include "PetopiaFirstVisit.h"
 static void homeValues(char *date,char *clock,char *battery){strcpy(date,"Thu Nov 19");strcpy(clock,"11:45");strcpy(battery,LV_SYMBOL_BATTERY_3);}
 static int visitedRow=-1;
 static void settingsAction(unsigned index){visitedRow=index;clearPage(PREVIEW);}
@@ -38,6 +50,64 @@ void readTouch(lv_indev_drv_t*,lv_indev_data_t*d){d->point=touchPoint;d->state=d
 void flush(lv_disp_drv_t*d,const lv_area_t*a,lv_color_t*c){for(int y=a->y1;y<=a->y2;y++)for(int x=a->x1;x<=a->x2;x++)pixels[y*480+x]=(c++)->full;lv_disp_flush_ready(d);}
 void step(int x,int y,bool pressed,int time=40){touchPoint={lv_coord_t(x),lv_coord_t(y)};down=pressed;for(int i=0;i<time;i+=5){lv_tick_inc(5);lv_timer_handler();}}
 void shot(const char*name){lv_obj_update_layout(lv_scr_act());lv_refr_now(nullptr);std::ofstream o(name,std::ios::binary);o<<"P6\n480 480\n255\n";for(auto v:pixels){char rgb[3]={char(((v>>11)&31)*255/31),char(((v>>5)&63)*255/63),char((v&31)*255/31)};o.write(rgb,3);}}
+static void tap(int x, int y) { step(x,y,true,75); step(x,y,false,75); }
+
+static void testFirstVisit() {
+ using namespace petopia;
+ showDashboard();
+ tap(382,382);
+ step(382,382,false,2000);
+ assert(!adoption.adopted() && lineIndex==0 && allocated==1);
+ shot("petopia-welcome.ppm");
+ for(unsigned i=0;i<sizeof(welcomeLines)/sizeof(*welcomeLines);++i) tap(240,367);
+ assert(allocated==4 || allocated==5);
+ shot("petopia-overview.ppm");
+ tap(240,268);
+ shot("petopia-carousel.ppm");
+ const auto initialPosition=carousel.position();
+ const auto *scene=lv_obj_get_child(lv_scr_act(),0);
+ tap(397,207);
+ step(397,207,false,300);
+ assert(carousel.position()==initialPosition+1 && !outgoingCat);
+ assert(scene==lv_obj_get_child(lv_scr_act(),0));
+ tap(82,207);
+ step(82,207,false,300);
+ assert(carousel.position()==initialPosition);
+ tap(240,362); assert(carousel.confirming());
+ shot("petopia-confirm.ppm");
+ tap(184,414); assert(!carousel.confirming() && carousel.position()==initialPosition);
+ tap(240,362); assert(carousel.confirming());
+ prefs.failWrite=true;
+ tap(294,414); assert(carousel.confirming() && !adoption.adopted() && !prefs.starterLength);
+ prefs.failWrite=false;
+ tap(294,414); assert(adoption.adopted() && adoption.pet().hasStarterFood);
+ const auto savedId=adoption.pet().id;
+ char savedName[nameCapacity];
+ strcpy(savedName,adoption.pet().name);
+ shot("petopia-adopted.ppm");
+ tap(240,370);
+ tap(240,370);
+ shot("petopia-home.ppm");
+ showDashboard();
+ assert(allocated==0);
+ adoption=StarterAdoption{};
+ tap(382,382);
+ assert(adoption.pet().id==savedId && !strcmp(adoption.pet().name,savedName) &&
+        adoption.pet().hasStarterFood);
+ prefs.failWrite=true;
+ tap(240,270); assert(adoption.pet().hasStarterFood);
+ prefs.failWrite=false;
+ tap(240,270); assert(!adoption.pet().hasStarterFood);
+ tap(240,270); assert(!adoption.pet().hasStarterFood);
+ showDashboard();
+ adoption=StarterAdoption{};
+ tap(382,382);
+ assert(adoption.pet().id==savedId && !adoption.pet().hasStarterFood);
+ tap(56,229);
+ assert(page==DASH && allocated==0);
+ printf("PASS: first visit, two-way carousel, cancellation, save retry, first feeding and restart persistence\n");
+}
+
 int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;lv_disp_draw_buf_init(&db,buf,nullptr,480*40);static lv_disp_drv_t d;lv_disp_drv_init(&d);d.hor_res=480;d.ver_res=480;d.draw_buf=&db;d.flush_cb=flush;lv_disp_drv_register(&d);static lv_indev_drv_t in;lv_indev_drv_init(&in);in.type=LV_INDEV_TYPE_POINTER;in.read_cb=readTouch;lv_indev_drv_register(&in);
  showOpen();
  step(240,400,false);
@@ -90,7 +160,7 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  step(30,239,false,120);
  step(30,239,true);step(30,239,false);assert(page==DASH);
  step(40,240,true);step(40,240,false);assert(page==CONNECTION);
- showDashboard();step(382,382,true);step(382,382,false);assert(page==PREVIEW && allocated==4);
+ showDashboard();showPetopiaTest();assert(page==PREVIEW && allocated==4);
  shot("petopia.ppm");step(160,306,true);step(160,306,false);assert(petopia::coat==1 && allocated==4);
  for(unsigned i=0;i<5;i++){step(320,306,true);step(320,306,false);assert(petopia::pattern==(i+1)%5);assert(allocated==(petopia::pattern==4?3:4));}
  // Exercise every packaged coat/pattern combination, including wraparound.
@@ -108,7 +178,7 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  assert(std::rename(path.c_str(),backup.c_str())==0);
  step(160,306,true);step(160,306,false);assert(petopia::coat==2 && allocated==0);
  step(312,411,true);step(312,411,false);assert(page==DASH);
- step(382,382,true);step(382,382,false);assert(page==PREVIEW && allocated==0);
+ showPetopiaTest();assert(page==PREVIEW && allocated==0);
  step(168,411,true);step(168,411,false);assert(!allocated);
  step(160,306,true);step(160,306,false);assert(petopia::coat==3 && allocated==4);
  assert(std::rename(backup.c_str(),path.c_str())==0);
@@ -132,5 +202,6 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  petopia::coat=petopia::pattern=petopia::nose=petopia::eye=0;
  petopia::restoreCat();assert(!petopia::coat && !petopia::pattern && !petopia::nose && !petopia::eye);
  for(int i=0;i<100;i++){showPetopiaTest();showDashboard();assert(allocated==0);}
+ if(getenv("PETOPIA_SCENES")) testFirstVisit();
  for(int i=0;i<100;i++){showOpen();showDashboard();}lv_mem_monitor_t m;lv_mem_monitor(&m);assert(m.free_size>8000);printf("PASS: fixed Home shortcuts, off-center row tap, swipe, center fade, back position, Wi-Fi and Petopia, 100 screen cycles; %u bytes free\n",unsigned(m.free_size));
 }
