@@ -1,36 +1,41 @@
-name: Stage Petopia 0.1.21 OTA payload
+name: Verify Petopia 0.1.21 on the public OTA endpoint
 on:
   pull_request:
     branches: [trailhead/petopia-first-visit]
     paths: [.github/workflows/stage-petopia-ota-0.1.21.yml]
-permissions:
-  actions: read
-  contents: write
+permissions: {}
 jobs:
-  stage:
+  verify:
     if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'trailhead/stage-petopia-ota-0.1.21'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: 65f9ddad2293b7ca3150095ec1f2810d7cb9258c
-      - uses: actions/download-artifact@v4
-        with:
-          name: dinglehopper-0.1.21-local-upload
-          path: ${{ runner.temp }}/petopia-firmware
-          github-token: ${{ github.token }}
-          run-id: '44874569418'
-      - name: Verify and stage the exact test firmware
+      - name: Verify the public catalog and firmware
         shell: bash
         run: |
-          set -euo pipefail
-          binary="$RUNNER_TEMP/petopia-firmware/trailhead-0.1.21-app.bin"
-          echo "9cc8c9bf0296e43f96788a2dded3d5677a53e27df0d978d3a364e72e74d079dc  $binary" | sha256sum -c -
-          node scripts/publish-firmware.mjs test 0.1.21 "$binary" 'Petopia first visit and starter snack. Install the v0.1.21 Petopia artwork pack on microSD.'
-          node --test scripts/test-firmware.mjs
-          git add -- public/firmware/trailhead/test.json public/firmware/trailhead/releases/0.1.21/trailhead-0.1.21-app.bin
-          git diff --cached --check
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Publish Dinglehopper v0.1.21 to the OTA test channel'
-          git push origin HEAD:refs/heads/trailhead/ota-petopia-payload-0.1.21
-          git rev-parse HEAD
+          python3 - <<'PY'
+          import hashlib, json, time, urllib.request
+          manifest = "https://www.legacylinks.io/firmware/trailhead/test.json"
+          expected = "https://www.legacylinks.io/firmware/trailhead/releases/0.1.21/trailhead-0.1.21-app.bin"
+          for attempt in range(24):
+              try:
+                  with urllib.request.urlopen(manifest, timeout=10) as response:
+                      catalog = json.load(response)
+                  release = catalog["release"]
+                  if catalog["channel"] != "test" or release["version"] != "0.1.21" or release["url"] != expected:
+                      raise ValueError("Petopia 0.1.21 test catalog not live yet")
+                  with urllib.request.urlopen(expected, timeout=12) as response:
+                      data = response.read(4194305)
+                  if len(data) != 2278224 or len(data) != release["size"]:
+                      raise ValueError("Hosted binary size mismatch")
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest != "9cc8c9bf0296e43f96788a2dded3d5677a53e27df0d978d3a364e72e74d079dc" or digest != release["sha256"]:
+                      raise ValueError("Hosted binary checksum mismatch")
+                  print(f"Verified live Petopia v0.1.21 test catalog and {len(data)}-byte firmware, SHA-256 {digest}", flush=True)
+                  break
+              except (OSError, ValueError, KeyError) as error:
+                  print(f"Attempt {attempt + 1}: {error}", flush=True)
+                  if attempt == 23:
+                      raise
+                  time.sleep(8)
+          PY
