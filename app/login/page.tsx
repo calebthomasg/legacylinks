@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { AuthVerification, siteKey } from "@/components/AuthVerification";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
@@ -15,6 +16,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -24,15 +27,19 @@ export default function LoginPage() {
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isLoading || (siteKey && !captchaToken)) return;
     setIsLoading(true);
     setMessage("");
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: { captchaToken: captchaToken || undefined },
     });
 
     if (error) {
+      setCaptchaToken("");
+      setAttempt((current) => current + 1);
       setMessage(error.message);
       setIsLoading(false);
       return;
@@ -93,11 +100,13 @@ export default function LoginPage() {
             />
           </div>
 
+          <AuthVerification key={attempt} onToken={setCaptchaToken} />
+
           {message && (
             <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
           )}
 
-          <button type="submit" disabled={isLoading} className="button-primary w-full">
+          <button type="submit" disabled={isLoading || Boolean(siteKey && !captchaToken)} className="button-primary w-full">
             {isLoading ? "Logging in..." : "Log in"}
           </button>
         </form>
