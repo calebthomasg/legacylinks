@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AuthVerification, siteKey } from "@/components/AuthVerification";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
@@ -16,6 +17,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -25,6 +28,7 @@ export default function SignupPage() {
 
   async function handleSignup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isLoading || (siteKey && !captchaToken)) return;
     setIsLoading(true);
     setMessage("");
 
@@ -32,6 +36,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        captchaToken: captchaToken || undefined,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -40,6 +45,8 @@ export default function SignupPage() {
     });
 
     if (error) {
+      setCaptchaToken("");
+      setAttempt((current) => current + 1);
       setMessage(error.message);
       setIsLoading(false);
       return;
@@ -117,11 +124,13 @@ export default function SignupPage() {
             />
           </div>
 
+          <AuthVerification key={attempt} onToken={setCaptchaToken} />
+
           {message && (
             <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
           )}
 
-          <button type="submit" disabled={isLoading} className="button-primary w-full">
+          <button type="submit" disabled={isLoading || Boolean(siteKey && !captchaToken)} className="button-primary w-full">
             {isLoading ? "Creating account..." : "Create account"}
           </button>
         </form>
