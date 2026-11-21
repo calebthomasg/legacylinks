@@ -2,6 +2,7 @@
 #include <SD_MMC.h>
 #include "PetopiaTestAssets.h"
 #include "PetopiaAdoption.h"
+#include "PetopiaPackSD.h"
 
 namespace petopia {
 constexpr int canvas = 240;
@@ -66,8 +67,8 @@ static uint16_t little16(const uint8_t *p) {
   return p[0] | (uint16_t(p[1]) << 8);
 }
 
-static const char *loadLayer(Layer &layer, const String &stem) {
-  File file = SD_MMC.open(String("/trailhead/petopia/") + stem + ".pet", FILE_READ);
+static const char *loadLayer(Layer &layer, const String &stem, bool usePack) {
+  ArtworkFile file(stem + ".pet", "/trailhead/petopia/", usePack);
   if (!file) return "Layer missing or unreadable";
   uint8_t header[12];
   if (file.read(header, sizeof(header)) != sizeof(header) || memcmp(header, "PET1", 4))
@@ -90,8 +91,8 @@ static const char *loadLayer(Layer &layer, const String &stem) {
   return nullptr;
 }
 
-static const char *loadCat(CatAppearance traits, Layer (&catLayers)[4], String &failedFile) {
-  if (!mountCard()) return "Card unavailable";
+static const char *loadCat(CatAppearance traits, Layer (&catLayers)[4], String &failedFile, bool usePack = true) {
+  if (petopiaAssetsBusy || !mountCard()) return "Card unavailable";
   // The base coat keeps spaces. The artwork pack uses hyphens in pattern filenames.
   const char *coatName = coats[traits.coat];
   const char *patternCoat = !strcmp(coatName, "Orange Cream") ? "Orange-Cream" : coatName;
@@ -99,7 +100,7 @@ static const char *loadCat(CatAppearance traits, Layer (&catLayers)[4], String &
                     String(noses[traits.nose]) + "-on-body", String(eyes[traits.eye]) + "-on-body"};
   for (unsigned i = 0; i < 4; ++i) {
     if (i == 1 && !strcmp(patterns[traits.pattern], "None")) continue;
-    if (const char *error = loadLayer(catLayers[i], stems[i])) {
+    if (const char *error = loadLayer(catLayers[i], stems[i], usePack)) {
       failedFile = stems[i] + ".pet";
       releaseLayers(catLayers);
       SD_MMC.end();
@@ -122,7 +123,7 @@ static void showPetopiaTest() {
   clearPage(PREVIEW);
   label("Petopia", 24, 200);
   String failedFile;
-  const char *error = loadCat({uint8_t(coat), uint8_t(pattern), uint8_t(nose), uint8_t(eye)}, layers, failedFile);
+  const char *error = loadCat({uint8_t(coat), uint8_t(pattern), uint8_t(nose), uint8_t(eye)}, layers, failedFile, false);
   if (error) {
     auto *cat = lv_img_create(lv_scr_act());
     lv_img_set_src(cat, &PETOPIA_TEST_CAT);

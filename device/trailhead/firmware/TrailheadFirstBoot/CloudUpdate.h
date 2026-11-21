@@ -9,7 +9,7 @@
 #include <mbedtls/sha256.h>
 #include <cJSON.h>
 #include "ReleasePolicy.h"
-#define TRAILHEAD_VERSION "0.1.21"
+#define TRAILHEAD_VERSION "0.1.22"
 static const char *CATALOG_URL="https://www.legacylinks.io/firmware/trailhead/test.json";
 struct CloudRelease { char version[24],url[200],sha256[65],notes[161];uint32_t size; };
 struct CloudEvent { bool done,available,restart; char text[160];CloudRelease release; };
@@ -52,6 +52,18 @@ static esp_http_client_handle_t openCloudHTTP(const char *url){
  return client;
 }
 static void closeCloudHTTP(esp_http_client_handle_t client){esp_http_client_close(client);esp_http_client_cleanup(client);}
+static bool readCloudIndex(esp_http_client_handle_t client, char *body, size_t capacity) {
+ const int64_t length = esp_http_client_get_content_length(client);
+ if (length <= 0 || uint64_t(length) >= capacity) return false;
+ int used = 0;
+ while (used < length) {
+  const int count = esp_http_client_read(client, body + used, length - used);
+  if (count <= 0) return false;
+  used += count;
+ }
+ body[used] = 0;
+ return true;
+}
 static bool downloadCloudRelease(const CloudRelease &r){
  const esp_partition_t *next=esp_ota_get_next_update_partition(nullptr),*running=esp_ota_get_running_partition();
  if(!next||!running||next->size!=0x400000||running->size!=0x400000||!((next->address==0x10000&&running->address==0x410000)||(next->address==0x410000&&running->address==0x10000))||r.size>next->size){cloudPost("Incompatible storage layout. Use USB recovery.",true);return false;}
@@ -86,9 +98,10 @@ static void cloudWorker(void*){
  if(job.install){downloadCloudRelease(job.release);vTaskDelete(nullptr);return;}
  auto client=openCloudHTTP(CATALOG_URL);
  if(!client){cloudPost("Cannot reach update catalog. Check internet or try later.",true);vTaskDelete(nullptr);return;}
- int64_t length=esp_http_client_get_content_length(client);char body[4097];int used=0;bool ok=length>0&&length<=4096;
- while(ok&&used<length){int n=esp_http_client_read(client,body+used,(int)length-used);if(n<=0){ok=false;break;}used+=n;}
- closeCloudHTTP(client);body[used]=0;CloudRelease release={};bool empty=false;
+ char body[4097];
+ const bool ok = readCloudIndex(client, body, sizeof(body));
+ closeCloudHTTP(client);
+ CloudRelease release={};bool empty=false;
  if(!ok||!parseRelease(body,release,empty))cloudPost("Invalid or incompatible update catalog.",true);
  else if(empty)cloudPost("No release published on test channel.",true);
  else if(newerVersion(release.version,TRAILHEAD_VERSION))cloudPost("New update available",true,&release);

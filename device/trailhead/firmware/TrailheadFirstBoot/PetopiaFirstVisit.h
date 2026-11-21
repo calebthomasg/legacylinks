@@ -20,6 +20,7 @@ static lv_obj_t *carouselControls;
 static lv_obj_t *starterFoodButton;
 static unsigned lineIndex;
 
+static void showAssets();
 static void showWelcome();
 static void showOverview();
 static void showCarousel();
@@ -71,7 +72,7 @@ static lv_obj_t *message(lv_obj_t *parent, const char *text, int x, int y, int w
 }
 
 static void errorScreen(const char *text, void (*retry)(), bool cardRelated) {
-  clearPage(PREVIEW);
+  clearPage(PETOPIA_PLAY);
   navBackground();
   navTitle(7, "Petopia");
   message(lv_scr_act(), text, 86, 154, 308);
@@ -79,7 +80,10 @@ static void errorScreen(const char *text, void (*retry)(), bool cardRelated) {
   retryAction = retry;
   control(lv_scr_act(), "Retry", 176, 234, 128, [](lv_event_t *) { retryAction(); });
   if (cardRelated)
-    control(lv_scr_act(), "Cat preview", 163, 297, 154, [](lv_event_t *) { showPetopiaTest(); });
+    control(lv_scr_act(), "Artwork updates", 153, 297, 174, [](lv_event_t *) {
+      assetRepairRequested = true;
+      showAssets();
+    });
   backArrow([](lv_event_t *) { showDashboard(); }, navSand());
 }
 
@@ -89,11 +93,11 @@ struct SceneImage {
 };
 
 static bool background(const char *fileName, void (*retry)()) {
-  clearPage(PREVIEW);
+  clearPage(PETOPIA_PLAY);
   bool loaded = false;
   auto *scene = new (std::nothrow) SceneImage;
   if (scene && mountCard()) {
-    File file = SD_MMC.open(String("/trailhead/petopia/scenes/") + fileName + ".rgb565", FILE_READ);
+    ArtworkFile file(String(fileName) + ".rgb565", "/trailhead/petopia/scenes/");
     if (file && file.size() == sceneSize) {
       scene->pixels = static_cast<uint8_t *>(heap_caps_malloc(sceneSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
       loaded = scene->pixels && file.read(scene->pixels, sceneSize) == sceneSize;
@@ -106,7 +110,7 @@ static bool background(const char *fileName, void (*retry)()) {
     }
     if (mounted) SD_MMC.end();
     mounted = false;
-    errorScreen("Petopia artwork unavailable. Check the microSD card and install the Petopia artwork pack.",
+    errorScreen("Petopia artwork could not be read. Open Artwork updates to retry.",
                 retry, true);
     return false;
   }
@@ -230,7 +234,7 @@ static void showWelcome() {
 static void showOverview() {
   if (!background("overview", showOverview)) return;
   if (!drawCat(lv_scr_act(), carousel.visibleCat(), 275, 348, 75)) {
-    errorScreen("Cat artwork unavailable. Check the Petopia artwork pack.", showOverview, true);
+    errorScreen("Cat artwork unavailable. Open Artwork updates to retry.", showOverview, true);
     return;
   }
   control(lv_scr_act(), "Meet the cats", 155, 245, 170, [](lv_event_t *) { showCarousel(); });
@@ -314,7 +318,7 @@ static void showCarousel() {
   catViewport = surface(lv_scr_act(), 0, 97, displaySize, 220);
   displayedCat = drawCat(catViewport, carousel.visibleCat(), 137, 0, 220);
   if (!displayedCat) {
-    errorScreen("Cat artwork unavailable. Check the Petopia artwork pack.", showCarousel, true);
+    errorScreen("Cat artwork unavailable. Open Artwork updates to retry.", showCarousel, true);
     return;
   }
   carouselControls = surface(lv_scr_act(), 0, 0, displaySize, displaySize);
@@ -339,7 +343,7 @@ static void showPetHome() {
   if (!background("home", showPetHome)) return;
   const auto &pet = adoption.pet();
   if (!drawCat(lv_scr_act(), pet.appearance, 154, 305, 114)) {
-    errorScreen("Cat artwork unavailable. Check the Petopia artwork pack.", showPetHome, true);
+    errorScreen("Cat artwork unavailable. Open Artwork updates to retry.", showPetHome, true);
     return;
   }
   auto *title = speech(pet.name, 135, 48);
@@ -364,6 +368,15 @@ static void showPetHome() {
 
 static void showPetopia() {
   using namespace petopia;
+  if (petopiaAssetsBusy || !mountCard()) {
+    showAssets();
+    return;
+  }
+  restoreAssetPack();
+  if (activePackSlot < 0) {
+    showAssets();
+    return;
+  }
   StarterRecord record{};
   const size_t length = prefs.getBytesLength(starterKey);
   if (length) {

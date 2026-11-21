@@ -31,7 +31,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -91,6 +91,11 @@ static bool retryStoredNetwork(){
 }
 static Page page=OPEN;
 static void startRadio();static void showOpen();static void showDashboard();static void showSettings();static void showNetworks();static void showPassword();static void showUpdates();static void showLocalUpdates();static void showSignal();static void refreshSignal();
+namespace petopia {
+ static const char *artworkUpdateSummary();
+ static bool artworkInstallBusy();
+ static void checkArtworkNow();
+}
 static void showConnectionStatus();static void showPetopia();
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
@@ -319,6 +324,10 @@ static void showLocalUpdates(){
   navLabel("Connect to Wi-Fi to use local upload.",181,310,&nav_text);
   return;
  }
+ if(petopia::artworkInstallBusy()){
+  navLabel("Petopia artwork is updating. Try local upload again shortly.",157,300,&nav_text);
+  return;
+ }
  if(otaEnabled){
   String address=String("http://")+WiFi.localIP().toString()+"/";
   String login=String("User: admin\nPassword: ")+otaPassword;
@@ -333,7 +342,7 @@ static void showLocalUpdates(){
   otaEnabled=!otaEnabled;otaStarted=millis();showLocalUpdates();
  },255);
 }
-static bool authenticated(){return !cloudBusy&&otaEnabled&&WiFi.status()==WL_CONNECTED&&server.authenticate("admin",otaPassword.c_str());}
+static bool authenticated(){return !cloudBusy&&!petopia::artworkInstallBusy()&&otaEnabled&&WiFi.status()==WL_CONNECTED&&server.authenticate("admin",otaPassword.c_str());}
 static void initOTA(){
  char pass[17],token[33];snprintf(pass,sizeof(pass),"%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());otaPassword=pass;
  snprintf(token,sizeof(token),"%08lx%08lx%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random(),(unsigned long)esp_random(),(unsigned long)esp_random());otaToken=token;
@@ -359,11 +368,12 @@ document.getElementById('upload').onclick=()=>{
  });server.begin();
 }
 
-static lv_obj_t *cloudProgress=nullptr;
+static lv_obj_t *cloudProgress=nullptr, *cloudArtworkStatus=nullptr;
 static void showUpdates(){
  clearPage(UPDATES);navBackground();navTitle(4,"Firmware Updates");
  navLabel("Installed v" TRAILHEAD_VERSION " / test",83,290,&lv_font_montserrat_16);
  cloudProgress=navLabel(cloudMessage,119,320,&nav_text);
+ cloudArtworkStatus=nullptr;
  if(cloudBusy){
   navLabel("Keep device power connected",279,305,&nav_text);
   return;
@@ -373,7 +383,8 @@ static void showUpdates(){
  lv_obj_move_foreground(cloudProgress);
  if(cloudAvailable){
   navMenuRow(menu,"Download & install",[](lv_event_t*){
-   if(startCloudJob(true))otaEnabled=false;
+   if(petopia::artworkInstallBusy())snprintf(cloudMessage,sizeof(cloudMessage),"Artwork is updating. Try again shortly.");
+   else if(startCloudJob(true))otaEnabled=false;
    showUpdates();
   });
   char version[48];
@@ -382,9 +393,11 @@ static void showUpdates(){
   navLabel(cloudRelease.notes,346,270,&lv_font_montserrat_16);
  }else{
   navMenuRow(menu,"Check for updates",[](lv_event_t*){
+   petopia::checkArtworkNow();
    startCloudJob(false);showUpdates();
   });
  }
+ cloudArtworkStatus=navLabel(petopia::artworkUpdateSummary(),400,230,&lv_font_montserrat_14);
  navMenuRow(menu,"Local upload",[](lv_event_t*){showLocalUpdates();});
  positionMenu(menu);
  backArrow([](lv_event_t*){showSettings();},navSand());
@@ -396,7 +409,7 @@ static void serviceCloudUpdates(uint32_t now){
  static bool wasOnline=false;static uint32_t onlineAt=0,lastCheck=0;static bool checked=false;
  bool online=WiFi.status()==WL_CONNECTED;
  if(online&&!wasOnline){onlineAt=now;checked=false;}wasOnline=online;
- if(online&&time(nullptr)>=firstValidClockTime&&!cloudBusy&&!otaEnabled&&!uploadAllowed&&!rebootPending&&!connecting&&!scanning&&!scheduledAction&&((!checked&&now-onlineAt>10000)||(checked&&now-lastCheck>21600000))){
+ if(online&&time(nullptr)>=firstValidClockTime&&!petopia::artworkInstallBusy()&&!cloudBusy&&!otaEnabled&&!uploadAllowed&&!rebootPending&&!connecting&&!scanning&&!scheduledAction&&((!checked&&now-onlineAt>10000)||(checked&&now-lastCheck>21600000))){
   if(startCloudJob(false)){checked=true;lastCheck=now;if(page==UPDATES)showUpdates();}
  }
 }
@@ -411,6 +424,7 @@ static void startRadio(){
 }
 #include "Petopia.h"
 #include "PetopiaFirstVisit.h"
+#include "PetopiaAssets.h"
 #include "DeviceSettings.h"
 
 static void serviceNetwork(uint32_t now){
@@ -480,6 +494,8 @@ void loop(){
  if(!cloudBusy)serviceNetwork(now);
  serviceHomeClock(now);
  serviceCloudUpdates(now);
+ petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
+ if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
  if(browsingNetworks && !cloudBusy && !otaEnabled && !scanning && !connecting && !scheduledAction && now-scanCompletedAt>=15000)scanRequested=true;
  serviceRequestedScan(browsingNetworks);
  if(now-lastStatus>1000){lastStatus=now;if(page==CONNECTION&&statusLabel)refreshConnectionStatus();if(page==DASH || page==CLOCK_VIEW)paintDial();if(page==SIGNAL)refreshSignal();}

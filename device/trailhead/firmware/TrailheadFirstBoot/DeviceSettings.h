@@ -23,7 +23,9 @@ static void settingsAction(unsigned i){
   clearPage(PREVIEW);navBackground();navTitle(4,settingsNames[i]);
   if(i==2){
     char used[64],freeSpace[64];
-    if(petopia::mountCard()){
+    if(petopia::petopiaAssetsBusy){
+      navLabel("Petopia artwork is updating",212,350,&nav_text);
+    }else if(petopia::mountCard()){
       uint64_t total=SD_MMC.totalBytes(),taken=SD_MMC.usedBytes();
       if(total && taken<=total){
         snprintf(used,sizeof(used),"%.2f GB used",double(taken)/1e9);

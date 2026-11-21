@@ -3,8 +3,10 @@
 #include <cassert>
 #include <cstdio>
 #include <array>
+#include <map>
+#include <vector>
 #include "OpeningArtwork.h"
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PREVIEW,CONNECTION,CLOCK_VIEW};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PREVIEW,CONNECTION,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS};
 static Page page=OPEN;static bool scanRequested=false,cloudAvailable=true;
 static lv_obj_t *statusIcon=nullptr,*statusGlyph=nullptr,*statusLabel=nullptr,*passwordBox=nullptr,*networkList=nullptr,*image=nullptr;
 static void showPetopia();
@@ -14,17 +16,33 @@ static void showDashboard();static void showConnectionStatus();static void showD
  std::array<uint8_t,38> starter{};
  size_t starterLength=0;
  bool failWrite=false;
- void remove(const char*){}
- size_t getBytesLength(const char *key){return strcmp(key,"petCat") ? starterLength : length;}
- size_t getBytes(const char *key,void *dst,size_t n){assert(n==getBytesLength(key));memcpy(dst,strcmp(key,"petCat") ? starter.data() : stored,n);return n;}
+ std::map<std::string,std::vector<uint8_t>> packs;
+ bool remove(const char *key){return packs.erase(key)>0;}
+ size_t getBytesLength(const char *key){
+   if(!strcmp(key,"petCat"))return length;
+   if(!strcmp(key,"starterPet"))return starterLength;
+   auto it=packs.find(key);return it!=packs.end()?it->second.size():0;
+ }
+ size_t getBytes(const char *key,void *dst,size_t n){
+   assert(n==getBytesLength(key));
+   if(!strcmp(key,"petCat"))memcpy(dst,stored,n);
+   else if(!strcmp(key,"starterPet"))memcpy(dst,starter.data(),n);
+   else memcpy(dst,packs.at(key).data(),n);
+   return n;
+ }
  size_t putBytes(const char *key,const void *src,size_t n){
    if(failWrite)return 0;
    if(!strcmp(key,"starterPet")){
      assert(n==starter.size());memcpy(starter.data(),src,n);starterLength=n;return n;
    }
-   assert(!strcmp(key,"petCat") && n==sizeof(stored));
-   memcpy(stored,src,n);length=n;return n;
+   if(!strcmp(key,"petCat")){
+     assert(n==sizeof(stored));memcpy(stored,src,n);length=n;return n;
+   }
+   const auto *bytes=static_cast<const uint8_t *>(src);
+   packs[key]=std::vector<uint8_t>(bytes,bytes+n);
+   return n;
  }
+
 } prefs;static bool credentialsVerified=false;static const char *wifiMessage="";
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static lv_obj_t* label(const char *text,int y,int width=330){auto *o=lv_label_create(lv_scr_act());lv_label_set_text(o,text);lv_obj_set_width(o,width);lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(o,blue(),0);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);return o;}
@@ -40,6 +58,7 @@ static uint32_t esp_random() {
   return deterministic = deterministic * 1664525U + 1013904223U;
 }
 #include "PetopiaFirstVisit.h"
+namespace petopia { static void showAssets() { clearPage(PETOPIA_ASSETS); } }
 static void homeValues(char *date,char *clock,char *battery){strcpy(date,"Thu Nov 19");strcpy(clock,"11:45");strcpy(battery,LV_SYMBOL_BATTERY_3);}
 static int visitedRow=-1;
 static void settingsAction(unsigned index){visitedRow=index;clearPage(PREVIEW);}
@@ -51,6 +70,57 @@ void flush(lv_disp_drv_t*d,const lv_area_t*a,lv_color_t*c){for(int y=a->y1;y<=a-
 void step(int x,int y,bool pressed,int time=40){touchPoint={lv_coord_t(x),lv_coord_t(y)};down=pressed;for(int i=0;i<time;i+=5){lv_tick_inc(5);lv_timer_handler();}}
 void shot(const char*name){lv_obj_update_layout(lv_scr_act());lv_refr_now(nullptr);std::ofstream o(name,std::ios::binary);o<<"P6\n480 480\n255\n";for(auto v:pixels){char rgb[3]={char(((v>>11)&31)*255/31),char(((v>>5)&63)*255/63),char((v&31)*255/31)};o.write(rgb,3);}}
 static void tap(int x, int y) { step(x,y,true,75); step(x,y,false,75); }
+
+static void testArtworkInstall() {
+ using namespace petopia;
+ const char *pack=getenv("PETOPIA_PACK");
+ const String previousCard=getenv("PETOPIA_TEST_CARD");
+ const String blank=previousCard+"-blank";
+ std::filesystem::create_directory(blank);
+ setenv("PETOPIA_TEST_CARD",blank.c_str(),1);
+ showPetopia();
+ assert(page==PETOPIA_ASSETS && activePackSlot<0);
+
+ const PackRecord first{artworkFormat,1,uint32_t(std::filesystem::file_size(pack))};
+ auto fetch=[&](bool interrupt, bool failWrite){
+   std::ifstream source(pack,std::ios::binary);
+   File staged=SD_MMC.open(pendingPackPath,FILE_WRITE);
+   unsigned blocks=0;
+   return copyPack(first.size,[&](uint8_t *bytes,size_t size){
+     if(interrupt && blocks++>5)return -1;
+     source.read(reinterpret_cast<char*>(bytes),size);
+     return int(source.gcount());
+   },[&](const uint8_t *bytes,size_t size){
+     if(failWrite)return size_t(0);
+     return staged.write(bytes,size);
+   },[](uint32_t){});
+ };
+ assert(!fetch(true,false));
+ restoreAssetPack();
+ assert(activePackSlot<0 && !prefs.getBytesLength(packKeys[0]));
+ assert(!fetch(false,true));
+ assert(fetch(false,false) && activateAssetPack(first));
+ assert(activePackRecord.revision==1 && activePack.find("title.rgb565"));
+ assert(!fetch(true,false));
+ activePackSlot=-1;
+ restoreAssetPack();
+ assert(activePackRecord.revision==1 && activePackSlot==0);
+ assert(fetch(false,false));
+ const PackRecord second{artworkFormat,2,first.size};
+ prefs.failWrite=true;
+ assert(!activateAssetPack(second) && activePackRecord.revision==1);
+ prefs.failWrite=false;
+ activePackSlot=-1;
+ restoreAssetPack();
+ assert(activePackSlot==0 && activePackRecord.revision==1);
+ assert(fetch(false,false) && activateAssetPack(second));
+ assert(activePackSlot==1 && activePackRecord.revision==2);
+ assert(SD_MMC.remove(packPaths[1]));
+ activePackSlot=-1;
+ restoreAssetPack();
+ assert(activePackSlot==0 && activePackRecord.revision==1);
+ printf("PASS: blank card, interrupted download, failed write, retry, failed activation, restart, and last-working pack fallback\n");
+}
 
 static void testFirstVisit() {
  using namespace petopia;
@@ -204,6 +274,6 @@ int main(){lv_init();static lv_color_t buf[480*40];static lv_disp_draw_buf_t db;
  petopia::coat=petopia::pattern=petopia::nose=petopia::eye=0;
  petopia::restoreCat();assert(!petopia::coat && !petopia::pattern && !petopia::nose && !petopia::eye);
  for(int i=0;i<100;i++){showPetopiaTest();showDashboard();assert(allocated==0);}
- if(getenv("PETOPIA_SCENES")) testFirstVisit();
+ if(getenv("PETOPIA_PACK")) { testArtworkInstall(); testFirstVisit(); }
  for(int i=0;i<100;i++){showOpen();showDashboard();}lv_mem_monitor_t m;lv_mem_monitor(&m);assert(m.free_size>8000);printf("PASS: fixed Home shortcuts, off-center row tap, swipe, center fade, back position, Wi-Fi and Petopia, 100 screen cycles; %u bytes free\n",unsigned(m.free_size));
 }
