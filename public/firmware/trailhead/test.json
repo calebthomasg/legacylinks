@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.19",
+    "version": "0.1.21",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.19/trailhead-0.1.19-app.bin",
-    "size": 2270816,
-    "sha256": "082e3c67dc9f45d31f7c63d85da90f42657801ecfe57a0bb436f0b801e010f5f",
-    "notes": "Added Friends, Account, and Clock demo screens. Clock opens live Time and a sample alarm list."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.21/trailhead-0.1.21-app.bin",
+    "size": 2278224,
+    "sha256": "9cc8c9bf0296e43f96788a2dded3d5677a53e27df0d978d3a364e72e74d079dc",
+    "notes": "Petopia first visit and starter snack. Install the v0.1.21 Petopia artwork pack on microSD."
   }
 }
