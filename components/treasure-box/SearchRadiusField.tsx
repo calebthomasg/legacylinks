@@ -8,7 +8,7 @@ export function validRadius(meters: number) {
 }
 
 export default function SearchRadiusField({ meters, onChange }: { meters: number; onChange: (value: number) => void }) {
-  const [units, changeUnits, saving, error] = useMeasurementUnits();
+  const [units] = useMeasurementUnits();
   const preset = radiusPresets.find(feet => Math.abs(feet * METERS_PER_FOOT - meters) < 1e-9);
   const [custom, setCustom] = useState(false);
   const imperial = units === "imperial";
@@ -17,12 +17,6 @@ export default function SearchRadiusField({ meters, onChange }: { meters: number
 
   return <fieldset className="mt-4 space-y-3">
     <legend className="text-sm font-bold text-night-sky">Search area</legend>
-    <label className="block text-sm">Measurement units
-      <select className={fieldClass} disabled={saving} value={units} onChange={e => changeUnits(e.target.value === "metric" ? "metric" : "imperial")}>
-        <option value="imperial">Feet (U.S.)</option><option value="metric">Meters (Metric)</option>
-      </select>
-    </label>
-    {error && <p role="alert">{error}</p>}
     <label className="block text-sm">Search radius
       <select className={fieldClass} value={custom || !preset ? "custom" : preset} onChange={e => {
         const isCustom = e.target.value === "custom";

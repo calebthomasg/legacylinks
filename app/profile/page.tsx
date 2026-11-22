@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AppShell from "@/components/layout/AppShell";
+import TrailheadMeasurementSettings from "@/components/trailhead/TrailheadMeasurementSettings";
 import ProfileForm from "@/components/profile/ProfileForm";
 import { getProfileNavHref } from "@/utils/people/getProfileNavHref";
 
@@ -56,6 +57,10 @@ export default async function ProfilePage() {
               <dd className="mt-1 break-all text-night-sky">{user.id}</dd>
             </div>
           </dl>
+
+          <div className="mt-8" id="measurement-units">
+            <TrailheadMeasurementSettings />
+          </div>
 
           <div className="mt-8 border-t border-night-sky/10 pt-6">
             <h3 className="text-lg font-semibold text-night-sky">

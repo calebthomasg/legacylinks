@@ -18,11 +18,7 @@ export function useMeasurementUnits() {
   useEffect(() => {
     const { data } = client.auth.onAuthStateChange((_event, session) => {
       const preference = session?.user.user_metadata[preferenceKey];
-      let fallback = "imperial";
-      try {
-        fallback = localStorage.getItem("legacylink:trailhead:units") ?? fallback;
-      } catch { /* Browser storage is optional. */ }
-      setUnits((preference ?? fallback) === "metric" ? "metric" : "imperial");
+      setUnits(preference === "metric" ? "metric" : "imperial");
     });
     return () => data.subscription.unsubscribe();
   }, [client]);
@@ -58,11 +54,12 @@ export default function TrailheadMeasurementSettings() {
   const [units, change, saving, error] = useMeasurementUnits();
   return <section className="rounded-2xl border border-night-sky/10 bg-white p-4">
     <h3 className="font-bold text-night-sky">Measurement units</h3>
+    <p className="mt-1 text-sm text-night-sky/65">Used for Trailhead distances and Treasure Box search radii across your devices.</p>
     <div className="mt-3 grid grid-cols-2 gap-2">
       {(["imperial", "metric"] as const).map(value =>
         <button key={value} type="button" disabled={saving} aria-pressed={units === value}
           onClick={() => change(value)} className={`rounded-xl border px-3 py-3 text-sm font-bold ${units === value ? "border-teal bg-teal/10" : "border-night-sky/15"}`}>
-          {value === "imperial" ? "Feet & miles" : "Meters & km"}
+          {value === "imperial" ? "U.S. customary" : "Metric"}
         </button>)}
     </div>
     {error && <p role="alert">{error}</p>}
