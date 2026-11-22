@@ -5,6 +5,8 @@ import Link from "next/link";
 import {createClient} from "@/utils/supabase/client";
 import TreasureBoxStoryBuilder from "@/components/treasure-box/TreasureBoxStoryBuilder";
 import {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED} from "@/utils/featureFlags";
+import SearchRadiusField, { validRadius } from "./SearchRadiusField";
+import {defaultRadius, METERS_PER_FOOT, useMeasurementUnits} from "@/components/trailhead/TrailheadMeasurementSettings";
 
 type ContentOption="digital_story"|"traveling_token"|"specialty_token"|"quest";
 type Step="details"|"placement"|"contents"|"story"|"traveling_token"|"specialty_token"|"quest"|"review"|"published";
@@ -67,7 +69,8 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[terrain,setTerrain]=useState(initial.terrain||1);
   const[latitude,setLatitude]=useState(initial.latitude?.toString()??"");
   const[longitude,setLongitude]=useState(initial.longitude?.toString()??"");
-  const[radius,setRadius]=useState(initial.search_radius_meters??75);
+  const[radius,setRadius]=useState(initial.search_radius_meters ?? defaultRadius);
+  const [units] = useMeasurementUnits();
   const[selected,setSelected]=useState<ContentOption[]>([]);
   const[step,setStep]=useState<Step>(initial.setup_status==="ready_to_publish"?"review":"details");
   const[busy,setBusy]=useState(false);
@@ -172,10 +175,11 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       setError("Give your Treasure Box a name.");
       return;
     }
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
+    if(!latitude.trim()||!longitude.trim()||!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){
       setError("Add the Treasure Box location before continuing.");
       return;
     }
+    if(!validRadius(radius)){setError("Choose a radius between 10 feet (3.048 m) and one mile (1609.344 m).");return;}
     if(!hintLoaded){setError("Wait for this box's hint to load before continuing.");return;}
     setBusy(true);
     const{error:e}=await supabase.rpc("save_claimed_treasure_box_setup",{
@@ -322,11 +326,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
           <input value={latitude} onChange={e=>setLatitude(e.target.value)} placeholder="Latitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
           <input value={longitude} onChange={e=>setLongitude(e.target.value)} placeholder="Longitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
         </div>
-        <label className="mt-4 block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Search area
-          <select value={radius} onChange={e=>setRadius(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-night-sky/15 bg-white px-3 py-3 text-sm">
-            <option value={25}>25 meters — tight</option><option value={50}>50 meters</option><option value={75}>75 meters — standard</option><option value={100}>100 meters</option><option value={150}>150 meters — broad</option>
-          </select>
-        </label>
+        <SearchRadiusField meters={radius} onChange={setRadius} />
       </div>
       {message&&<p className="mt-4 rounded-2xl bg-teal/10 p-4 text-sm font-semibold text-night-sky">{message}</p>}
       <WizardError error={error}/>
@@ -364,7 +364,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
         <ReviewRow label="Hint" value={hint||"No hint"}/>
         <ReviewRow label="Difficulty / Terrain" value={`${review.difficulty}/5 · ${review.terrain}/5`}/>
         <ReviewRow label="Exact placement" value={`${review.latitude.toFixed(5)}, ${review.longitude.toFixed(5)} (private)`}/>
-        <ReviewRow label="Public search area" value={`${review.search_radius_meters} meter radius around an approximate map point`}/>
+        <ReviewRow label="Public search area" value={`${units==="imperial"?`${(review.search_radius_meters/METERS_PER_FOOT).toFixed(1)} feet`:`${review.search_radius_meters.toFixed(1)} meters`} radius around an approximate map point`}/>
         {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED&&<ReviewRow label="Optional experiences" value={review.content_options.length?review.content_options.map(x=>x.replaceAll("_"," ")).join(", "):"None"}/>}
       </div>}
       <WizardError error={error}/>

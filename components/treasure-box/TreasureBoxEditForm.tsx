@@ -3,6 +3,8 @@
 import {FormEvent, useEffect, useMemo, useState} from "react";
 import {createClient} from "@/utils/supabase/client";
 
+import SearchRadiusField, { validRadius } from "./SearchRadiusField";
+
 type Props={
   experienceId:string;
   cacheId:string;
@@ -16,6 +18,8 @@ export default function TreasureBoxEditForm({experienceId,cacheId,initialTitle,i
   const supabase=useMemo(()=>createClient(),[]);
   const[title,setTitle]=useState(initialTitle);
   const[description,setDescription]=useState(initialDescription??"");
+  const [originalRadius, setOriginalRadius] = useState<number | null>(null);
+  const [radius, setRadius] = useState<number | null>(null);
   const[hint,setHint]=useState("");
   const[hintLoaded,setHintLoaded]=useState(false);
   const[saving,setSaving]=useState(false);
@@ -23,6 +27,12 @@ export default function TreasureBoxEditForm({experienceId,cacheId,initialTitle,i
 
   useEffect(()=>{
     let active=true;
+    supabase.rpc("get_my_treasure_boxes").eq("cache_id",cacheId).maybeSingle<{search_radius_meters:number|null}>().then(({data,error})=>{
+      if(!active)return;
+      if(error || !data || data.search_radius_meters == null){setError("Couldn’t load the saved search radius. Reopen the editor to retry.");return;}
+      setOriginalRadius(data.search_radius_meters);
+      setRadius(data.search_radius_meters);
+    });
     supabase.rpc("get_owned_treasure_box_hint",{p_cache_id:cacheId}).then(({data,error:loadError})=>{
       if(!active)return;
       if(loadError)setError("We couldn't load this box's hint. Please reopen the editor.");
@@ -38,13 +48,14 @@ export default function TreasureBoxEditForm({experienceId,cacheId,initialTitle,i
       setError("Give your Treasure Box a name.");
       return;
     }
+    if(radius === null || !validRadius(radius)){setError("Choose a radius between 10 feet and one mile.");return;}
     setSaving(true);
-    const{error:hintError}=await supabase.rpc("save_treasure_box_hint",{p_cache_id:cacheId,p_hint:hint.trim()||null});
-    if(hintError){setSaving(false);setError(hintError.message);return;}
-    const{error:saveError}=await supabase.rpc("update_published_treasure_box_metadata",{
+    const {error:saveError}=await supabase.rpc("edit_published_treasure_box",{
       p_experience_id:experienceId,
       p_title:title.trim(),
       p_description:description.trim()||null,
+      p_hint:hint.trim()||null,
+      p_radius:radius === originalRadius ? null : radius,
     });
     setSaving(false);
     if(saveError){
@@ -72,10 +83,11 @@ export default function TreasureBoxEditForm({experienceId,cacheId,initialTitle,i
         <textarea value={hint} onChange={event=>setHint(event.target.value)} maxLength={1000} rows={3} placeholder="A clue Trailblazers can open when they need help" className="mt-2 w-full resize-y rounded-2xl border border-night-sky/15 bg-white px-4 py-3 text-sm leading-6 text-night-sky outline-none focus:border-teal"/>
       </label>
       <p className="mt-2 text-right text-xs text-night-sky/40">{hint.length}/1000</p>
+      {radius !== null && <SearchRadiusField meters={radius} onChange={setRadius} />}
       {error&&<p className="mt-5 rounded-2xl bg-coral/10 p-4 text-sm font-semibold text-night-sky" role="alert">{error}</p>}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <button type="button" onClick={onCancel} disabled={saving} className="rounded-2xl border border-night-sky/15 bg-white px-5 py-4 text-sm font-bold text-night-sky disabled:opacity-50">Cancel</button>
-        <button disabled={saving||!hintLoaded||!title.trim()} className="rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{saving?"Saving…":!hintLoaded?"Loading…":"Save Changes"}</button>
+        <button disabled={saving||!hintLoaded||radius===null||!title.trim()} className="rounded-2xl bg-night-sky px-5 py-4 text-sm font-bold text-white disabled:opacity-50">{saving?"Saving…":!hintLoaded?"Loading…":"Save Changes"}</button>
       </div>
     </form>
   </div>;
