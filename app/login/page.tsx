@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { AuthVerification, siteKey } from "@/components/AuthVerification";
+import { AuthVerification } from "@/components/AuthVerification";
+import { useVerifiedAuth } from "@/components/useVerifiedAuth";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
@@ -15,10 +16,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const verification = useVerifiedAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -27,23 +25,12 @@ export default function LoginPage() {
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isLoading || (siteKey && !captchaToken)) return;
-    setIsLoading(true);
-    setMessage("");
-
-    const { error } = await supabase.auth.signInWithPassword({
+    const result = await verification.submit((captchaToken) => supabase.auth.signInWithPassword({
       email,
       password,
-      options: { captchaToken: captchaToken || undefined },
-    });
-
-    if (error) {
-      setCaptchaToken("");
-      setAttempt((current) => current + 1);
-      setMessage(error.message);
-      setIsLoading(false);
-      return;
-    }
+      options: { captchaToken },
+    }));
+    if (!result) return;
 
     router.push(returnPath ?? "/dashboard");
     router.refresh();
@@ -100,14 +87,14 @@ export default function LoginPage() {
             />
           </div>
 
-          <AuthVerification key={attempt} onToken={setCaptchaToken} />
+          <AuthVerification key={verification.attempt} onToken={verification.onToken} />
 
-          {message && (
-            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
+          {verification.message && (
+            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral" role="alert">{verification.message}</p>
           )}
 
-          <button type="submit" disabled={isLoading || Boolean(siteKey && !captchaToken)} className="button-primary w-full">
-            {isLoading ? "Logging in..." : "Log in"}
+          <button type="submit" disabled={verification.busy || !verification.ready} className="button-primary w-full">
+            {verification.busy ? "Logging in..." : "Log in"}
           </button>
         </form>
 
