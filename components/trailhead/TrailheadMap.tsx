@@ -14,36 +14,8 @@ import {formatDistance,useMeasurementUnits} from "@/components/trailhead/Trailhe
 import TreasureFindFeedback from "@/components/trailhead/TreasureFindFeedback";
 import { TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED } from "@/utils/featureFlags";
 
-declare global {
-  interface Window {
-    mapboxgl?: {
-      Map: new (options: Record<string, unknown>) => MapboxMap;
-      Marker: new (options?: Record<string, unknown>) => MapboxMarker;
-      NavigationControl: new (options?: Record<string, unknown>) => unknown;
-      workerUrl?: string;
-    };
-  }
-}
-
-type Bounds = { contains: (coordinates: [number, number]) => boolean };
-type MapboxMap = {
-  addControl: (control: unknown, position?: string) => void;
-  addSource: (id: string, source: Record<string, unknown>) => void;
-  addLayer: (layer: Record<string, unknown>) => void;
-  getLayer: (id: string) => unknown;
-  getSource: (id: string) => { setData?: (data: unknown) => void } | undefined;
-  removeLayer: (id: string) => void;
-  removeSource: (id: string) => void;
-  flyTo: (options: Record<string, unknown>, eventData?: Record<string, unknown>) => void;
-  getZoom: () => number;
-  getBearing: () => number;
-  setBearing: (bearing: number, eventData?: Record<string, unknown>) => void;
-  getBounds: () => Bounds;
-  on: (event: "load" | "error" | "move" | "moveend" | "dragstart" | "rotatestart" | "zoomstart" | "zoomend", handler: ((event?: { originalEvent?: Event; error?: { message?: string } }) => void)) => void;
-  resize: () => void;
-  remove: () => void;
-};
-type MapboxMarker = { setLngLat: (coordinates: [number, number]) => MapboxMarker; addTo: (map: MapboxMap) => MapboxMarker; getElement: () => HTMLElement; remove: () => void };
+import {radiusPolygon} from "@/utils/trailhead/placement";
+import {MAPBOX_GL_VERSION, MAPBOX_CSP_SCRIPT, MAPBOX_CSP_WORKER, type MapboxMap, type MapboxMarker} from "@/utils/trailhead/mapbox";
 type TrailComment = { first_name: string; comment: string | null; rating: number | null; found_at: string; photo_paths: string[] };
 
 export type TrailheadCache = {
@@ -58,9 +30,6 @@ type PanelMode = "explore" | "finds" | "mine";
 type Filter = "all" | "treasure_box" | "memorial" | "token_hunt";
 type AddView = "chooser" | "memorial" | null;
 
-const MAPBOX_GL_VERSION = "3.26.0";
-const MAPBOX_CSP_SCRIPT = `https://api.mapbox.com/mapbox-gl-js/v${MAPBOX_GL_VERSION}/mapbox-gl-csp.js`;
-const MAPBOX_CSP_WORKER = "/mapbox-gl-csp-worker.js";
 const EARTH_RADIUS_METERS = 6371008.8;
 const SEARCH_SOURCE = "active-search-area";
 const SEARCH_FILL = "active-search-area-fill";
@@ -83,7 +52,11 @@ function photoUrl(path: string) { return `${process.env.NEXT_PUBLIC_SUPABASE_URL
 function markerIcon(variant: DiscoveryItem["marker_variant"]) { if (variant === "memorial") return "/images/memorial-marker.svg"; if (variant === "token") return "/images/token-marker.svg"; return "/images/treasure-box-marker.svg"; }
 function typeIcon(type: MyTreasureItem["experience_type"]) { if (type === "memorial") return "/images/memorial-marker.svg"; if (type === "token_hunt" || type === "traveling_token") return "/images/token-marker.svg"; return "/images/treasure-box-marker.svg"; }
 function markerLabel(type: DiscoveryItem["experience_type"] | MyTreasureItem["experience_type"]) { if (type === "memorial") return "Memorial"; if (type === "traveling_token") return "Traveling Token"; if (type === "token_hunt") return "Token Hunt"; return "Treasure Box"; }
-function searchAreaFeature(cache: TrailheadCache) { const lat1=cache.search_latitude*Math.PI/180,lon1=cache.search_longitude*Math.PI/180,distance=cache.search_radius_meters/EARTH_RADIUS_METERS,ring:[number,number][]=[]; for(let step=0;step<=64;step++){const bearing=step/64*Math.PI*2;const lat2=Math.asin(Math.sin(lat1)*Math.cos(distance)+Math.cos(lat1)*Math.sin(distance)*Math.cos(bearing));const lon2=lon1+Math.atan2(Math.sin(bearing)*Math.sin(distance)*Math.cos(lat1),Math.cos(distance)-Math.sin(lat1)*Math.sin(lat2));ring.push([lon2*180/Math.PI,lat2*180/Math.PI]);} return {type:"Feature",properties:{cache_id:cache.cache_id},geometry:{type:"Polygon",coordinates:[ring]}}; }
+function searchAreaFeature(cache: TrailheadCache) {
+  return {type:"Feature",properties:{cache_id:cache.cache_id},geometry:radiusPolygon({
+    latitude:cache.search_latitude,longitude:cache.search_longitude
+  },cache.search_radius_meters)};
+}
 function distanceMeters(a:number,b:number,c:number,d:number){const p1=a*Math.PI/180,p2=c*Math.PI/180,dp=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;return EARTH_RADIUS_METERS*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 
 function locationFailure(error:GeolocationPositionError){if(error.code===error.PERMISSION_DENIED)return "Location is blocked. Allow location for this browser and Trailhead, then retry.";if(error.code===error.TIMEOUT)return "Location timed out. Tap Retry location to try again.";return "Your phone could not determine its location. Check Location Services and retry.";}

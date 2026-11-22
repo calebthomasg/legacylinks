@@ -5,6 +5,7 @@ import Link from "next/link";
 import {createClient} from "@/utils/supabase/client";
 import TreasureBoxStoryBuilder from "@/components/treasure-box/TreasureBoxStoryBuilder";
 import {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED} from "@/utils/featureFlags";
+import PlacementEditor from "./PlacementEditor";
 import SearchRadiusField, { validRadius } from "./SearchRadiusField";
 import {defaultRadius, METERS_PER_FOOT, useMeasurementUnits} from "@/components/trailhead/TrailheadMeasurementSettings";
 
@@ -67,16 +68,14 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[hintLoaded,setHintLoaded]=useState(false);
   const[difficulty,setDifficulty]=useState(initial.difficulty||1);
   const[terrain,setTerrain]=useState(initial.terrain||1);
-  const[latitude,setLatitude]=useState(initial.latitude?.toString()??"");
-  const[longitude,setLongitude]=useState(initial.longitude?.toString()??"");
+  const[latitude,setLatitude]=useState(initial.latitude?.toFixed(7)??"");
+  const[longitude,setLongitude]=useState(initial.longitude?.toFixed(7)??"");
   const[radius,setRadius]=useState(initial.search_radius_meters ?? defaultRadius);
   const [units] = useMeasurementUnits();
   const[selected,setSelected]=useState<ContentOption[]>([]);
   const[step,setStep]=useState<Step>(initial.setup_status==="ready_to_publish"?"review":"details");
   const[busy,setBusy]=useState(false);
-  const[locating,setLocating]=useState(false);
   const[error,setError]=useState<string|null>(null);
-  const[message,setMessage]=useState<string|null>(null);
   const[optionsLoaded,setOptionsLoaded]=useState(!TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED);
   const[review,setReview]=useState<ReviewState|null>(null);
 
@@ -122,7 +121,6 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
 
   function go(next:Step){
     setError(null);
-    setMessage(null);
     setStep(next);
     window.scrollTo({top:0,behavior:"smooth"});
   }
@@ -135,28 +133,6 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   function nextStep(){
     const i=steps.indexOf(step);
     if(i>=0&&i<steps.length-1)go(steps[i+1]);
-  }
-
-  function useLocation(){
-    setError(null);
-    if(!navigator.geolocation){
-      setError("Location is not available on this device. You can enter coordinates manually.");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        setLatitude(pos.coords.latitude.toFixed(6));
-        setLongitude(pos.coords.longitude.toFixed(6));
-        setLocating(false);
-        setMessage(`Location added${Number.isFinite(pos.coords.accuracy)?` (about ${Math.round(pos.coords.accuracy)} m accuracy)`:""}.`);
-      },
-      ()=>{
-        setLocating(false);
-        setError("We couldn't get your location. Try again or enter coordinates manually.");
-      },
-      {enableHighAccuracy:true,timeout:12000,maximumAge:0}
-    );
   }
 
   function saveBasics(){
@@ -321,14 +297,9 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       <h2 className="mt-2 text-2xl font-bold text-night-sky">Place the physical box before you publish it.</h2>
       <p className="mt-3 text-sm leading-6 text-night-sky/60">Use your device while standing at the hiding location. LegacyLink stores the exact placement privately and gives Trailhead an approximate search area.</p>
       <div className="mt-6 rounded-2xl border border-night-sky/10 p-4">
-        <button type="button" onClick={useLocation} disabled={locating} className="w-full rounded-xl bg-teal px-4 py-3 text-sm font-bold text-white">{locating?"Finding location…":"Use my current location"}</button>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <input value={latitude} onChange={e=>setLatitude(e.target.value)} placeholder="Latitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
-          <input value={longitude} onChange={e=>setLongitude(e.target.value)} placeholder="Longitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
-        </div>
+        <PlacementEditor latitude={latitude} longitude={longitude} radius={radius} onChange={(lat,lng)=>{setLatitude(lat);setLongitude(lng);}}/>
         <SearchRadiusField meters={radius} onChange={setRadius} />
       </div>
-      {message&&<p className="mt-4 rounded-2xl bg-teal/10 p-4 text-sm font-semibold text-night-sky">{message}</p>}
       <WizardError error={error}/>
       <div className="mt-6 flex gap-3"><Back onClick={previous}/><button type="button" onClick={savePlacement} disabled={busy} className="button-primary flex-1">{busy?"Saving placement…":"Confirm Placement"}</button></div>
     </section>}
@@ -363,7 +334,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
         <ReviewRow label="Description" value={review.description||"No description"}/>
         <ReviewRow label="Hint" value={hint||"No hint"}/>
         <ReviewRow label="Difficulty / Terrain" value={`${review.difficulty}/5 · ${review.terrain}/5`}/>
-        <ReviewRow label="Exact placement" value={`${review.latitude.toFixed(5)}, ${review.longitude.toFixed(5)} (private)`}/>
+        <ReviewRow label="Exact placement" value={`${review.latitude.toFixed(7)}, ${review.longitude.toFixed(7)} (private)`}/>
         <ReviewRow label="Public search area" value={`${units==="imperial"?`${(review.search_radius_meters/METERS_PER_FOOT).toFixed(1)} feet`:`${review.search_radius_meters.toFixed(1)} meters`} radius around an approximate map point`}/>
         {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED&&<ReviewRow label="Optional experiences" value={review.content_options.length?review.content_options.map(x=>x.replaceAll("_"," ")).join(", "):"None"}/>}
       </div>}
