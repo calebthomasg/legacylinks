@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AuthVerification, siteKey } from "@/components/AuthVerification";
+import { AuthVerification } from "@/components/AuthVerification";
+import { useVerifiedAuth } from "@/components/useVerifiedAuth";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
@@ -16,10 +17,7 @@ export default function SignupPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const verification = useVerifiedAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -28,31 +26,20 @@ export default function SignupPage() {
 
   async function handleSignup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isLoading || (siteKey && !captchaToken)) return;
-    setIsLoading(true);
-    setMessage("");
-
-    const { data, error } = await supabase.auth.signUp({
+    const result = await verification.submit((captchaToken) => supabase.auth.signUp({
       email,
       password,
       options: {
-        captchaToken: captchaToken || undefined,
+        captchaToken,
         data: {
           first_name: firstName,
           last_name: lastName,
         },
       },
-    });
+    }));
+    if (!result) return;
 
-    if (error) {
-      setCaptchaToken("");
-      setAttempt((current) => current + 1);
-      setMessage(error.message);
-      setIsLoading(false);
-      return;
-    }
-
-    if (data.session) {
+    if (result.data.session) {
       router.push(returnPath ?? "/profile");
       router.refresh();
       return;
@@ -124,14 +111,14 @@ export default function SignupPage() {
             />
           </div>
 
-          <AuthVerification key={attempt} onToken={setCaptchaToken} />
+          <AuthVerification key={verification.attempt} onToken={verification.onToken} />
 
-          {message && (
-            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{message}</p>
+          {verification.message && (
+            <p className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral" role="alert">{verification.message}</p>
           )}
 
-          <button type="submit" disabled={isLoading || Boolean(siteKey && !captchaToken)} className="button-primary w-full">
-            {isLoading ? "Creating account..." : "Create account"}
+          <button type="submit" disabled={verification.busy || !verification.ready} className="button-primary w-full">
+            {verification.busy ? "Creating account..." : "Create account"}
           </button>
         </form>
 
