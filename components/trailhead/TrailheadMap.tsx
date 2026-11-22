@@ -117,7 +117,8 @@ function DetailSectionIcon({kind}:{kind:"hint"|"story"|"log"}) {
 }
 function DetailChevron(){return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0 text-night-sky/45 transition-transform group-open:rotate-90"><path d="m9 5 7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>;}
 function TreasureDetail({cache,location,onBack,onBegin}:{cache:TrailheadCache;location:{latitude:number;longitude:number}|null;onBack:()=>void;onBegin:()=>void}){
-  const distance=location?distanceLabel(distanceMeters(location.latitude,location.longitude,cache.search_latitude,cache.search_longitude)):null;
+  const [measurementUnits] = useMeasurementUnits();
+  const distance=location?formatDistance(distanceMeters(location.latitude,location.longitude,cache.search_latitude,cache.search_longitude),measurementUnits):null;
   const hint=cache.hint?.trim();
   const summaryClass="flex min-h-16 cursor-pointer list-none items-center gap-3 py-4 font-bold text-night-sky focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal [&::-webkit-details-marker]:hidden";
   return <>
@@ -379,7 +380,7 @@ export default function TrailheadMap({center,caches,discoveryItems=[],myItems=[]
 <span className="block pr-8 text-[10px] font-bold uppercase tracking-widest text-teal">{previewCache.public_code}</span>
 <span className="mt-1 block break-words pr-8 text-lg font-bold text-night-sky">{previewCache.title}</span>
 <span className="mt-3 flex items-center gap-3 pr-8"><span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-sm text-night-sky/65">
-<span className="inline-flex items-center gap-1.5"><PreviewMetricIcon kind="distance"/><span><span className="sr-only">Distance: </span>{location?distanceLabel(distanceMeters(location.latitude,location.longitude,previewCache.search_latitude,previewCache.search_longitude)):"Location needed"}</span></span>
+<span className="inline-flex items-center gap-1.5"><PreviewMetricIcon kind="distance"/><span><span className="sr-only">Distance: </span>{location?formatDistance(distanceMeters(location.latitude,location.longitude,previewCache.search_latitude,previewCache.search_longitude),measurementUnits):"Location needed"}</span></span>
 <span className="inline-flex items-center gap-1.5"><PreviewMetricIcon kind="difficulty"/><span><span className="sr-only">Difficulty: </span>{previewCache.difficulty}/5</span></span>
 <span className="inline-flex items-center gap-1.5"><PreviewMetricIcon kind="terrain"/><span><span className="sr-only">Terrain: </span>{previewCache.terrain}/5</span></span>
 </span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-teal"><path d="m9 5 7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/></svg></span>

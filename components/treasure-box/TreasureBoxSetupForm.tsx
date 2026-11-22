@@ -5,7 +5,8 @@ import Link from "next/link";
 import {createClient} from "@/utils/supabase/client";
 import TreasureBoxStoryBuilder from "@/components/treasure-box/TreasureBoxStoryBuilder";
 import {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED} from "@/utils/featureFlags";
-import {useMeasurementUnits} from "@/components/trailhead/TrailheadMeasurementSettings";
+import SearchRadiusField, { validRadius } from "./SearchRadiusField";
+import {defaultRadius, METERS_PER_FOOT, useMeasurementUnits} from "@/components/trailhead/TrailheadMeasurementSettings";
 
 type ContentOption="digital_story"|"traveling_token"|"specialty_token"|"quest";
 type Step="details"|"placement"|"contents"|"story"|"traveling_token"|"specialty_token"|"quest"|"review"|"published";
@@ -68,9 +69,8 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
   const[terrain,setTerrain]=useState(initial.terrain||1);
   const[latitude,setLatitude]=useState(initial.latitude?.toString()??"");
   const[longitude,setLongitude]=useState(initial.longitude?.toString()??"");
-  const[radius,setRadius]=useState(initial.search_radius_meters??(20/3.280839895));
-  const[units,changeUnits]=useMeasurementUnits();
-  const[customRadius,setCustomRadius]=useState(false);
+  const[radius,setRadius]=useState(initial.search_radius_meters ?? defaultRadius);
+  const [units] = useMeasurementUnits();
   const[selected,setSelected]=useState<ContentOption[]>([]);
   const[step,setStep]=useState<Step>(initial.setup_status==="ready_to_publish"?"review":"details");
   const[busy,setBusy]=useState(false);
@@ -179,7 +179,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
       setError("Add the Treasure Box location before continuing.");
       return;
     }
-    if(!Number.isFinite(radius)||radius<=0||radius>1609.344){setError("Choose a valid search radius up to one mile.");return;}
+    if(!validRadius(radius)){setError("Choose a radius between 10 feet (3.048 m) and one mile (1609.344 m).");return;}
     if(!hintLoaded){setError("Wait for this box's hint to load before continuing.");return;}
     setBusy(true);
     const{error:e}=await supabase.rpc("save_claimed_treasure_box_setup",{
@@ -326,15 +326,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
           <input value={latitude} onChange={e=>setLatitude(e.target.value)} placeholder="Latitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
           <input value={longitude} onChange={e=>setLongitude(e.target.value)} placeholder="Longitude" className="rounded-xl border border-night-sky/15 px-3 py-3 font-mono text-sm"/>
         </div>
-        <label className="mt-4 block text-xs font-bold uppercase tracking-[.12em] text-night-sky/55">Search area
-          <select aria-label="Measurement units" value={units} onChange={e=>changeUnits(e.target.value as "imperial"|"metric")} className="mt-2 w-full rounded-xl border border-night-sky/15 bg-white px-3 py-3 text-sm"><option value="imperial">Feet (U.S.)</option><option value="metric">Meters (Metric)</option></select>
-          <select aria-label="Search radius" value={customRadius||![10,20,30,50,75,100].some(ft=>Math.abs(radius-ft/3.280839895)<0.00001)?"custom":String(Math.round(radius*3.280839895))} onChange={e=>{if(e.target.value==="custom"){setCustomRadius(true);}else{setCustomRadius(false);setRadius(Number(e.target.value)/3.280839895);}}} className="mt-2 w-full rounded-xl border border-night-sky/15 bg-white px-3 py-3 text-sm">
-            {[10,20,30,50,75,100].map(ft=><option key={ft} value={ft}>{units==="imperial"?`${ft} feet`:`${(ft/3.280839895).toFixed(1)} meters`}{ft===20?" — recommended":""}</option>)}
-            <option value="custom">Custom radius / existing value</option>
-          </select>
-          {(customRadius||![10,20,30,50,75,100].some(ft=>Math.abs(radius-ft/3.280839895)<0.00001))&&<input type="number" min="0.1" max={units==="imperial"?5280:1609.344} step="any" aria-label={`Custom radius in ${units==="imperial"?"feet":"meters"}`} value={Number((units==="imperial"?radius*3.280839895:radius).toFixed(4))} onChange={e=>setRadius(Number(e.target.value)/(units==="imperial"?3.280839895:1))} className="mt-2 w-full rounded-xl border border-night-sky/15 px-3 py-3 text-sm"/>}
-          <p className="mt-2 text-xs font-normal normal-case text-night-sky/55">Your measurement choice is saved on this device. Existing boxes keep their original radius until you change it.</p>
-        </label>
+        <SearchRadiusField meters={radius} onChange={setRadius} />
       </div>
       {message&&<p className="mt-4 rounded-2xl bg-teal/10 p-4 text-sm font-semibold text-night-sky">{message}</p>}
       <WizardError error={error}/>
@@ -372,7 +364,7 @@ export default function TreasureBoxSetupForm({token,boxId,initial}:Props){
         <ReviewRow label="Hint" value={hint||"No hint"}/>
         <ReviewRow label="Difficulty / Terrain" value={`${review.difficulty}/5 · ${review.terrain}/5`}/>
         <ReviewRow label="Exact placement" value={`${review.latitude.toFixed(5)}, ${review.longitude.toFixed(5)} (private)`}/>
-        <ReviewRow label="Public search area" value={`${units==="imperial"?`${(review.search_radius_meters*3.280839895).toFixed(1)} feet`:`${review.search_radius_meters.toFixed(1)} meters`} radius around an approximate map point`}/>
+        <ReviewRow label="Public search area" value={`${units==="imperial"?`${(review.search_radius_meters/METERS_PER_FOOT).toFixed(1)} feet`:`${review.search_radius_meters.toFixed(1)} meters`} radius around an approximate map point`}/>
         {TREASURE_BOX_ADVANCED_EXPERIENCES_ENABLED&&<ReviewRow label="Optional experiences" value={review.content_options.length?review.content_options.map(x=>x.replaceAll("_"," ")).join(", "):"None"}/>}
       </div>}
       <WizardError error={error}/>
