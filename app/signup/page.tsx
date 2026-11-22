@@ -32,6 +32,7 @@ export default function SignupPage() {
       password,
       options: {
         captchaToken,
+        emailRedirectTo: new URL("/auth/confirm", window.location.origin).href,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -62,6 +63,7 @@ export default function SignupPage() {
               <strong className="break-all">{confirmationEmail}</strong> and follow the link.
               If you don’t see it, check your spam folder.
             </p>
+            <Link href="/signup/confirmation" className="mt-6 block font-semibold text-night-sky">Request a new link</Link>
             <Link href={withReturnPath("/login", returnPath)} className="mt-6 inline-block font-semibold text-night-sky">
               Go to login
             </Link>
