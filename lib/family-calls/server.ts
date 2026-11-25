@@ -6,13 +6,17 @@ export function callResponse(body: object, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export function isPreviewCallOrigin(request: Request, deploymentHosts = [
+const productionCallOrigins = ["https://www.legacylinks.io", "https://legacylinks.io"];
+
+export function isFamilyCallOrigin(request: Request, deploymentHosts = [
   process.env.VERCEL_URL,
   process.env.VERCEL_BRANCH_URL,
 ]) {
   const origin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
   if (!origin || (fetchSite && fetchSite !== "same-origin")) return false;
+
+  if (process.env.VERCEL_ENV === "production") return productionCallOrigins.includes(origin);
 
   const previewOrigins = deploymentHosts.filter(Boolean).map((host) => `https://${host}`);
   return origin === new URL(request.url).origin || previewOrigins.includes(origin);
@@ -21,9 +25,9 @@ export function isPreviewCallOrigin(request: Request, deploymentHosts = [
 export async function authorizeFamilyCall(request: Request) {
   const config = getFamilyCallConfig();
   if (!config) return { response: callResponse({ error: "Calling is unavailable." }, 404) };
-  if (!isPreviewCallOrigin(request)) {
+  if (!isFamilyCallOrigin(request)) {
     console.warn("[family-calls] Browser origin rejected");
-    return { response: callResponse({ error: "The preview rejected the calling connection (403)." }, 403) };
+    return { response: callResponse({ error: "The calling connection was rejected (403)." }, 403) };
   }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

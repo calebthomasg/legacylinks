@@ -17,6 +17,6 @@ export async function POST(request: Request) {
       status: typeof status === "number" ? status : undefined,
       code: typeof details?.code === "number" ? details.code : undefined,
     });
-    return callResponse({ error: "The preview could not verify its Stream connection (502)." }, 502);
+    return callResponse({ error: "Family Chat could not connect to calling (502)." }, 502);
   }
 }
