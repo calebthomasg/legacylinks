@@ -5,6 +5,10 @@ const callTypes = ["family_audio", "family_video"] as const;
 const isCallType = (type: string): type is (typeof callTypes)[number] =>
   type === "family_audio" || type === "family_video";
 
+function timestamp(value: string | Date) {
+  return value instanceof Date ? value.getTime() : Date.parse(value);
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeFamilyCall(request);
   if (auth.response) return auth.response;
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
       if (call.session.accepted_by?.[auth.userId] || call.session.rejected_by?.[auth.userId]
         || call.session.rejected_by?.[call.created_by.id] || call.session.missed_by?.[auth.userId]) continue;
       const timeout = call.settings.ring.incoming_call_timeout_ms;
-      const expiresAt = Date.parse(call.session.started_at ?? call.created_at) + timeout;
+      const expiresAt = timestamp(call.session.started_at ?? call.created_at) + timeout;
       if (!Number.isFinite(expiresAt) || expiresAt <= now) continue;
       result.incoming = { id: call.id, type: call.type, expiresAt };
       break;
@@ -46,12 +50,14 @@ export async function POST(request: Request) {
     for (const { call } of history?.calls ?? []) {
       const missedAt = call.session?.missed_by?.[auth.userId];
       if (!missedAt || !threadId || call.custom.family_chat_thread_id !== threadId) continue;
+      const createdAt = timestamp(missedAt);
+      if (!Number.isFinite(createdAt)) continue;
       result.missed.push({
         id: call.id,
         threadId,
         callerId: call.created_by.id,
         callerName: call.created_by.name || "a family member",
-        createdAt: typeof missedAt === "string" ? missedAt : call.ended_at ?? call.created_at,
+        createdAt: new Date(createdAt).toISOString(),
       });
     }
     return callResponse(result);
