@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CallingState, ParticipantsAudio, SpeakerLayout, StreamCall, StreamTheme, StreamVideo, StreamVideoClient,
   ToggleAudioPublishingButton, ToggleVideoPublishingButton, useCalls, useCallStateHooks,
   type Call,
 } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
+
+import type { CallActivity, MissedCall } from "@/lib/family-calls/activity";
 
 export type CallRequest = { threadId: string; mode: "audio" | "video" };
 
@@ -23,7 +25,11 @@ async function post<T>(path: string, body: object = {}): Promise<T> {
   return result;
 }
 
-function CallPanel({ call }: { call: Call }) {
+function CallPanel({ call, recovered, dismissRecovered }: {
+  call: Call;
+  recovered: boolean;
+  dismissRecovered: () => void;
+}) {
   const {
     useAutoplayBlockedSessionIds, useCallCallingState, useCallCreatedBy, useCallMembers,
     useRemoteParticipants,
@@ -37,7 +43,7 @@ function CallPanel({ call }: { call: Call }) {
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const audio = call.type === "family_audio";
-  const ringing = state === CallingState.RINGING;
+  const ringing = state === CallingState.RINGING || (recovered && state === CallingState.IDLE);
   const incoming = ringing && !call.isCreatedByMe;
   const connected = state === CallingState.JOINED || state === CallingState.RECONNECTING;
   const other = call.isCreatedByMe
@@ -94,14 +100,22 @@ function CallPanel({ call }: { call: Call }) {
       <div className="mt-4 flex flex-wrap justify-end gap-2">
         {incoming && <button type="button" disabled={pending}
           className="rounded-full bg-night-sky px-4 py-2 font-bold text-white"
-          onClick={() => void act(() => call.join(), "Could not connect. Check your browser’s microphone and camera permissions.")}>
+          onClick={() => void act(async () => {
+            if (recovered && !call.ringing) await call.accept();
+            await call.join();
+          }, "Could not connect. The call may have ended or your browser may need media permissions.")}>
           Accept
         </button>}
         <button type="button" disabled={pending}
           className="rounded-full bg-red-700 px-4 py-2 font-bold text-white"
           onClick={() => void act(async () => {
             if (ringing) {
-              await call.leave({ reject: true, reason: incoming ? "decline" : "cancel" });
+              if (recovered && !call.ringing) {
+                await call.reject("decline");
+                dismissRecovered();
+              } else {
+                await call.leave({ reject: true, reason: incoming ? "decline" : "cancel" });
+              }
             } else {
               try {
                 await call.endCall();
@@ -119,9 +133,11 @@ function CallPanel({ call }: { call: Call }) {
 
 type Notice = { text: string; error?: boolean };
 
-function CallSession({ client, request, onHandled, onBusy }: {
+function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }: {
   client: StreamVideoClient;
   request: CallRequest | null;
+  threadId: string | null;
+  onMissed: (items: MissedCall[]) => void;
   onHandled: () => void;
   onBusy: (busy: boolean) => void;
 }) {
@@ -129,23 +145,87 @@ function CallSession({ client, request, onHandled, onBusy }: {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dialing, setDialing] = useState(false);
   const sending = useRef(false);
-  const current = calls.find((call) => (
+  const [recovered, setRecovered] = useState<{ call: Call; expiresAt: number } | null>(null);
+  const live = calls.find((call) => (
     (call.type === "family_audio" || call.type === "family_video") &&
     call.state.callingState !== CallingState.IDLE &&
     call.state.callingState !== CallingState.LEFT
   ));
 
+  const current = live ?? recovered?.call;
+
+  const recoverCall = useEffectEvent(async (active: () => boolean) => {
+    if (document.hidden) return;
+    const { incoming, missed } = await post<CallActivity>("/api/family-chat/calls/activity", { threadId });
+    if (!active()) return;
+    onMissed(missed);
+    if (current || !incoming || sending.current || incoming.expiresAt <= Date.now()) return;
+    const call = client.call(incoming.type, incoming.id, { reuseInstance: true });
+    const { call: snapshot } = await call.get();
+    if (!active() || snapshot.ended_at || snapshot.session?.ended_at || incoming.expiresAt <= Date.now()) return;
+    const userId = call.currentUserId;
+    if (!userId || snapshot.session?.accepted_by?.[userId] || snapshot.session?.rejected_by?.[userId]
+      || snapshot.session?.missed_by?.[userId] || call.state.callingState !== CallingState.IDLE) return;
+    setRecovered({ call, expiresAt: incoming.expiresAt });
+  });
+
+  useEffect(() => {
+    let active = true;
+    let generation = 0;
+    const timers = new Set<number>();
+    const sync = () => {
+      const version = ++generation;
+      void recoverCall(() => active && version === generation).catch(() => undefined);
+    };
+    const retryAfterEnd = () => {
+      const timer = window.setTimeout(() => { timers.delete(timer); sync(); }, 1800);
+      timers.add(timer);
+    };
+    sync();
+    window.addEventListener("focus", sync);
+    window.addEventListener("pageshow", sync);
+    document.addEventListener("visibilitychange", sync);
+    const unsubscribeMissed = client.on("call.missed", (event) => {
+      const key = event.call.custom.family_chat_thread_id;
+      if (typeof key === "string" && (event.call.type === "family_audio" || event.call.type === "family_video")) {
+        onMissed([{
+          id: event.call.id, threadId: key, callerId: event.call.created_by.id,
+          callerName: event.call.created_by.name || "a family member", createdAt: event.created_at,
+        }]);
+      }
+      sync();
+      retryAfterEnd();
+    });
+    return () => {
+      active = false;
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("pageshow", sync);
+      document.removeEventListener("visibilitychange", sync);
+      unsubscribeMissed();
+    };
+  }, [client, threadId, onMissed]);
+
+  useEffect(() => {
+    if (!recovered) return;
+    const { call, expiresAt } = recovered;
+    const dismiss = () => setRecovered((previous) => previous?.call === call ? null : previous);
+    const timer = window.setTimeout(dismiss, Math.max(0, expiresAt - Date.now()));
+    const unsubscribe = [
+      call.on("call.ended", dismiss),
+      call.on("call.missed", dismiss),
+      call.on("call.accepted", dismiss),
+      call.on("call.rejected", dismiss),
+    ];
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe.forEach((off) => off());
+    };
+  }, [recovered]);
+
   useEffect(() => {
     onBusy(Boolean(current) || dialing);
   }, [current, dialing, onBusy]);
-
-  useEffect(() => {
-    return client.on("call.missed", (event) => {
-      if (event.call.type === "family_audio" || event.call.type === "family_video") {
-        setNotice({ text: "Missed Family Chat call." });
-      }
-    });
-  }, [client]);
 
   useEffect(() => {
     if (!current?.isCreatedByMe) return;
@@ -192,14 +272,16 @@ function CallSession({ client, request, onHandled, onBusy }: {
             onClick={() => setNotice(null)}>×</button>}
         </div>
       )}
-      {current && <StreamCall call={current}><CallPanel key={current.cid} call={current} /></StreamCall>}
+      {current && <StreamCall call={current}><CallPanel key={current.cid} call={current} recovered={current === recovered?.call} dismissRecovered={() => setRecovered(null)} /></StreamCall>}
     </>
   );
 }
 
-export default function FamilyChatCalls({ userId, request, onHandled, onReady, onBusy }: {
+export default function FamilyChatCalls({ userId, request, threadId, onMissed, onHandled, onReady, onBusy }: {
   userId: string;
   request: CallRequest | null;
+  threadId: string | null;
+  onMissed: (items: MissedCall[]) => void;
   onHandled: () => void;
   onReady: (ready: boolean) => void;
   onBusy: (busy: boolean) => void;
@@ -254,7 +336,7 @@ export default function FamilyChatCalls({ userId, request, onHandled, onReady, o
   if (!client) return null;
   return (
     <StreamVideo client={client}>
-      <CallSession client={client} request={request} onHandled={onHandled} onBusy={onBusy} />
+      <CallSession client={client} request={request} threadId={threadId} onMissed={onMissed} onHandled={onHandled} onBusy={onBusy} />
     </StreamVideo>
   );
 }

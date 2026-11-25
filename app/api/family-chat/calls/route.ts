@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     await auth.stream.video.call(type, id).getOrCreate({
       data: {
         created_by_id: auth.userId,
+        custom: { family_chat_thread_id: thread.id },
         members: userIds.map((user_id) => ({ user_id, role: "call_member" })),
       },
     });

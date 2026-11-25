@@ -14,6 +14,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import type { CallRequest } from "./FamilyChatCalls";
+import type { MissedCall } from "@/lib/family-calls/activity";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
@@ -313,6 +314,11 @@ export default function FamilyChatShell({
   const [callRequest, setCallRequest] = useState<CallRequest | null>(null);
   const [callReady, setCallReady] = useState(false);
   const [callBusy, setCallBusy] = useState(false);
+  const [missedCalls, setMissedCalls] = useState<Record<string, MissedCall>>({});
+  const mergeMissedCalls = useCallback((items: MissedCall[]) => {
+    if (items.length === 0) return;
+    setMissedCalls((previous) => ({ ...previous, ...Object.fromEntries(items.map((item) => [item.id, item])) }));
+  }, []);
   const clearCallRequest = useCallback(() => setCallRequest(null), []);
   const canFormatLocalTime = useSyncExternalStore(subscribeToBrowserTime, readBrowserTime, readServerTime);
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
@@ -380,6 +386,12 @@ export default function FamilyChatShell({
   const draftFile = threadId ? draftFiles[threadId] : undefined;
   const showingDetails = Boolean(threadId && detailsFor === threadId);
   const openThread = activePanel === "thread" && Boolean(selectedThread);
+  const callTimeline = Object.values(missedCalls).filter((entry) => entry.threadId === threadId
+    && (!history.hasOlder || !selectedMessages[0] || Date.parse(entry.createdAt) >= Date.parse(selectedMessages[0].created_at)));
+  const timeline = [
+    ...selectedMessages.map((message) => ({ message, at: Date.parse(message.created_at) })),
+    ...callTimeline.map((missed) => ({ missed, at: Date.parse(missed.createdAt) })),
+  ].sort((a, b) => a.at - b.at);
   const selectedById = new Map(selectedMessages.map((message) => [message.id, message]));
   const removed = (message: ChatMessage) => message.removed_for_everyone || removedIds.has(message.id);
   const menuMessage = actionTarget ? selectedById.get(actionTarget) : undefined;
@@ -622,7 +634,7 @@ export default function FamilyChatShell({
     } else if (pinnedToBottom.current) {
       panel.scrollTop = panel.scrollHeight;
     }
-  }, [activePanel, history.loading, history.loadingOlder, selectedMessages.length, threadId]);
+  }, [activePanel, history.loading, history.loadingOlder, timeline.length, threadId]);
 
   useEffect(() => {
     const panel = scrollPanelRef.current;
@@ -993,13 +1005,26 @@ export default function FamilyChatShell({
                   <div className="rounded-3xl border border-night-sky/10 bg-white p-5 text-sm text-night-sky/55 shadow-sm">
                     Loading conversation...
                   </div>
-                ) : selectedMessages.length === 0 && !history.error ? (
+                ) : timeline.length === 0 && !history.error ? (
                   <EmptyState
                     title="No messages yet"
                     body="This conversation is ready for its first breadcrumb."
                   />
                 ) : (
-                  selectedMessages.map((message) => {
+                  timeline.map((entry) => {
+                    if ("missed" in entry) {
+                      const missed = entry.missed;
+                      const caller = selectedThread.members.find((member) => member.userId === missed.callerId);
+                      return (
+                        <p key={`missed-call-${missed.id}`}
+                          className={`text-center text-sm leading-5 ${themed
+                            ? "text-white/85 [text-shadow:0_1px_2px_#101c32,0_0_4px_#101c32]"
+                            : "text-night-sky/60"}`}>
+                          Missed call from {caller?.nickname || caller?.displayName || missed.callerName}
+                        </p>
+                      );
+                    }
+                    const { message } = entry;
                     const member = getMemberForMessage(message);
                     const isCurrentUser = message.sender_user_id === currentUserId;
                     const attachedFile = fileRows[message.id];
@@ -1148,7 +1173,7 @@ export default function FamilyChatShell({
       </div>
 
       {callsEnabled && <FamilyChatCalls key={currentUserId} userId={currentUserId} request={callRequest}
-        onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
+        threadId={directCalls ? threadId : null} onMissed={mergeMissedCalls} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
       {menuMessage && !removed(menuMessage) && (
         <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
