@@ -3,12 +3,16 @@
 import {
   FormEvent,
   KeyboardEvent,
-  useCallback,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
+import { useChatActivity } from "./useChatActivity";
+import { type ChatMessage, useChatHistory } from "./useChatHistory";
 import { createClient } from "@/utils/supabase/client";
 
 export type ChatAvatar = {
@@ -37,16 +41,9 @@ export type ChatThreadSummary = {
   preview: string | null;
   avatars: ChatAvatar[];
   members: ChatThreadMemberSummary[];
+  pastMembers: ChatThreadMemberSummary[];
   memberCount: number;
-  onlineCount: number;
-};
-
-type ChatMessage = {
-  id: string;
-  thread_id: string;
-  sender_user_id: string;
-  body: string;
-  created_at: string;
+  canAddMembers: boolean;
 };
 
 const fallbackAvatar: ChatAvatar = {
@@ -85,13 +82,13 @@ function AvatarCircle({
         avatar.initials
       )}
       {showOnline && (
-        <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky" />
+        <span role="img" aria-label="Online" className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky" />
       )}
     </span>
   );
 }
 
-function AvatarStack({ avatars }: { avatars: ChatAvatar[] }) {
+function AvatarStack({ avatars, online }: { avatars: ChatAvatar[]; online: Set<string> }) {
   const visibleAvatars = avatars.length > 0 ? avatars : [fallbackAvatar];
 
   return (
@@ -101,6 +98,7 @@ function AvatarStack({ avatars }: { avatars: ChatAvatar[] }) {
           key={`${avatar.userId ?? avatar.initials}-${index}`}
           avatar={avatar}
           size="md"
+          showOnline={Boolean(avatar.userId && online.has(avatar.userId))}
         />
       ))}
     </div>
@@ -296,297 +294,165 @@ export default function FamilyChatShell({
   recipients: ChatRecipientOption[];
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const [threads, setThreads] = useState(initialThreads);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
-    initialThreads[0]?.id ?? null
-  );
-  const [activePanel, setActivePanel] = useState<"messages" | "thread">(
-    "messages"
-  );
-  const [messagesByThreadId, setMessagesByThreadId] = useState<
-    Record<string, ChatMessage[]>
-  >({});
-  const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
-  const [messageError, setMessageError] = useState<string | null>(null);
-  const [messageDraft, setMessageDraft] = useState("");
+  const router = useRouter();
+  const shellRef = useRef<HTMLElement | null>(null);
+  const scrollPanelRef = useRef<HTMLDivElement | null>(null);
+  const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
+  const pinnedToBottom = useRef(true);
+  const pendingSend = useRef(new Map<string, { id: string; body: string }>());
+  const sending = useRef(false);
+  const rosterRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [latestByThread, setLatestByThread] = useState<Record<string, ChatMessage>>({});
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreads[0]?.id ?? null);
+  const [awaitingThreadId, setAwaitingThreadId] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<"messages" | "thread">("messages");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [compose, setCompose] = useState<"new" | "add" | null>(null);
   const [recipientFilter, setRecipientFilter] = useState("");
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
   const [groupTitle, setGroupTitle] = useState("");
   const [isCreatingThread, setIsCreatingThread] = useState(false);
   const [createThreadError, setCreateThreadError] = useState<string | null>(null);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [leftThreadIds, setLeftThreadIds] = useState<string[]>([]);
 
-  const selectedThread =
-    threads.find((thread) => thread.id === selectedThreadId) ?? null;
-  const hasSelectedMessagesLoaded = selectedThreadId
-    ? Object.prototype.hasOwnProperty.call(messagesByThreadId, selectedThreadId)
-    : false;
-  const selectedMessages = selectedThreadId
-    ? messagesByThreadId[selectedThreadId] ?? []
-    : [];
-  const isLoadingSelectedThread =
-    loadingThreadId === selectedThreadId && !hasSelectedMessagesLoaded;
-  const activeThreadIds = useMemo(
-    () => threads.map((thread) => thread.id).sort(),
-    [threads]
-  );
-  const activeThreadIdsKey = activeThreadIds.join(",");
-
-  const onlineAvatars = useMemo(() => {
-    const seen = new Set<string>();
-    const avatars: ChatAvatar[] = [];
-
-    for (const thread of threads) {
-      for (const member of thread.members) {
-        if (member.userId === currentUserId) {
-          continue;
-        }
-
-        if (seen.has(member.userId)) {
-          continue;
-        }
-
-        seen.add(member.userId);
-        avatars.push(member.avatar);
+  const threads = initialThreads.filter((thread) => !leftThreadIds.includes(thread.id))
+    .map((thread) => {
+      const latest = latestByThread[thread.id];
+      if (!latest || new Date(latest.created_at).getTime() < new Date(thread.lastActivityAt ?? 0).getTime()) {
+        return thread;
       }
-    }
-
-    if (avatars.length === 0) {
-      for (const recipient of recipients) {
-        if (recipient.userId === currentUserId || seen.has(recipient.userId)) {
-          continue;
-        }
-
-        seen.add(recipient.userId);
-        avatars.push(recipient.avatar);
-      }
-    }
-
-    return avatars.slice(0, 8);
-  }, [currentUserId, recipients, threads]);
-
-  const appendMessageToThread = useCallback((message: ChatMessage) => {
-    setMessagesByThreadId((currentMessages) => {
-      const threadMessages = currentMessages[message.thread_id] ?? [];
-
-      if (threadMessages.some((existingMessage) => existingMessage.id === message.id)) {
-        return currentMessages;
-      }
-
       return {
-        ...currentMessages,
-        [message.thread_id]: [...threadMessages, message].sort(
-          (first, second) =>
-            new Date(first.created_at).getTime() -
-            new Date(second.created_at).getTime()
-        ),
+        ...thread,
+        lastActivityAt: latest.created_at,
+        lastActivityLabel: formatActivityLabel(latest.created_at),
+        preview: latest.body,
       };
+    })
+    .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());
+  const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const threadId = selectedThread?.id ?? null;
+  const messageDraft = threadId ? drafts[threadId] ?? "" : "";
+  const history = useChatHistory(supabase, threadId);
+  const activity = useChatActivity(supabase, threadId);
+  const selectedMessages = history.messages;
+  const onlineMembers = new Map(threads.flatMap((thread) => thread.members)
+    .filter((member) => activity.online.has(member.userId))
+    .map((member) => [member.userId, member]));
+  const typingNames = selectedThread?.members
+    .filter((member) => activity.typing.has(member.userId))
+    .map((member) => member.displayName) ?? [];
+  const groupOnline = selectedThread?.members.filter((member) => activity.online.has(member.userId)).length ?? 0;
+  const eligibleRecipients = compose === "add"
+    ? recipients.filter((recipient) => !selectedThread?.members.some((member) => member.userId === recipient.userId))
+    : recipients;
+  const selectedRecipients = eligibleRecipients.filter((recipient) => selectedRecipientIds.includes(recipient.userId));
+  const filteredRecipients = eligibleRecipients.filter((recipient) =>
+    recipient.displayName.toLowerCase().includes(recipientFilter.trim().toLowerCase())
+  );
+  const canSendMessage = Boolean(threadId && messageDraft.trim() && !isSendingMessage);
+
+  function noteMessage(message: ChatMessage) {
+    history.append(message);
+    setLatestByThread((previous) => {
+      const latest = previous[message.thread_id];
+      if (latest && (latest.created_at > message.created_at
+        || (latest.created_at === message.created_at && latest.id >= message.id))) return previous;
+      return { ...previous, [message.thread_id]: message };
     });
-  }, []);
+  }
+
+  const onNewMessage = useEffectEvent((message: ChatMessage) => noteMessage(message));
+  const catchUp = useEffectEvent(() => {
+    if (document.hidden || !navigator.onLine) return;
+    router.refresh();
+    void history.refresh();
+  });
 
   useEffect(() => {
-    if (
-      !selectedThreadId ||
-      hasSelectedMessagesLoaded ||
-      loadingThreadId === selectedThreadId
-    ) {
-      return;
-    }
-
-    let isActive = true;
-
-    async function loadMessages(threadId: string) {
-      setLoadingThreadId(threadId);
-      setMessageError(null);
-
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id, thread_id, sender_user_id, body, created_at")
-        .eq("thread_id", threadId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (!isActive) {
-        return;
-      }
-
-      if (error) {
-        setMessageError(
-          "We could not load this conversation. Please try again in a moment."
-        );
-        setLoadingThreadId(null);
-        return;
-      }
-
-      const rows = ((data ?? []) as ChatMessage[]).slice().reverse();
-
-      setMessagesByThreadId((current) => ({
-        ...current,
-        [threadId]: rows,
-      }));
-      setLoadingThreadId(null);
-    }
-
-    void loadMessages(selectedThreadId);
-
-    return () => {
-      isActive = false;
+    const scheduleRosterRefresh = () => {
+      if (document.hidden || rosterRefresh.current) return;
+      rosterRefresh.current = setTimeout(() => {
+        rosterRefresh.current = null;
+        router.refresh();
+      }, 150);
     };
-  }, [
-    hasSelectedMessagesLoaded,
-    loadingThreadId,
-    selectedThreadId,
-    supabase,
-  ]);
-
-  useEffect(() => {
-    if (activeThreadIds.length === 0) {
-      return;
-    }
-
-    const channel = supabase.channel(
-      `family-chat-messages:${currentUserId}:${activeThreadIdsKey}`
-    );
-
-    for (const threadId of activeThreadIds) {
-      channel.on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `thread_id=eq.${threadId}`,
-        },
-        (payload) => {
-          const message = payload.new as ChatMessage;
-
-          if (!message?.id || !message.thread_id) {
-            return;
+    // Postgres Changes checks chat row-level policies on each event, including
+    // when someone leaves while a subscription is already open.
+    const channel = supabase.channel("family-chat:" + currentUserId)
+      .on("postgres_changes", { schema: "public", table: "chat_messages", event: "INSERT" },
+        ({ new: row }) => onNewMessage(row as ChatMessage))
+      .on("postgres_changes", { schema: "public", table: "chat_thread_members", event: "INSERT" },
+        scheduleRosterRefresh)
+      .on("postgres_changes", { schema: "public", table: "chat_thread_members", event: "UPDATE" },
+        ({ new: row }) => {
+          if (row.user_id === currentUserId && row.left_at === null) {
+            setLeftThreadIds((ids) => ids.filter((id) => id !== row.thread_id));
           }
+          scheduleRosterRefresh();
+        })
+      .subscribe((status) => { if (status === "SUBSCRIBED") catchUp(); });
 
-          appendMessageToThread(message);
-          updateThreadPreview(message);
-          setMessageError(null);
-          setLoadingThreadId((currentThreadId) =>
-            currentThreadId === message.thread_id ? null : currentThreadId
-          );
-        }
-      );
-    }
-
-    channel.subscribe();
-
+    const reconnect = () => catchUp();
+    window.addEventListener("online", reconnect);
+    document.addEventListener("visibilitychange", reconnect);
     return () => {
+      if (rosterRefresh.current) clearTimeout(rosterRefresh.current);
+      rosterRefresh.current = null;
+      window.removeEventListener("online", reconnect);
+      document.removeEventListener("visibilitychange", reconnect);
       void supabase.removeChannel(channel);
     };
-  }, [
-    activeThreadIds,
-    activeThreadIdsKey,
-    appendMessageToThread,
-    currentUserId,
-    supabase,
-  ]);
+  }, [currentUserId, router, supabase]);
+
+  useLayoutEffect(() => {
+    const panel = scrollPanelRef.current;
+    if (!panel || history.loading) return;
+    const anchor = scrollAnchor.current;
+    if (anchor?.threadId === threadId && !history.loadingOlder) {
+      panel.scrollTop = anchor.top + panel.scrollHeight - anchor.height;
+      scrollAnchor.current = null;
+    } else if (pinnedToBottom.current) {
+      panel.scrollTop = panel.scrollHeight;
+    }
+  }, [activePanel, history.loading, history.loadingOlder, selectedMessages.length, threadId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [selectedMessages.length, selectedThreadId]);
+    const viewport = window.visualViewport;
+    const shell = shellRef.current;
+    if (!viewport || !shell) return;
+    const resize = () => shell.style.setProperty("--chat-viewport", `${viewport.height}px`);
+    resize();
+    viewport.addEventListener("resize", resize);
+    return () => viewport.removeEventListener("resize", resize);
+  }, []);
 
-  function selectThread(threadId: string) {
-    setSelectedThreadId(threadId);
+  function selectThread(id: string) {
+    activity.signal("stop");
+    pinnedToBottom.current = true;
+    scrollAnchor.current = null;
+    setAwaitingThreadId(null);
+    setSelectedThreadId(id);
     setActivePanel("thread");
     setSendError(null);
+    setGroupError(null);
+  }
+
+  async function loadOlder() {
+    const panel = scrollPanelRef.current;
+    if (!panel || !threadId || history.loadingOlder) return;
+    pinnedToBottom.current = false;
+    scrollAnchor.current = { threadId, height: panel.scrollHeight, top: panel.scrollTop };
+    if (!await history.loadOlder()) scrollAnchor.current = null;
   }
 
   function getMemberForMessage(message: ChatMessage) {
-    return selectedThread?.members.find(
-      (member) => member.userId === message.sender_user_id
-    );
-  }
-
-  const canSendMessage =
-    Boolean(selectedThread) && messageDraft.trim().length > 0 && !isSendingMessage;
-  const selectedRecipients = recipients.filter((recipient) =>
-    selectedRecipientIds.includes(recipient.userId)
-  );
-  const filteredRecipients = recipients.filter((recipient) =>
-    recipient.displayName
-      .toLowerCase()
-      .includes(recipientFilter.trim().toLowerCase())
-  );
-
-  function buildNewThreadSummary({
-    threadId,
-    selectedMembers,
-  }: {
-    threadId: string;
-    selectedMembers: ChatRecipientOption[];
-  }): ChatThreadSummary {
-    const threadType = selectedMembers.length === 1 ? "direct" : "group";
-    const members: ChatThreadMemberSummary[] = [
-      currentUser,
-      ...selectedMembers.map((member) => ({
-        userId: member.userId,
-        displayName: member.displayName,
-        avatar: member.avatar,
-      })),
-    ];
-    const now = new Date().toISOString();
-    const title =
-      threadType === "direct"
-        ? selectedMembers[0]?.displayName ?? "Family member"
-        : groupTitle.trim() ||
-          selectedMembers
-            .slice(0, 3)
-            .map((recipient) => recipient.displayName)
-            .join(", ") ||
-          "Family group";
-
-    return {
-      id: threadId,
-      threadType,
-      name: title,
-      lastActivityAt: now,
-      lastActivityLabel: formatActivityLabel(now),
-      preview: null,
-      avatars:
-        threadType === "direct"
-          ? [selectedMembers[0]?.avatar ?? fallbackAvatar]
-          : members.slice(0, 4).map((member) => member.avatar),
-      members,
-      memberCount: members.length,
-      onlineCount: 1,
-    };
-  }
-
-  function updateThreadPreview(message: ChatMessage) {
-    setThreads((currentThreads) =>
-      currentThreads
-        .map((thread) => {
-          if (thread.id !== message.thread_id) {
-            return thread;
-          }
-
-          return {
-            ...thread,
-            lastActivityAt: message.created_at,
-            lastActivityLabel: formatActivityLabel(message.created_at),
-            preview: message.body,
-          };
-        })
-        .sort((first, second) => {
-          const firstTime = first.lastActivityAt
-            ? new Date(first.lastActivityAt).getTime()
-            : 0;
-          const secondTime = second.lastActivityAt
-            ? new Date(second.lastActivityAt).getTime()
-            : 0;
-
-          return secondTime - firstTime;
-        })
-    );
+    if (message.sender_user_id === currentUserId) return currentUser;
+    return selectedThread?.members.find((member) => member.userId === message.sender_user_id)
+      ?? selectedThread?.pastMembers.find((member) => member.userId === message.sender_user_id);
   }
 
   function toggleRecipient(userId: string) {
@@ -606,154 +472,99 @@ export default function FamilyChatShell({
   }
 
   async function createThread() {
-    if (selectedRecipients.length === 0) {
-      setCreateThreadError("Choose at least one family member.");
-      return;
-    }
-
+    if (!selectedRecipients.length || isCreatingThread) return;
     setIsCreatingThread(true);
     setCreateThreadError(null);
 
     try {
-      const { data, error } = await supabase.rpc("create_chat_thread", {
-        recipient_user_ids: selectedRecipientIds,
-        thread_title:
-          selectedRecipients.length > 1 && groupTitle.trim()
-            ? groupTitle.trim()
-            : null,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      const threadId = data as string;
-      const existingThread = threads.find((thread) => thread.id === threadId);
-
-      if (!existingThread) {
-        const newThread = buildNewThreadSummary({
-          threadId,
-          selectedMembers: selectedRecipients,
+      const recipientIds = selectedRecipients.map((recipient) => recipient.userId);
+      if (compose === "add" && threadId) {
+        const { error } = await supabase.rpc("add_chat_group_members", {
+          thread_uuid: threadId,
+          recipient_user_ids: recipientIds,
         });
-
-        setThreads((currentThreads) => [newThread, ...currentThreads]);
-        setMessagesByThreadId((currentMessages) => ({
-          ...currentMessages,
-          [threadId]: currentMessages[threadId] ?? [],
-        }));
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.rpc("create_chat_thread", {
+          recipient_user_ids: recipientIds,
+          thread_title: groupTitle.trim() || null,
+        });
+        if (error || !data) throw error ?? new Error("Missing conversation");
+        const id = data as string;
+        selectThread(id);
+        setAwaitingThreadId(id);
       }
-
-      setSelectedThreadId(threadId);
-      setActivePanel("thread");
-      setIsComposeOpen(false);
+      router.refresh();
+      setCompose(null);
       resetComposeModal();
-    } catch (error) {
-      console.error("Could not create chat thread", error);
-      setCreateThreadError(
-        "We could not start that conversation. Please check the selected family members and try again."
-      );
+    } catch {
+      setCreateThreadError(compose === "add"
+        ? "We couldn’t add those family members. Please try again."
+        : "We couldn’t start that conversation. Please try again.");
     } finally {
       setIsCreatingThread(false);
     }
   }
 
-  async function insertMessageWithFallback({
-    threadId,
-    body,
-  }: {
-    threadId: string;
-    body: string;
-  }) {
-    const rpcResponse = await supabase.rpc("send_chat_message", {
-      thread_uuid: threadId,
-      message_body: body,
-    });
-
-    if (!rpcResponse.error) {
-      return rpcResponse.data as ChatMessage;
+  async function leaveGroup() {
+    if (!threadId || leaving || !window.confirm("Leave this group? You’ll lose access to its messages.")) return;
+    setLeaving(true);
+    setGroupError(null);
+    try {
+      const { error } = await supabase.rpc("leave_chat_group", { thread_uuid: threadId });
+      if (error) throw error;
+      activity.signal("stop");
+      setLeftThreadIds((ids) => [...ids, threadId]);
+      setSelectedThreadId(null);
+      setAwaitingThreadId(null);
+      setActivePanel("messages");
+      router.refresh();
+    } catch {
+      setGroupError("We couldn’t leave the group. Please try again.");
+    } finally {
+      setLeaving(false);
     }
-
-    const missingRpc =
-      rpcResponse.error.code === "PGRST202" ||
-      rpcResponse.error.message.toLowerCase().includes("function");
-
-    if (!missingRpc) {
-      throw rpcResponse.error;
-    }
-
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .insert({
-        thread_id: threadId,
-        sender_user_id: currentUserId,
-        body,
-      })
-      .select("id, thread_id, sender_user_id, body, created_at")
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    const insertedMessage = data as ChatMessage;
-
-    await supabase
-      .from("chat_threads")
-      .update({ last_message_at: insertedMessage.created_at })
-      .eq("id", threadId);
-
-    return insertedMessage;
   }
 
   async function sendMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-
-    if (!selectedThread) {
-      setSendError("Choose a conversation before sending a message.");
-      return;
-    }
-
     const body = messageDraft.trim();
-
-    if (!body) {
-      setSendError("Write a message before sending.");
-      return;
-    }
-
+    if (!threadId || !body || sending.current) return;
+    const existing = pendingSend.current.get(threadId);
+    const id = existing?.body === body ? existing.id : crypto.randomUUID();
+    pendingSend.current.set(threadId, { id, body });
+    sending.current = true;
     setIsSendingMessage(true);
     setSendError(null);
-
+    activity.signal("stop");
     try {
-      const sentMessage = await insertMessageWithFallback({
-        threadId: selectedThread.id,
-        body,
+      const { data, error } = await supabase.rpc("send_chat_message", {
+        thread_uuid: threadId, message_body: body, client_message_id: id,
       });
-
-      appendMessageToThread(sentMessage);
-      updateThreadPreview(sentMessage);
-      setMessageDraft("");
-    } catch (error) {
-      console.error("Could not send chat message", error);
-      setSendError(
-        "We could not send that message. Please check the conversation and try again."
-      );
+      if (error || !data) throw error ?? new Error("Missing message");
+      noteMessage(data as ChatMessage);
+      pendingSend.current.delete(threadId);
+      setDrafts((previous) => ({ ...previous, [threadId]: "" }));
+    } catch {
+      setSendError("We couldn’t confirm this message was sent. Try sending again.");
     } finally {
+      sending.current = false;
       setIsSendingMessage(false);
     }
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void sendMessage();
     }
   }
 
   return (
-    <section className="flex min-h-[calc(100svh-77px)] w-full flex-col overflow-x-hidden lg:mx-auto lg:min-h-screen lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
-      <div className="grid min-h-[calc(100svh-77px)] w-full min-w-0 lg:min-h-[calc(100svh-64px)] lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
+    <section ref={shellRef} className="flex h-[calc(var(--chat-viewport,100dvh)-77px)] min-h-0 w-full flex-col overflow-hidden lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
+      <div className="grid min-h-0 flex-1 w-full min-w-0 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
         <aside
-          className={`min-w-0 bg-white ${
+          className={`min-h-0 min-w-0 overflow-y-auto bg-white ${
             activePanel === "messages" ? "block" : "hidden"
           } lg:block lg:rounded-3xl lg:border lg:border-night-sky/10 lg:shadow-sm`}
         >
@@ -764,7 +575,7 @@ export default function FamilyChatShell({
               </h1>
               <IconButton
                 label="Start a new message"
-                onClick={() => setIsComposeOpen(true)}
+                onClick={() => setCompose("new")}
               >
                 <ComposeIcon />
               </IconButton>
@@ -779,34 +590,19 @@ export default function FamilyChatShell({
             />
 
             <div className="mt-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-night-sky/45">
-                  Online now
-                </h2>
-                <button
-                  type="button"
-                  disabled
-                  className="text-xs font-bold uppercase tracking-[0.12em] text-sky-depth opacity-60"
-                >
-                  All
-                </button>
-              </div>
-
-              {onlineAvatars.length > 0 ? (
+              <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-night-sky/45">
+                Online now
+              </h2>
+              {onlineMembers.size > 0 ? (
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
-                  {onlineAvatars.map((avatar, index) => (
-                    <AvatarCircle
-                      key={`${avatar.userId ?? avatar.initials}-${index}`}
-                      avatar={avatar}
-                      size="lg"
-                      showOnline
-                    />
+                  {[...onlineMembers.values()].slice(0, 8).map((member) => (
+                    <div key={member.userId} title={member.displayName} aria-label={member.displayName}>
+                      <AvatarCircle avatar={member.avatar} size="lg" showOnline />
+                    </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-night-sky/50">
-                  Online presence will appear here soon.
-                </p>
+                <p className="mt-3 text-sm text-night-sky/50">No other chat members online.</p>
               )}
             </div>
           </div>
@@ -831,10 +627,11 @@ export default function FamilyChatShell({
                     }`}
                   >
                     {thread.avatars.length > 1 ? (
-                      <AvatarStack avatars={thread.avatars} />
+                      <AvatarStack avatars={thread.avatars} online={activity.online} />
                     ) : (
                       <AvatarCircle
                         avatar={thread.avatars[0] ?? fallbackAvatar}
+                        showOnline={activity.online.has(thread.avatars[0]?.userId ?? "")}
                         size="md"
                       />
                     )}
@@ -860,9 +657,9 @@ export default function FamilyChatShell({
         </aside>
 
         <article
-          className={`min-h-[calc(100svh-77px)] min-w-0 flex-col overflow-hidden bg-white ${
+          className={`min-h-0 min-w-0 flex-col overflow-hidden bg-white ${
             activePanel === "thread" ? "flex" : "hidden"
-          } lg:flex lg:min-h-[620px] lg:rounded-3xl lg:border lg:border-night-sky/10 lg:shadow-sm`}
+          } lg:flex lg:rounded-3xl lg:border lg:border-night-sky/10 lg:shadow-sm`}
         >
           {selectedThread ? (
             <>
@@ -870,27 +667,45 @@ export default function FamilyChatShell({
                 <div className="flex items-center gap-4">
                   <button
                     type="button"
-                    onClick={() => setActivePanel("messages")}
+                    onClick={() => { activity.signal("stop"); setActivePanel("messages"); }}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-night-sky/10 bg-white text-night-sky/75 shadow-sm hover:bg-sand lg:hidden"
                     aria-label="Back to messages"
                   >
                     <BackIcon />
                   </button>
 
-                  <AvatarStack avatars={selectedThread.avatars} />
+                  <AvatarStack avatars={selectedThread.avatars} online={activity.online} />
                   <div>
                     <h2 className="text-2xl font-black text-night-sky">
                       {selectedThread.name}
                     </h2>
-                    <p className="mt-1 text-sm text-night-sky/55">
-                      {selectedThread.lastActivityLabel || "No recent activity"}{" "}
-                      · {selectedThread.memberCount}{" "}
-                      {selectedThread.memberCount === 1 ? "member" : "members"},
-                      {" "}
-                      <span className="font-semibold text-teal">
-                        {selectedThread.onlineCount} online
-                      </span>
-                    </p>
+                    {selectedThread.threadType === "group" ? (
+                      <details key={selectedThread.id} className="relative mt-1">
+                        <summary className="cursor-pointer text-sm text-night-sky/65">
+                          {selectedThread.memberCount} members · <span className="font-semibold text-sky-depth">{groupOnline} online</span>
+                        </summary>
+                        <ul aria-label="Group members" className="absolute z-20 mt-2 max-h-64 w-56 overflow-y-auto rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg">
+                          {selectedThread.members.map((member) => {
+                            const online = member.userId === currentUserId || activity.online.has(member.userId);
+                            return (
+                              <li key={member.userId} className="flex items-center gap-3 p-2">
+                                <AvatarCircle avatar={member.avatar} size="sm" showOnline={online} />
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold">{member.displayName}</p>
+                                  <p className="text-xs text-night-sky/55">
+                                    {member.userId === currentUserId ? "You" : online ? "Online" : "Offline"}
+                                  </p>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </details>
+                    ) : (
+                      <p className="mt-1 text-sm text-night-sky/55">
+                        {groupOnline > 0 ? "Online" : selectedThread.lastActivityLabel || "No recent activity"}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -901,20 +716,48 @@ export default function FamilyChatShell({
                   <IconButton label="Video call" disabled comingSoon>
                     <VideoIcon />
                   </IconButton>
-                  <IconButton label="Conversation options" disabled comingSoon>
-                    <EllipsisIcon />
-                  </IconButton>
+                  {selectedThread.threadType === "group" && (
+                    <details key={selectedThread.id} className="relative">
+                      <summary aria-label="Group options" className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-night-sky/10">
+                        <EllipsisIcon />
+                      </summary>
+                      <div className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg">
+                        {selectedThread.canAddMembers && (
+                          <button type="button" onClick={() => setCompose("add")} className="block w-full rounded-lg p-2 text-left text-sm hover:bg-sand">
+                            Add members
+                          </button>
+                        )}
+                        <button type="button" disabled={leaving} onClick={leaveGroup} className="block w-full rounded-lg p-2 text-left text-sm hover:bg-sand">
+                          Leave group
+                        </button>
+                      </div>
+                    </details>
+                  )}
                 </div>
               </header>
 
-              <div className="flex-1 space-y-5 overflow-y-auto bg-sand/55 p-5">
-                {messageError ? (
-                  <EmptyState title="Conversation unavailable" body={messageError} />
-                ) : isLoadingSelectedThread ? (
+              <div ref={scrollPanelRef} onScroll={(event) => {
+                const panel = event.currentTarget;
+                if (scrollAnchor.current) return;
+                pinnedToBottom.current = panel.scrollHeight - panel.clientHeight - panel.scrollTop < 80;
+                if (panel.scrollTop < 48 && history.hasOlder && !history.loadingOlder && !history.error) void loadOlder();
+              }} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain bg-sand/55 p-5">
+                {history.error && (
+                  <p role="alert" className="text-sm text-red-700">
+                    {history.error}{" "}
+                    <button type="button" className="underline" onClick={() => void (history.error === "We couldn’t load older messages. Please try again." ? loadOlder() : history.refresh())}>Retry</button>
+                  </p>
+                )}
+                {history.hasOlder && (
+                  <button type="button" disabled={history.loadingOlder} onClick={() => void loadOlder()} className="mx-auto block rounded-lg px-3 py-2 text-sm font-semibold text-sky-depth">
+                    {history.loadingOlder ? "Loading older messages…" : "Load older messages"}
+                  </button>
+                )}
+                {history.loading ? (
                   <div className="rounded-3xl border border-night-sky/10 bg-white p-5 text-sm text-night-sky/55 shadow-sm">
                     Loading conversation...
                   </div>
-                ) : selectedMessages.length === 0 ? (
+                ) : selectedMessages.length === 0 && !history.error ? (
                   <EmptyState
                     title="No messages yet"
                     body="This conversation is ready for its first breadcrumb."
@@ -934,6 +777,7 @@ export default function FamilyChatShell({
                         <AvatarCircle
                           avatar={member?.avatar ?? fallbackAvatar}
                           size="sm"
+                          showOnline={activity.online.has(message.sender_user_id)}
                         />
 
                         <div
@@ -953,7 +797,7 @@ export default function FamilyChatShell({
                           </div>
 
                           <div
-                            className={`mt-1 rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                            className={`mt-1 whitespace-pre-wrap wrap-anywhere rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
                               isCurrentUser
                                 ? "bg-sky text-white"
                                 : "border border-night-sky/10 bg-white text-night-sky/75"
@@ -966,19 +810,28 @@ export default function FamilyChatShell({
                     );
                   })
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t border-night-sky/10 bg-white p-4">
+              <div className="shrink-0 border-t border-night-sky/10 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div role="status" className="min-h-5 text-xs text-night-sky/60">
+                  {typingNames.length === 1 && `${typingNames[0]} is typing…`}
+                  {typingNames.length === 2 && `${typingNames.join(" and ")} are typing…`}
+                  {typingNames.length > 2 && "Several family members are typing…"}
+                </div>
+                {groupError && <p role="alert" className="text-sm text-red-700">{groupError}</p>}
                 <form onSubmit={sendMessage} className="space-y-2">
                   <div className="flex items-end gap-3 rounded-2xl border border-night-sky/10 bg-sand p-2 shadow-inner">
                     <textarea
                       value={messageDraft}
                       onChange={(event) => {
-                        setMessageDraft(event.target.value);
+                        const value = event.target.value;
+                        setDrafts((previous) => ({ ...previous, [selectedThread.id]: value }));
+                        activity.signal(value.trim() ? "typing" : "stop");
                         setSendError(null);
                       }}
+                      onBlur={() => activity.signal("stop")}
                       onKeyDown={handleComposerKeyDown}
+                      maxLength={4000}
                       placeholder="Write a message..."
                       aria-label="Write a message"
                       rows={1}
@@ -1009,31 +862,35 @@ export default function FamilyChatShell({
           ) : (
             <div className="flex flex-1 items-center justify-center bg-sand/55 p-5">
               <EmptyState
-                title="Choose a conversation"
-                body="Your family messages will open here once a conversation is selected."
+                title={awaitingThreadId === selectedThreadId && awaitingThreadId ? "Opening conversation" : "Choose a conversation"}
+                body={awaitingThreadId === selectedThreadId && awaitingThreadId
+                  ? "The conversation will appear as soon as it’s ready."
+                  : "Your family messages will open here once a conversation is selected."}
               />
             </div>
           )}
         </article>
       </div>
 
-      {isComposeOpen && (
+      {compose && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-night-sky/35 p-0 sm:items-center sm:p-6">
           <div className="max-h-[90svh] w-full overflow-hidden rounded-t-3xl border border-night-sky/10 bg-white shadow-xl sm:max-w-xl sm:rounded-3xl">
             <div className="border-b border-night-sky/10 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black text-night-sky">
-                    New message
+                    {compose === "add" ? "Add family members" : "New message"}
                   </h2>
                   <p className="mt-1 text-sm text-night-sky/55">
-                    Choose family members who already have LegacyLink accounts.
+                    {compose === "add"
+                      ? "New members can read this group’s full conversation history."
+                      : "Choose family members with an accepted LegacyLink connection."}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setIsComposeOpen(false);
+                    setCompose(null);
                     resetComposeModal();
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-night-sky/10 bg-white text-night-sky/60 shadow-sm hover:bg-sand"
@@ -1054,9 +911,9 @@ export default function FamilyChatShell({
             </div>
 
             <div className="max-h-[42svh] overflow-y-auto p-3">
-              {recipients.length === 0 ? (
+              {eligibleRecipients.length === 0 ? (
                 <EmptyState
-                  title="No messageable family yet"
+                  title={compose === "add" ? "No additional family members" : "No messageable family yet"}
                   body="Connect family members to LegacyLink accounts before starting a family chat."
                 />
               ) : filteredRecipients.length === 0 ? (
@@ -1107,7 +964,7 @@ export default function FamilyChatShell({
               )}
             </div>
 
-            {selectedRecipients.length > 1 && (
+            {compose === "new" && selectedRecipients.length > 1 && (
               <div className="border-t border-night-sky/10 px-5 py-4">
                 <label
                   htmlFor="family-chat-group-title"
@@ -1119,6 +976,7 @@ export default function FamilyChatShell({
                   id="family-chat-group-title"
                   type="text"
                   value={groupTitle}
+                  maxLength={120}
                   onChange={(event) => setGroupTitle(event.target.value)}
                   placeholder="Optional group name"
                   className="mt-2"
@@ -1139,7 +997,7 @@ export default function FamilyChatShell({
                 <button
                   type="button"
                   onClick={() => {
-                    setIsComposeOpen(false);
+                    setCompose(null);
                     resetComposeModal();
                   }}
                   className="rounded-2xl border border-night-sky/10 bg-white px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-sky-depth shadow-sm"
@@ -1153,8 +1011,10 @@ export default function FamilyChatShell({
                   className="rounded-2xl border-b-[4px] border-sky-depth bg-sky px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-white shadow-sm transition hover:-translate-y-0.5 hover:border-b-[6px] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-b-[4px]"
                 >
                   {isCreatingThread
-                    ? "Starting..."
-                    : selectedRecipients.length > 1
+                    ? "Saving…"
+                    : compose === "add"
+                      ? "Add members"
+                      : selectedRecipients.length > 1
                       ? "Start group"
                       : "Start chat"}
                 </button>

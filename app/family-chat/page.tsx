@@ -48,9 +48,7 @@ type LinkedPersonRow = {
 };
 
 type MessagePreviewRow = {
-  id: string;
   thread_id: string;
-  sender_user_id: string;
   body: string;
   created_at: string;
 };
@@ -259,42 +257,42 @@ async function loadMessageableRecipients({
   currentUserId: string;
   supabase: Awaited<ReturnType<typeof createClient>>;
 }): Promise<ChatRecipientOption[]> {
-  const { data: peopleData } = await supabase
-    .from("people")
-    .select("id, linked_user_id, first_name, last_name, display_name, profile_photo_path")
-    .eq("created_by_user_id", currentUserId)
-    .not("linked_user_id", "is", null)
-    .neq("linked_user_id", currentUserId)
-    .order("first_name", { ascending: true })
-    .limit(100);
+  const { data, error } = await supabase.rpc("chat_connected_user_ids");
+  if (error) throw new Error("Could not load connected family members", { cause: error });
+  const userIds = (data ?? []) as string[];
+  if (!userIds.length) return [];
 
-  const people = ((peopleData ?? []) as LinkedPersonRow[]).filter(
-    (person) => person.linked_user_id
-  );
-  const photoUrlByPath = await createPhotoUrlMap(
-    supabase,
-    people
-      .map((person) => person.profile_photo_path)
-      .filter((path): path is string => Boolean(path))
-  );
+  const [{ data: peopleData }, { data: profilesData }] = await Promise.all([
+    supabase.from("people")
+      .select("id, linked_user_id, first_name, last_name, display_name, profile_photo_path")
+      .eq("created_by_user_id", currentUserId)
+      .in("linked_user_id", userIds)
+      .order("created_at", { ascending: true }),
+    supabase.rpc("read_chat_names", { user_ids: userIds }),
+  ]);
+  const people = new Map(((peopleData ?? []) as LinkedPersonRow[])
+    .map((person) => [person.linked_user_id, person]));
+  const profiles = new Map(((profilesData ?? []) as ProfileRow[])
+    .map((profile) => [profile.id, profile]));
+  const photoUrlByPath = await createPhotoUrlMap(supabase, [...people.values()]
+    .flatMap((person) => person.profile_photo_path ? [person.profile_photo_path] : []));
 
-  return people.map((person) => {
-    const displayName = getPersonName(person) || "Family member";
-    const userId = person.linked_user_id as string;
-
+  return userIds.map((userId) => {
+    const person = people.get(userId);
+    const displayName = getPersonName(person) || getProfileName(profiles.get(userId)) || "Family member";
     return {
       userId,
-      personId: person.id,
+      personId: person?.id ?? null,
       displayName,
       avatar: buildAvatar({
         userId,
         displayName,
-        photoUrl: person.profile_photo_path
+        photoUrl: person?.profile_photo_path
           ? photoUrlByPath.get(person.profile_photo_path) ?? null
           : null,
       }),
     };
-  });
+  }).sort((first, second) => first.displayName.localeCompare(second.displayName));
 }
 
 function buildThreadName({
@@ -331,7 +329,7 @@ async function loadInitialThreads({
   currentUserId: string;
   supabase: Awaited<ReturnType<typeof createClient>>;
 }): Promise<ChatThreadSummary[]> {
-  const { data: membershipData } = await supabase
+  const { data: membershipData, error: membershipError } = await supabase
     .from("chat_thread_members")
     .select(
       `
@@ -349,8 +347,8 @@ async function loadInitialThreads({
       `
     )
     .eq("user_id", currentUserId)
-    .is("left_at", null)
-    .limit(50);
+    .is("left_at", null);
+  if (membershipError) throw new Error("Could not load family conversations", { cause: membershipError });
 
   const currentUserMemberships = (membershipData ??
     []) as CurrentUserMembershipRow[];
@@ -366,30 +364,23 @@ async function loadInitialThreads({
     return [];
   }
 
-  const [{ data: memberData }, { data: previewData }] = await Promise.all([
+  const [membersResult, previewsResult] = await Promise.all([
     supabase
       .from("chat_thread_members")
       .select("thread_id, user_id, person_id, role, left_at")
-      .in("thread_id", threadIds)
-      .is("left_at", null)
-      .limit(250),
-    supabase
-      .from("chat_messages")
-      .select("id, thread_id, sender_user_id, body, created_at")
-      .in("thread_id", threadIds)
-      .order("created_at", { ascending: false })
-      .limit(Math.max(threadIds.length * 3, 50)),
+      .in("thread_id", threadIds),
+    supabase.rpc("read_chat_previews", { thread_ids: threadIds }),
   ]);
 
-  const members = (memberData ?? []) as ChatMemberRow[];
+  if (membersResult.error || previewsResult.error) {
+    throw new Error("Could not load conversation details", { cause: membersResult.error ?? previewsResult.error });
+  }
+  const members = (membersResult.data ?? []) as ChatMemberRow[];
   const userIds = Array.from(new Set(members.map((member) => member.user_id)));
 
   const [{ data: profilesData }, { data: peopleData }] = await Promise.all([
     userIds.length > 0
-      ? supabase
-          .from("profiles")
-          .select("id, first_name, last_name")
-          .in("id", userIds)
+      ? supabase.rpc("read_chat_names", { user_ids: userIds })
       : Promise.resolve({ data: [] }),
     userIds.length > 0
       ? supabase
@@ -421,22 +412,23 @@ async function loadInitialThreads({
   const membersByThreadId = members.reduce((map, member) => {
     const group = map.get(member.thread_id) ?? [];
     const person = peopleByUserId.get(member.user_id);
-    group.push(
-      buildMemberSummary({
+    group.push({
+      ...buildMemberSummary({
         member,
         profile: profilesByUserId.get(member.user_id),
         person,
         photoUrl: person?.profile_photo_path
           ? photoUrlByPath.get(person.profile_photo_path) ?? null
           : null,
-      })
-    );
+      }),
+      active: !member.left_at,
+    });
     map.set(member.thread_id, group);
     return map;
-  }, new Map<string, ChatThreadMemberSummary[]>());
+  }, new Map<string, (ChatThreadMemberSummary & { active: boolean })[]>());
   const previewByThreadId = new Map<string, MessagePreviewRow>();
 
-  for (const preview of (previewData ?? []) as MessagePreviewRow[]) {
+  for (const preview of (previewsResult.data ?? []) as MessagePreviewRow[]) {
     if (!previewByThreadId.has(preview.thread_id)) {
       previewByThreadId.set(preview.thread_id, preview);
     }
@@ -444,7 +436,8 @@ async function loadInitialThreads({
 
   return threads
     .map((thread) => {
-      const threadMembers = membersByThreadId.get(thread.id) ?? [];
+      const allMembers = membersByThreadId.get(thread.id) ?? [];
+      const threadMembers = allMembers.filter((member) => member.active);
       const preview = previewByThreadId.get(thread.id);
       const lastActivityAt =
         thread.last_message_at || preview?.created_at || thread.updated_at || thread.created_at;
@@ -473,12 +466,9 @@ async function loadInitialThreads({
         preview: preview?.body ?? null,
         avatars,
         members: threadMembers,
+        pastMembers: allMembers.filter((member) => !member.active),
         memberCount: threadMembers.length,
-        onlineCount: threadMembers.some(
-          (member) => member.userId === currentUserId
-        )
-          ? 1
-          : 0,
+        canAddMembers: thread.thread_type === "group" && thread.created_by_user_id === currentUserId,
       } satisfies ChatThreadSummary;
     })
     .sort((first, second) => {
