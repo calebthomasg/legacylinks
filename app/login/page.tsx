@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,19 +9,23 @@ import { useVerifiedAuth } from "@/components/useVerifiedAuth";
 import { createClient } from "@/utils/supabase/client";
 import { getSafeReturnPath, withReturnPath } from "@/utils/auth/returnPath";
 
+function subscribeToLocation(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+}
+
+function readReturnPath() {
+  return getSafeReturnPath(new URLSearchParams(window.location.search).get("next"));
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [returnPath, setReturnPath] = useState<string | null>(null);
+  const returnPath = useSyncExternalStore(subscribeToLocation, readReturnPath, () => null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const verification = useVerifiedAuth();
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setReturnPath(getSafeReturnPath(params.get("next")));
-  }, []);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,9 +68,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="mt-8 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-night-sky">Email</label>
+            <label htmlFor="login-email" className="block text-sm font-medium text-night-sky">Email</label>
             <input
+              id="login-email"
               type="email"
+              autoComplete="username"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -76,9 +82,16 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-night-sky">Password</label>
+            <div className="flex items-baseline justify-between gap-3">
+              <label htmlFor="login-password" className="block text-sm font-medium text-night-sky">Password</label>
+              <Link href="/forgot-password" className="text-sm font-semibold text-night-sky underline underline-offset-4">
+                Forgot password?
+              </Link>
+            </div>
             <input
+              id="login-password"
               type="password"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
