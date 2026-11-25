@@ -1,10 +1,10 @@
+import { groupCallType } from "./activity";
 import type { authorizeFamilyCall } from "./server";
 
 type FamilyCallAuth = Exclude<Awaited<ReturnType<typeof authorizeFamilyCall>>, { response: Response }>;
 type Mode = "audio" | "video";
 type GroupCallSlot = { call_id: string; caller_id: string; mode: Mode; expires_at: string; claimed?: boolean };
 
-import { groupCallType } from "./activity";
 export { groupCallType };
 
 export function streamFailureCode(error: unknown) {
@@ -46,4 +46,42 @@ export async function reserveGroupCall(auth: FamilyCallAuth, threadId: string, m
   const slot = (data as GroupCallSlot[] | null)?.[0];
   if (!slot) throw new Error("Could not reserve a group call");
   return slot;
+}
+
+
+let groupTypeReady: Promise<void> | undefined;
+
+export function prepareGroupCallType(auth: FamilyCallAuth) {
+  groupTypeReady ??= (async () => {
+    try {
+      await auth.stream.video.getCallType({ name: groupCallType });
+    } catch (error) {
+      if (streamFailureCode(error) !== 16) throw error;
+      try {
+        await auth.stream.video.createCallType({
+          name: groupCallType,
+          grants: {
+            user: [], anonymous: [], guest: [],
+            call_member: ["join-call", "read-call", "send-audio", "send-video"],
+          },
+          settings: {
+            lifecycle: { mode: "single_use" },
+            ring: { auto_cancel_timeout_ms: 30_000, incoming_call_timeout_ms: 30_000, missed_call_timeout_ms: 33_000 },
+            session: { inactivity_timeout_seconds: 5 },
+            recording: { mode: "disabled" },
+            transcription: { mode: "disabled", closed_caption_mode: "disabled" },
+            screensharing: { enabled: false },
+            thumbnails: { enabled: false },
+          },
+        });
+      } catch (creationError) {
+        // Another preview worker may have created it since the first lookup.
+        await auth.stream.video.getCallType({ name: groupCallType }).catch(() => { throw creationError; });
+      }
+    }
+  })().catch((error) => {
+    groupTypeReady = undefined;
+    throw error;
+  });
+  return groupTypeReady;
 }

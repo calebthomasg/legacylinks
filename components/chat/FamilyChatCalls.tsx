@@ -110,7 +110,8 @@ function CallPanel({ call, recovered, dismissRecovered }: {
   const other = call.isCreatedByMe
     ? members.find((member) => member.user_id !== creator?.id)?.user
     : creator;
-  const name = group ? custom.family_chat_group_name || "Family group" : other?.name || "Family member";
+  const groupName = typeof custom.family_chat_group_name === "string" ? custom.family_chat_group_name : "";
+  const name = group ? groupName || "Family group" : other?.name || "Family member";
   const speaker = devices.find((device) => /speaker/i.test(device.label) && !/earpiece/i.test(device.label));
   const earpiece = devices.find((device) => /earpiece|receiver/i.test(device.label));
   const speakerOn = Boolean(speaker && selectedDevice === speaker.deviceId);

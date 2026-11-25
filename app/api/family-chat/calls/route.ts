@@ -1,5 +1,5 @@
 import { groupCallsEnabled } from "@/lib/family-calls/config";
-import { groupCallType, groupSlot, reserveGroupCall } from "@/lib/family-calls/groups";
+import { groupCallType, groupSlot, prepareGroupCallType, reserveGroupCall } from "@/lib/family-calls/groups";
 import { authorizeFamilyCall, callResponse, callUsers } from "@/lib/family-calls/server";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
           && !slot.snapshot.call.session?.ended_at && Date.parse(slot.entry.expires_at) > Date.now());
         return callResponse({ mode: active ? slot?.entry.mode : null });
       }
+      await prepareGroupCallType(auth);
       const slot = await reserveGroupCall(auth, thread.id, body.mode);
       await auth.stream.upsertUsers(await callUsers(auth.supabase, userIds));
       const { call, members } = await auth.stream.video.call(groupCallType, slot.call_id).getOrCreate({
