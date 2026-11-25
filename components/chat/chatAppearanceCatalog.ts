@@ -160,11 +160,11 @@ export const chatWallpapers = [
 export const chatTones = [
   {
     id: "analog-fx-8",
-    name: "Analog FX 8",
+    name: "Sonar",
   },
   {
     id: "beeps-bonks-boinks-3",
-    name: "Beeps Bonks Boinks 3",
+    name: "Beeps Bonks Boinks",
   },
   {
     id: "digital-alert-triple-bell-bosnow-2-2-00-00",
@@ -172,11 +172,11 @@ export const chatTones = [
   },
   {
     id: "dragon-studio-notification-bell-sound-1-376885",
-    name: "Notification Bell Sound 1",
+    name: "Twinkle Bell",
   },
   {
     id: "elec-01",
-    name: "Elec 01",
+    name: "Nickelodeon Electricity",
   },
   {
     id: "notification-delayed-digital-bell-smartsound-fx-2-00-01",
@@ -184,30 +184,30 @@ export const chatTones = [
   },
   {
     id: "universfield-bright-notification-352449",
-    name: "Bright Notification",
+    name: "Bright Pling",
   },
   {
     id: "universfield-message-notification-124467",
-    name: "Message Notification",
+    name: "Tonal Chime",
   },
   {
     id: "universfield-new-notification-035-485894",
-    name: "New Notification 035",
+    name: "Triad Pling",
   },
   {
     id: "universfield-new-notification-056-494256",
-    name: "New Notification 056",
+    name: "Duo Tone",
   },
   {
     id: "universfield-new-notification-057-494255",
-    name: "New Notification 057",
+    name: "Bright Pling 2",
   },
   {
     id: "universfield-new-notification-07-210334",
-    name: "New Notification 07",
+    name: "Low Pling",
   },
   {
     id: "universfield-notification-beep-229154",
-    name: "Notification Beep",
+    name: "Low Duo Tone",
   },
 ];

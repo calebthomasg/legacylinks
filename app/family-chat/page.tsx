@@ -403,7 +403,7 @@ async function loadInitialThreads({
       mutedAt: member.muted_at,
       mutedUntil: member.muted_until,
       messageAlerts: member.message_alerts,
-      notificationTone: member.play_sounds ? member.notification_tone : "silent",
+      notificationTone: member.play_sounds && member.notification_tone !== "default" ? member.notification_tone : "silent",
     });
     map.set(member.thread_id, group);
     return map;
@@ -458,7 +458,7 @@ async function loadInitialThreads({
         members: threadMembers,
         pastMembers: allMembers.filter((member) => !member.active),
         memberCount: threadMembers.length,
-        canAddMembers: thread.thread_type === "group" && thread.created_by_user_id === currentUserId,
+        canAddMembers: thread.thread_type === "group",
       } satisfies ChatThreadSummary;
     })
     .sort((first, second) => {

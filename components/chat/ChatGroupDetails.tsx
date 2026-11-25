@@ -7,17 +7,19 @@ import type { ChatThreadSummary } from "./FamilyChatShell";
 import type { ChatMessage } from "./useChatHistory";
 import { ChatFile, chatFilesBucket, photoTypes, signChatFiles, uploadChatFile, videoTypes } from "./chatFiles";
 import type { SharedFile } from "./chatFiles";
-import { bubbleStyle, getChatTheme, isChatMuted, muteOptions, playDefaultChatTone, themes, tones, toneUrl, wallpaperStyle, wallpaperUrl } from "./chatAppearance";
+import { bubbleStyle, getChatTheme, isChatMuted, muteOptions, themes, tones, toneUrl, wallpaperStyle, wallpaperUrl } from "./chatAppearance";
+
+import GroupPhotoCrop from "./GroupPhotoCrop";
 
 type NotificationSetting = "mute" | "messages" | "tone";
 
-type Page = "details" | "edit" | "members" | "nicknames" | "search" | "gallery" | "notifications" | "pins" | "receipts" | "typing" | "report" | "context" | "tones" | "themes" | "theme-preview";
+type Page = "details" | "edit" | "members" | "nicknames" | "search" | "gallery" | "notifications" | "pins" | "receipts" | "typing" | "report" | "context" | "tones" | "themes" | "theme-preview" | "group-photo";
 type Privacy = { show_typing: boolean; show_read_receipts: boolean };
 type GalleryTab = "Media" | "Links" | "Files";
 type LinkItem = { message_id: string; url: string };
 
 const titles: Record<Page, string> = {
-  details: "Group details", edit: "Group name and image", members: "Group members",
+  details: "Group details", edit: "Group name", "group-photo": "Adjust group photo", members: "Group members",
   nicknames: "Nicknames", search: "Search conversation", gallery: "Media, links, and files",
   notifications: "Notifications & sounds", tones: "Text tone", themes: "Themes", "theme-preview": "Theme preview", pins: "Pinned messages", receipts: "Read receipts",
   typing: "Typing indicator", report: "Report a Family Chat issue", context: "Message in conversation",
@@ -29,14 +31,46 @@ const buttonClass = "rounded-xl bg-night-sky px-4 py-2 text-sm font-bold text-wh
 const cardClass = "overflow-hidden rounded-xl border border-night-sky/10 bg-white";
 const sectionClass = "mb-2 text-sm font-bold text-night-sky/70";
 
+function DetailIcon({ name, className = "size-6" }: {
+  name: "add" | "nicknames" | "search" | "customize" | "chevron" | "check" | "play" | "stop" | "camera";
+  className?: string;
+}) {
+  const paths = {
+    add: "M14 19v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18-11v6m-3-3h6M12 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+    nicknames: "m2.5 18 4.5-12 4.5 12M4 14h6m11 4v-6m0 3a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+    search: "m16 16 5 5m-3-10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z",
+    customize: "M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.5-3.3A1 1 0 0 1 15.3 16H17a4 4 0 0 0 4-4 9 9 0 0 0-9-9ZM7.5 12h.1m2-4h.1m4.5-.5h.1m3.3 3h.1",
+    chevron: "m9 5 7 7-7 7",
+    check: "m5 12 4 4L19 6",
+    play: "M6 3v18l16-9Z",
+    stop: "M6 6h12v12H6Z",
+    camera: "M4 7h4l2-3h4l2 3h4v13H4ZM16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  };
+  const filled = name === "play" || name === "stop";
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d={paths[name]} />
+  </svg>;
+}
+
+function QuickAction({ label, icon, onClick }: {
+  label: string; icon: "add" | "nicknames" | "search" | "customize"; onClick: () => void;
+}) {
+  return <button type="button" onClick={onClick} className="group flex w-17 min-w-0 flex-col items-center gap-1.5 rounded-2xl py-1 text-xs font-bold focus-visible:outline-2 focus-visible:outline-sky-depth">
+    <span className="grid size-12 place-items-center rounded-full bg-sky/15 text-night-sky transition-colors group-hover:bg-sky/30"><DetailIcon name={icon} /></span>
+    {label}
+  </button>;
+}
+
 function Row({ label, value, onClick, danger = false, disabled = false }: {
   label: string; value?: string; onClick?: () => void; danger?: boolean; disabled?: boolean;
 }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick} className={`flex min-h-12 w-full items-center justify-between gap-4 border-b border-night-sky/10 px-4 py-2 text-left text-sm font-semibold last:border-0 hover:bg-sand/40 disabled:cursor-default disabled:opacity-60 ${danger ? "text-red-700" : ""}`}>
       <span>{label}</span>
-      {value && <span className="shrink-0 text-xs font-medium text-night-sky/60">{value}</span>}
-      {!value && !danger && <span aria-hidden="true" className="text-lg text-sky-depth">›</span>}
+      {!danger && <span className="flex shrink-0 items-center gap-2">
+        {value && <span className="text-xs font-medium text-night-sky/65">{value}</span>}
+        <DetailIcon name="chevron" className="size-5 text-sky-depth" />
+      </span>}
     </button>
   );
 }
@@ -83,7 +117,7 @@ export default function ChatGroupDetails({
   const [previewTheme, setPreviewTheme] = useState("default");
   const [previewingTone, setPreviewingTone] = useState<string | null>(null);
   const soundPreview = useRef<HTMLAudioElement | null>(null);
-  const previewContext = useRef<AudioContext | null>(null);
+
   const muteCancel = useRef<HTMLButtonElement>(null);
   const muteTrigger = useRef<HTMLElement | null>(null);
   const themeGalleryScroll = useRef(0);
@@ -92,6 +126,7 @@ export default function ChatGroupDetails({
   const [confirmation, setConfirmation] = useState("");
   const [groupName, setGroupName] = useState(thread.name);
   const [groupImage, setGroupImage] = useState<File | null>(null);
+  const groupPhotoInput = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState<SharedFile[]>([]);
   const [gallery, setGallery] = useState<SharedFile[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -147,7 +182,6 @@ export default function ChatGroupDetails({
 
   useEffect(() => () => {
     soundPreview.current?.pause();
-    if (previewContext.current) void previewContext.current.close().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -175,6 +209,7 @@ export default function ChatGroupDetails({
   function goBack() {
     if (muteDialog) setMuteDialog(false);
     else if (page === "details") onClose();
+    else if (page === "group-photo") { setGroupImage(null); go("details"); }
     else if (page === "tones") go("notifications");
     else if (page === "theme-preview") go("themes");
     else go(page === "context" ? previous : "details");
@@ -204,13 +239,24 @@ export default function ChatGroupDetails({
   function saveGroup(event: FormEvent) {
     event.preventDefault();
     void run(async () => {
-      const path = groupImage ? await uploadChatFile(client, threadId, currentUserId, "group", groupImage) : null;
-      const { error: problem } = await client.rpc("save_chat_group", { thread_uuid: threadId, group_name: groupName.trim(), image_path: path });
+      const { error: problem } = await client.rpc("save_chat_group", { thread_uuid: threadId, group_name: groupName.trim() });
+      if (problem) throw problem;
+      onRefresh();
+      go("details");
+    });
+  }
+
+  function saveGroupPhoto(photo: File) {
+    void run(async () => {
+      const path = await uploadChatFile(client, threadId, currentUserId, "group", photo);
+      const { data: previousPath, error: problem } = await client.rpc("save_chat_group_photo", { thread_uuid: threadId, image_path: path });
       if (problem) {
-        if (path) await client.storage.from(chatFilesBucket).remove([path]);
+        await client.storage.from(chatFilesBucket).remove([path]);
         throw problem;
       }
-      if (path && thread.groupImagePath) await client.storage.from(chatFilesBucket).remove([thread.groupImagePath]);
+      if (typeof previousPath === "string" && previousPath.startsWith(`${threadId}/group/${currentUserId}/`)) {
+        await client.storage.from(chatFilesBucket).remove([previousPath]);
+      }
       setGroupImage(null);
       onRefresh();
       go("details");
@@ -267,14 +313,7 @@ export default function ChatGroupDetails({
     setError("");
     if (previewingTone === id) return;
     const url = toneUrl(id);
-    if (!url) {
-      try {
-        const audio = previewContext.current ?? new AudioContext();
-        previewContext.current = audio;
-        void audio.resume().then(() => playDefaultChatTone(audio)).catch(() => setError("We couldn’t play this sound."));
-      } catch { setError("We couldn’t play this sound."); }
-      return;
-    }
+    if (!url) return;
     const sample = new Audio(url);
     soundPreview.current = sample;
     sample.onended = () => { if (soundPreview.current === sample) setPreviewingTone(null); };
@@ -409,20 +448,31 @@ export default function ChatGroupDetails({
           {confirmation && <p role="status" className="rounded-lg bg-sky/10 p-2 text-sm">{confirmation}</p>}
           {page === "details" && <>
             <div className="flex flex-col items-center gap-2 text-center">
-              <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-2xl bg-sky/20 text-2xl font-black text-night-sky">
-                {thread.groupImageUrl
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={thread.groupImageUrl} alt="" className="h-full w-full object-cover" />
-                  : thread.name.trim().split(/\s+/).slice(0,2).map((word) => word[0]).join("").toUpperCase()}
-              </div>
+              {thread.canAddMembers && <>
+                <input ref={groupPhotoInput} type="file" hidden accept="image/*" onChange={(event) => {
+                  const photo = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (!photo) return;
+                  if (photo.size > 20 * 1024 * 1024) { setError("Choose a photo under 20 MB."); return; }
+                  setGroupImage(photo);
+                  go("group-photo");
+                }} />
+                <button type="button" aria-label="Change group photo" className="relative grid size-20 place-items-center rounded-full bg-sky/20 text-2xl font-black focus-visible:outline-2 focus-visible:outline-sky-depth" onClick={() => groupPhotoInput.current?.click()}>
+                  {thread.groupImageUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={thread.groupImageUrl} alt="" className="size-full rounded-full object-cover" />
+                    : thread.name.trim().split(/\s+/).slice(0,2).map((word) => word[0]).join("").toUpperCase()}
+                  <span className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full bg-white text-night-sky shadow-sm ring-1 ring-night-sky/10"><DetailIcon name="camera" className="size-4" /></span>
+                </button>
+              </>}
               <h3 className="max-w-full text-xl font-black [overflow-wrap:anywhere]">{thread.name}</h3>
-              {thread.canAddMembers && <button type="button" className="text-sm font-bold text-sky-depth underline" onClick={() => { setGroupName(thread.name); go("edit"); }}>Change name or image</button>}
+              {thread.threadType === "group" && thread.createdByUserId === currentUserId && <button type="button" className="text-sm font-bold text-sky-depth underline" onClick={() => { setGroupName(thread.name); go("edit"); }}>Change group name</button>}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {thread.canAddMembers && <button type="button" className={buttonClass} onClick={onAdd}>Add members</button>}
-              <button type="button" className={buttonClass} onClick={() => go("nicknames")}>Nicknames</button>
-              <button type="button" className={buttonClass} onClick={() => go("search")}>Search</button>
-              <button type="button" className={buttonClass} onClick={() => go("themes")}>Customize</button>
+            <div className="flex flex-wrap justify-center gap-x-2 gap-y-1">
+              {thread.canAddMembers && <QuickAction label="Add" icon="add" onClick={onAdd} />}
+              <QuickAction label="Nicknames" icon="nicknames" onClick={() => go("nicknames")} />
+              <QuickAction label="Search" icon="search" onClick={() => go("search")} />
+              <QuickAction label="Customize" icon="customize" onClick={() => go("themes")} />
             </div>
             <section>
               <div className="flex items-center justify-between"><h3 className={sectionClass}>{thread.memberCount} members</h3>
@@ -457,9 +507,9 @@ export default function ChatGroupDetails({
           </>}
           {page === "edit" && <form onSubmit={saveGroup} className="space-y-4">
             <label className="block text-sm font-semibold">Group name<input className={fieldClass} required maxLength={120} value={groupName} onChange={(event) => setGroupName(event.target.value)} /></label>
-            <label className="block text-sm font-semibold">Group image<input className={fieldClass} type="file" accept={photoTypes.join(",")} onChange={(event) => setGroupImage(event.target.files?.[0] ?? null)} /></label>
             <button className={buttonClass} type="submit" disabled={busy || !groupName.trim()}>Save group details</button>
           </form>}
+          {page === "group-photo" && groupImage && <GroupPhotoCrop photo={groupImage} busy={busy} onSave={saveGroupPhoto} onCancel={() => { setGroupImage(null); go("details"); }} />}
           {page === "members" && <section className="space-y-3">
             {thread.canAddMembers && <button type="button" className={buttonClass} onClick={onAdd}>Add members</button>}
             <ul className={cardClass}>{thread.members.map((member) => <li key={member.userId} className="flex items-center gap-3 border-b border-night-sky/10 p-3 last:border-0">
@@ -517,7 +567,7 @@ export default function ChatGroupDetails({
                   <button type="button" key={option.label} aria-pressed={thread.messageAlerts === option.enabled} disabled={busy}
                     className="flex min-h-12 w-full items-center justify-between border-b border-night-sky/10 px-4 py-2 text-left font-semibold last:border-0 hover:bg-sand/40 disabled:opacity-60"
                     onClick={() => saveNotifications("messages", option.enabled ? "all" : "none")}>
-                    {option.label}{thread.messageAlerts === option.enabled && <span aria-hidden="true" className="text-sky-depth">✓</span>}
+                    {option.label}{thread.messageAlerts === option.enabled && <DetailIcon name="check" className="size-5 text-sky-depth" />}
                   </button>)}
               </div>
             </section>
@@ -531,11 +581,11 @@ export default function ChatGroupDetails({
             {tones.map((tone) => <div key={tone.id} className="flex items-center gap-2 border-b border-night-sky/10 px-2 last:border-0">
               <button type="button" aria-pressed={activeTone.id === tone.id} disabled={busy} onClick={() => saveNotifications("tone", tone.id)}
                 className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm font-bold hover:bg-sand/40 disabled:opacity-60">
-                {tone.name}{activeTone.id === tone.id && <span aria-hidden="true" className="text-sky-depth">✓</span>}
+                {tone.name}{activeTone.id === tone.id && <DetailIcon name="check" className="size-5 text-sky-depth" />}
               </button>
               {tone.id !== "silent" && <button type="button" onClick={() => playTone(tone.id)} aria-label={`${previewingTone === tone.id ? "Stop" : "Play"} ${tone.name}`}
                 className="grid size-11 shrink-0 place-items-center rounded-xl text-sky-depth hover:bg-sand">
-                <span aria-hidden="true">{previewingTone === tone.id ? "■" : "▶"}</span>
+                <DetailIcon name={previewingTone === tone.id ? "stop" : "play"} className="size-5 text-sky" />
               </button>}
             </div>)}
           </div>}
@@ -553,7 +603,7 @@ export default function ChatGroupDetails({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={thumbnail} loading="lazy" decoding="async" alt="" width={200} height={290} className="size-full object-cover" />
                       : <span aria-hidden="true" className="flex size-full flex-col justify-center gap-2 bg-sand px-2"><span className="mr-4 h-5 rounded-full bg-white" /><span className="ml-4 h-5 rounded-full bg-sky" /></span>}
-                    {active && <span aria-hidden="true" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-white text-xs font-black text-sky-depth">✓</span>}
+                    {active && <span aria-hidden="true" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-white text-sky-depth"><DetailIcon name="check" className="size-4" /></span>}
                   </span>
                   <span className="mt-2 block text-xs leading-tight font-bold">{theme.name}</span>
                 </button>;

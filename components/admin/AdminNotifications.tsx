@@ -5,10 +5,12 @@ import { createClient } from "@/utils/supabase/client";
 
 type Notification = {
   id: string;
-  event_type: "signup" | "treasure_find";
+  event_type: "signup" | "treasure_find" | "family_chat_issue";
   person_name: string;
   box_title: string | null;
   box_code: string | null;
+  issue_description?: string | null;
+  chat_thread_id?: string | null;
   occurred_at: string;
   created_at: string;
   is_read: boolean;
@@ -86,7 +88,7 @@ export default function AdminNotifications() {
             Notifications
             <span aria-live="polite" className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">{feed.unread} unread</span>
           </h2>
-          <p className="mt-2 text-sm text-night-sky/55">New accounts and treasure finds. Read status is personal to you.</p>
+          <p className="mt-2 text-sm text-night-sky/55">New accounts, treasure finds, and Family Chat issues. Read status is personal to you.</p>
         </div>
         <div className="flex gap-4 text-sm font-bold text-teal">
           <button type="button" onClick={() => { void refresh(); }} disabled={loading || busy}>Refresh</button>
@@ -96,7 +98,7 @@ export default function AdminNotifications() {
       <label className="mt-5 block text-xs font-semibold text-night-sky/60">
         Show notifications
         <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); setLoading(true); }} className="ml-3 rounded-xl border border-night-sky/15 bg-white px-3 py-2 text-sm text-night-sky">
-          <option value="all">All activity</option><option value="unread">Unread</option><option value="signup">New accounts</option><option value="treasure_find">Treasure finds</option>
+          <option value="all">All activity</option><option value="unread">Unread</option><option value="signup">New accounts</option><option value="treasure_find">Treasure finds</option><option value="family_chat_issue">Family Chat issues</option>
         </select>
       </label>
       {error && <p role="alert" className="mt-4 rounded-xl bg-coral/10 p-3 text-sm">{error}</p>}
@@ -104,9 +106,14 @@ export default function AdminNotifications() {
         <ul className="mt-4 divide-y divide-night-sky/10">
           {feed.rows.map((n) => <li key={n.id} className={`flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-4 ${n.is_read ? "" : "bg-teal/5"}`}>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-wide text-teal">{n.event_type === "signup" ? "New account created" : "Treasure box found"}{!n.is_read && <span className="ml-2 text-night-sky/60">· Unread</span>}</p>
-              <p className="mt-1 break-words text-sm"><strong>{n.person_name}</strong>{n.event_type === "signup" ? " joined LegacyLink." : <> found <strong>{n.box_title || "a treasure box"}</strong>{n.box_code ? ` · ${n.box_code}` : ""}.</>}</p>
-              <p className="mt-1 text-xs text-night-sky/55">{n.event_type === "signup" ? "Account created: " : "Found: "}<time dateTime={n.occurred_at}>{new Date(n.occurred_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></p>
+              <p className="text-xs font-bold uppercase tracking-wide text-teal">{n.event_type === "signup" ? "New account created" : n.event_type === "family_chat_issue" ? "Family Chat issue" : "Treasure box found"}{!n.is_read && <span className="ml-2 text-night-sky/60">· Unread</span>}</p>
+              <p className="mt-1 break-words text-sm"><strong>{n.person_name}</strong>{n.event_type === "signup" ? " joined LegacyLink." : n.event_type === "family_chat_issue" ? " reported a Family Chat issue." : <> found <strong>{n.box_title || "a treasure box"}</strong>{n.box_code ? ` · ${n.box_code}` : ""}.</>}</p>
+              {n.event_type === "family_chat_issue" && <details className="mt-2 rounded-lg bg-white/80 p-2 text-sm">
+                <summary className="cursor-pointer font-semibold">Read report</summary>
+                <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{n.issue_description}</p>
+                {n.chat_thread_id && <p className="mt-2 break-all text-xs text-night-sky/65">Chat ID {n.chat_thread_id}</p>}
+              </details>}
+              <p className="mt-1 text-xs text-night-sky/55">{n.event_type === "signup" ? "Account created: " : n.event_type === "family_chat_issue" ? "Reported: " : "Found: "}<time dateTime={n.occurred_at}>{new Date(n.occurred_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></p>
             </div>
             {!n.is_read && <button type="button" disabled={busy || loading} onClick={() => { void markRead(n.id); }} className="text-xs font-bold text-teal disabled:opacity-40">Mark as read</button>}
           </li>)}

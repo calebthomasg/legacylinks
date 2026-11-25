@@ -32,19 +32,9 @@ export function bubbleStyle(theme: ChatTheme, outgoing: boolean) {
   return theme.id === "default" ? undefined : { backgroundColor: outgoing ? theme.outgoing : theme.incoming, color: outgoing ? "#fff" : "#14233c" };
 }
 
-export const tones = [{ id: "silent", name: "Silent" }, { id: "default", name: "LegacyLink ping" }, ...chatTones];
+export const tones = [{ id: "silent", name: "Silent" }, ...chatTones];
 
 export function toneUrl(id: string) {
   return chatTones.some((tone) => tone.id === id) ? `/family-chat/tones/${id}.mp3` : null;
 }
 
-export function playDefaultChatTone(context: AudioContext) {
-  const oscillator = context.createOscillator();
-  const volume = context.createGain();
-  oscillator.frequency.value = 660;
-  volume.gain.setValueAtTime(0.08, context.currentTime);
-  volume.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
-  oscillator.connect(volume).connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.16);
-}

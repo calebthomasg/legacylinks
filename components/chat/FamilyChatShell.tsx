@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
-import { bubbleStyle, getChatTheme, isChatMuted, playDefaultChatTone, toneUrl, wallpaperStyle } from "./chatAppearance";
+import { bubbleStyle, getChatTheme, isChatMuted, toneUrl, wallpaperStyle } from "./chatAppearance";
 import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
 import { useChatActivity } from "./useChatActivity";
 import { type ChatMessage, useChatHistory } from "./useChatHistory";
@@ -427,10 +427,7 @@ export default function FamilyChatShell({
     const context = audio.current;
     if (thread.notificationTone === "silent" || context?.state !== "running") return;
     const url = toneUrl(thread.notificationTone);
-    if (!url) {
-      playDefaultChatTone(context);
-      return;
-    }
+    if (!url) return;
     let tone = decodedTones.current.get(url);
     if (!tone) {
       tone = fetch(url).then(async (response) => {
@@ -447,7 +444,6 @@ export default function FamilyChatShell({
       source.start();
     }).catch(() => {
       decodedTones.current.delete(url);
-      if (!document.hidden && context.state === "running") playDefaultChatTone(context);
     });
   });
   const onThreadUpdate = useEffectEvent((row: Record<string, unknown>, refreshRoster: () => void) => {
@@ -802,7 +798,10 @@ export default function FamilyChatShell({
                         : "hover:bg-sand/65"
                     }`}
                   >
-                    {thread.avatars.length > 1 ? (
+                    {thread.groupImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt="" src={thread.groupImageUrl} className="size-11 shrink-0 rounded-full object-cover" />
+                    ) : thread.avatars.length > 1 ? (
                       <AvatarStack avatars={thread.avatars} online={activity.online} />
                     ) : (
                       <AvatarCircle
