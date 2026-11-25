@@ -26,14 +26,11 @@ export async function POST(request: Request) {
     return callResponse({ error: "This conversation is unavailable for calls." }, 404);
   }
 
-  const video = body.mode === "video";
-  const type = video ? "family_video" : "family_audio";
+  const type = body.mode === "video" ? "family_video" : "family_audio";
   const id = crypto.randomUUID();
   try {
     await auth.stream.upsertUsers(await callUsers(auth.supabase, userIds));
     await auth.stream.video.call(type, id).getOrCreate({
-      ring: true,
-      video,
       data: {
         created_by_id: auth.userId,
         members: userIds.map((user_id) => ({ user_id, role: "call_member" })),
@@ -41,6 +38,6 @@ export async function POST(request: Request) {
     });
     return callResponse({ id, type });
   } catch {
-    return callResponse({ error: "Could not start the call. Please try again." }, 502);
+    return callResponse({ error: "Could not prepare the call. Please try again." }, 502);
   }
 }

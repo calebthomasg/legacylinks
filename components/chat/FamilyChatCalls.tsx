@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  CallingState, SpeakerLayout, StreamCall, StreamTheme, StreamVideo, StreamVideoClient,
+  CallingState, ParticipantsAudio, SpeakerLayout, StreamCall, StreamTheme, StreamVideo, StreamVideoClient,
   ToggleAudioPublishingButton, ToggleVideoPublishingButton, useCalls, useCallStateHooks,
   type Call,
 } from "@stream-io/video-react-sdk";
@@ -24,10 +24,15 @@ async function post<T>(path: string, body: object = {}): Promise<T> {
 }
 
 function CallPanel({ call }: { call: Call }) {
-  const { useCallCallingState, useCallCreatedBy, useCallMembers } = useCallStateHooks();
+  const {
+    useAutoplayBlockedSessionIds, useCallCallingState, useCallCreatedBy, useCallMembers,
+    useRemoteParticipants,
+  } = useCallStateHooks();
   const state = useCallCallingState();
   const creator = useCallCreatedBy();
   const members = useCallMembers();
+  const remoteParticipants = useRemoteParticipants();
+  const blockedAudio = useAutoplayBlockedSessionIds();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -63,16 +68,25 @@ function CallPanel({ call }: { call: Call }) {
         {incoming ? `${other?.name || "A family member"} is calling`
           : ringing ? `Calling ${other?.name || "your family member"}…`
             : state === CallingState.RECONNECTING ? "Reconnecting…"
-              : connected ? other?.name || "Call connected" : "Connecting…"}
+              : connected && remoteParticipants.length ? other?.name || "Call connected"
+                : connected ? "Waiting for the other device to connect…" : "Connecting…"}
       </p>
       {connected && (
         <StreamTheme>
-          <div className={audio ? "sr-only" : "aspect-video overflow-hidden rounded-2xl bg-night-sky"}>
-            <SpeakerLayout />
-          </div>
+          {audio ? <ParticipantsAudio participants={remoteParticipants} /> : (
+            <div className="aspect-video overflow-hidden rounded-2xl bg-night-sky">
+              <SpeakerLayout />
+            </div>
+          )}
           <div className="mt-4 flex items-center gap-3">
             <ToggleAudioPublishingButton />
             {!audio && <ToggleVideoPublishingButton />}
+            {audio && blockedAudio.length > 0 && (
+              <button type="button" className="rounded-full bg-sand px-4 py-2 font-bold text-night-sky"
+                onClick={() => void call.resumeAudio()}>
+                Play call audio
+              </button>
+            )}
           </div>
         </StreamTheme>
       )}
@@ -153,16 +167,20 @@ function CallSession({ client, request, onHandled, onBusy }: {
       setDialing(true);
       setNotice(null);
       try {
-        await post("/api/family-chat/calls", request);
+        const { id, type } = await post<{ id: string; type: string }>("/api/family-chat/calls", request);
+        const outgoing = client.call(type, id);
+        // The initiating browser must register the ringing call so the SDK
+        // can show it locally and join when the recipient accepts.
+        await outgoing.get({ ring: true, video: request.mode === "video" });
       } catch (error) {
-        setNotice({ error: true, text: (error as Error).message });
+        setNotice({ error: true, text: error instanceof Error ? error.message : "Could not start the call." });
       } finally {
         sending.current = false;
         setDialing(false);
         onHandled();
       }
     });
-  }, [request, current, onHandled]);
+  }, [request, client, current, onHandled]);
 
   return (
     <>
