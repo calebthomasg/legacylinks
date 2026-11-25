@@ -48,8 +48,13 @@ export async function POST(request: Request) {
     }
 
     for (const { call } of history?.calls ?? []) {
-      const missedAt = call.session?.missed_by?.[auth.userId];
-      if (!missedAt || !threadId || call.custom.family_chat_thread_id !== threadId) continue;
+      if (!threadId || call.custom.family_chat_thread_id !== threadId || !call.session
+        || call.session.accepted_by?.[auth.userId]) continue;
+      const missedAt = call.session.missed_by?.[auth.userId]
+        ?? call.session.rejected_by?.[auth.userId]
+        ?? call.session.rejected_by?.[call.created_by.id]
+        ?? call.ended_at;
+      if (!missedAt) continue;
       const createdAt = timestamp(missedAt);
       if (!Number.isFinite(createdAt)) continue;
       result.missed.push({

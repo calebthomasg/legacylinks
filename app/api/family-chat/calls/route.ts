@@ -26,14 +26,18 @@ export async function POST(request: Request) {
     return callResponse({ error: "This conversation is unavailable for calls." }, 404);
   }
 
-  const type = body.mode === "video" ? "family_video" : "family_audio";
+  const type = "family_video";
   const id = crypto.randomUUID();
   try {
     await auth.stream.upsertUsers(await callUsers(auth.supabase, userIds));
     await auth.stream.video.call(type, id).getOrCreate({
       data: {
         created_by_id: auth.userId,
-        custom: { family_chat_thread_id: thread.id },
+        custom: { family_chat_thread_id: thread.id, family_chat_mode: body.mode },
+        settings_override: {
+          video: { camera_default_on: body.mode === "video" },
+          ring: { auto_cancel_timeout_ms: 30_000, incoming_call_timeout_ms: 30_000, missed_call_timeout_ms: 30_000 },
+        },
         members: userIds.map((user_id) => ({ user_id, role: "call_member" })),
       },
     });
