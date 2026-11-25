@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
 import { chatReactions, useMessageInteractions, type ReactionKey } from "./messageInteractions";
+import ChatAvatarPhoto from "./ChatAvatarPhoto";
 import { bubbleStyle, getChatTheme, isChatMuted, toneUrl, wallpaperStyle } from "./chatAppearance";
 import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
 import { useChatActivity } from "./useChatActivity";
@@ -97,13 +98,7 @@ function AvatarCircle({
       className={`relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full ${avatar.color} font-black text-white ring-2 ring-white ${sizeClasses[size]} ${className}`}
     >
       {avatar.initials}
-      {avatar.photoUrl && (
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 rounded-full bg-cover bg-center"
-          style={{ backgroundImage: `url("${avatar.photoUrl}")` }}
-        />
-      )}
+      <ChatAvatarPhoto url={avatar.photoUrl} />
       {showOnline && (
         <span role="img" aria-label="Online" className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky" />
       )}
@@ -391,8 +386,8 @@ export default function FamilyChatShell({
       };
     })
     .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());
-  const callPhotoUrls = Object.fromEntries(threads.flatMap((thread) => thread.members.flatMap((member) =>
-    member.avatar.photoUrl ? [[member.userId, member.avatar.photoUrl]] : [])));
+  const callPhotoUrls = Object.fromEntries([currentUser, ...threads.flatMap((thread) => thread.members)]
+    .flatMap((member) => member.avatar.photoUrl ? [[member.userId, member.avatar.photoUrl]] : []));
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const theme = getChatTheme(selectedThread?.themeId ?? null);
   const themed = theme.id !== "default";

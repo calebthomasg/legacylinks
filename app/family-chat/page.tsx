@@ -53,7 +53,6 @@ type LinkedPersonRow = {
   first_name: string | null;
   last_name: string | null;
   display_name: string | null;
-  profile_photo_path: string | null;
 };
 
 type MessagePreviewRow = {
@@ -116,29 +115,24 @@ function getPersonName(person: LinkedPersonRow | undefined) {
   );
 }
 
-async function createPhotoUrlMap(
+async function loadChatPhotoUrls(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  photoPaths: string[]
+  userIds: string[]
 ) {
-  const uniquePaths = Array.from(new Set(photoPaths.filter(Boolean)));
-  const entries = await Promise.all(
-    uniquePaths.map(async (path) => {
-      const { data } = await supabase.storage
-        .from("person-photos")
-        .createSignedUrl(path, 60 * 60, {
-          transform: {
-            width: 96,
-            height: 96,
-            resize: "cover",
-            quality: 70,
-          },
-        });
+  if (!userIds.length) return new Map<string, string>();
+  const { data } = await supabase.rpc("read_chat_profile_photos", { user_ids: [...new Set(userIds)] });
+  const photos = (data ?? []) as { user_id: string; photo_path: string }[];
+  if (!photos.length) return new Map<string, string>();
 
-      return [path, data?.signedUrl ?? null] as const;
-    })
-  );
-
-  return new Map(entries);
+  const { data: signed } = await supabase.storage.from("person-photos")
+    .createSignedUrls([...new Set(photos.map((photo) => photo.photo_path))], 60 * 60);
+  const urlsByPath = new Map((signed ?? []).map(({ path, signedUrl }) => [path, signedUrl]));
+  const urls = new Map<string, string>();
+  for (const { user_id, photo_path } of photos) {
+    const url = urlsByPath.get(photo_path);
+    if (url) urls.set(user_id, url);
+  }
+  return urls;
 }
 
 function buildAvatar({
@@ -194,7 +188,7 @@ async function loadCurrentUserSummary({
 }): Promise<ChatThreadMemberSummary> {
   const { data: person } = await supabase
     .from("people")
-    .select("id, linked_user_id, first_name, last_name, display_name, profile_photo_path")
+    .select("id, linked_user_id, first_name, last_name, display_name")
     .eq("linked_user_id", currentUserId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -203,10 +197,7 @@ async function loadCurrentUserSummary({
   const typedPerson = person as LinkedPersonRow | null;
   const personName = getPersonName(typedPerson ?? undefined);
   const resolvedDisplayName = personName || displayName || "LegacyLinks";
-  const photoUrlMap = await createPhotoUrlMap(
-    supabase,
-    typedPerson?.profile_photo_path ? [typedPerson.profile_photo_path] : []
-  );
+  const photoUrls = await loadChatPhotoUrls(supabase, [currentUserId]);
 
   return {
     userId: currentUserId,
@@ -214,9 +205,7 @@ async function loadCurrentUserSummary({
     avatar: buildAvatar({
       userId: currentUserId,
       displayName: resolvedDisplayName,
-      photoUrl: typedPerson?.profile_photo_path
-        ? photoUrlMap.get(typedPerson.profile_photo_path) ?? null
-        : null,
+      photoUrl: photoUrls.get(currentUserId) ?? null,
     }),
   };
 }
@@ -233,20 +222,19 @@ async function loadMessageableRecipients({
   const userIds = (data ?? []) as string[];
   if (!userIds.length) return [];
 
-  const [{ data: peopleData }, { data: profilesData }] = await Promise.all([
+  const [{ data: peopleData }, { data: profilesData }, photoUrls] = await Promise.all([
     supabase.from("people")
-      .select("id, linked_user_id, first_name, last_name, display_name, profile_photo_path")
+      .select("id, linked_user_id, first_name, last_name, display_name")
       .eq("created_by_user_id", currentUserId)
       .in("linked_user_id", userIds)
       .order("created_at", { ascending: true }),
     supabase.rpc("read_chat_names", { user_ids: userIds }),
+    loadChatPhotoUrls(supabase, userIds),
   ]);
   const people = new Map(((peopleData ?? []) as LinkedPersonRow[])
     .map((person) => [person.linked_user_id, person]));
   const profiles = new Map(((profilesData ?? []) as ProfileRow[])
     .map((profile) => [profile.id, profile]));
-  const photoUrlByPath = await createPhotoUrlMap(supabase, [...people.values()]
-    .flatMap((person) => person.profile_photo_path ? [person.profile_photo_path] : []));
 
   return userIds.map((userId) => {
     const person = people.get(userId);
@@ -258,9 +246,7 @@ async function loadMessageableRecipients({
       avatar: buildAvatar({
         userId,
         displayName,
-        photoUrl: person?.profile_photo_path
-          ? photoUrlByPath.get(person.profile_photo_path) ?? null
-          : null,
+        photoUrl: photoUrls.get(userId) ?? null,
       }),
     };
   }).sort((first, second) => first.displayName.localeCompare(second.displayName));
@@ -356,7 +342,7 @@ async function loadInitialThreads({
   const members = (membersResult.data ?? []) as ChatMemberRow[];
   const userIds = Array.from(new Set(members.map((member) => member.user_id)));
 
-  const [{ data: profilesData }, { data: peopleData }] = await Promise.all([
+  const [{ data: profilesData }, { data: peopleData }, photoUrls] = await Promise.all([
     userIds.length > 0
       ? supabase.rpc("read_chat_names", { user_ids: userIds })
       : Promise.resolve({ data: [] }),
@@ -364,10 +350,11 @@ async function loadInitialThreads({
       ? supabase
           .from("people")
           .select(
-            "id, linked_user_id, first_name, last_name, display_name, profile_photo_path"
+            "id, linked_user_id, first_name, last_name, display_name"
           )
           .in("linked_user_id", userIds)
       : Promise.resolve({ data: [] }),
+    loadChatPhotoUrls(supabase, userIds),
   ]);
 
   const profilesByUserId = new Map(
@@ -381,12 +368,6 @@ async function loadInitialThreads({
       .filter((person) => person.linked_user_id)
       .map((person) => [person.linked_user_id as string, person])
   );
-  const photoUrlByPath = await createPhotoUrlMap(
-    supabase,
-    Array.from(peopleByUserId.values())
-      .map((person) => person.profile_photo_path)
-      .filter((path): path is string => Boolean(path))
-  );
   const membersByThreadId = members.reduce((map, member) => {
     const group = map.get(member.thread_id) ?? [];
     const person = peopleByUserId.get(member.user_id);
@@ -395,9 +376,7 @@ async function loadInitialThreads({
         member,
         profile: profilesByUserId.get(member.user_id),
         person,
-        photoUrl: person?.profile_photo_path
-          ? photoUrlByPath.get(person.profile_photo_path) ?? null
-          : null,
+        photoUrl: photoUrls.get(member.user_id) ?? null,
       }),
       active: !member.left_at,
       nickname: member.nickname,

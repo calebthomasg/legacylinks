@@ -1,5 +1,7 @@
 "use client";
 
+import ChatAvatarPhoto from "./ChatAvatarPhoto";
+
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { hasVideo, ParticipantView, StreamTheme, useCallStateHooks } from "@stream-io/video-react-sdk";
 
@@ -9,7 +11,7 @@ function clamp(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
-export default function FamilyChatVideoStage({ name, mirrorSelf }: { name: string; mirrorSelf: boolean }) {
+export default function FamilyChatVideoStage({ name, mirrorSelf, photoUrl }: { name: string; mirrorSelf: boolean; photoUrl?: string }) {
   const { useLocalParticipant, useRemoteParticipants } = useCallStateHooks();
   const local = useLocalParticipant();
   const remote = useRemoteParticipants()[0];
@@ -55,8 +57,9 @@ export default function FamilyChatVideoStage({ name, mirrorSelf }: { name: strin
             className="absolute! inset-0 size-full border-0! rounded-none! [&_video]:size-full! [&_video]:object-contain! [&_video]:object-center!" />
         ) : (
           <div className="flex flex-col items-center gap-3 text-sky">
-            <div className="grid size-20 place-items-center rounded-3xl border border-sky/35 bg-white/10 text-2xl font-black">
+            <div className="relative grid size-20 place-items-center rounded-3xl border border-sky/35 bg-white/10 text-2xl font-black">
               {initials}
+              <ChatAvatarPhoto url={photoUrl} />
             </div>
             <span className="text-sm text-white/75">{remote ? "Camera off" : "Waiting for video…"}</span>
           </div>
