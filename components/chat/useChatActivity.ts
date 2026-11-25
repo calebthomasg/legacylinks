@@ -60,8 +60,14 @@ export function useChatActivity(client: ActivityClient, threadId: string | null)
   useEffect(() => {
     let active = true;
     let reading = false;
+    let refreshQueued = false;
+
     async function read() {
-      if (reading || document.hidden || !navigator.onLine) return;
+      if (!active || document.hidden || !navigator.onLine) return;
+      if (reading) {
+        refreshQueued = true;
+        return;
+      }
       reading = true;
       try {
         const { data, error } = await client.rpc("read_chat_activity", {
@@ -70,8 +76,19 @@ export function useChatActivity(client: ActivityClient, threadId: string | null)
         if (active) setSnapshot({ threadId, rows: error ? [] : (data as Activity[]) ?? [] });
       } finally {
         reading = false;
+        if (refreshQueued) {
+          refreshQueued = false;
+          void read();
+        }
       }
     }
+
+    const channel = threadId
+      ? client.channel(`family-chat-typing:${threadId}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_typing_changes", filter: `thread_id=eq.${threadId}` }, () => void read())
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_typing_changes", filter: `thread_id=eq.${threadId}` }, () => void read())
+        .subscribe((status) => { if (status === "SUBSCRIBED") void read(); })
+      : null;
     const onOffline = () => setSnapshot(null);
     const timer = window.setInterval(() => void read(), 2_000);
     window.addEventListener("online", read);
@@ -84,6 +101,7 @@ export function useChatActivity(client: ActivityClient, threadId: string | null)
       window.removeEventListener("online", read);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", read);
+      if (channel) void client.removeChannel(channel);
     };
   }, [client, threadId]);
 
@@ -93,7 +111,9 @@ export function useChatActivity(client: ActivityClient, threadId: string | null)
     if (action === "typing" && now - lastTyping.current < 1_500) return;
     lastTyping.current = action === "typing" ? now : 0;
     typingSignal.current = typingSignal.current.then(async () => {
-      await updateActivity(client, action, threadId);
+      if (action === "typing" && document.hidden) return;
+      const { error } = await updateActivity(client, action, threadId);
+      if (error && action === "typing" && lastTyping.current === now) lastTyping.current = 0;
     }).catch(() => undefined);
   }, [client, threadId]);
 
