@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
-import MessageActions, { MessagePress, MessageQuote } from "./MessageActions";
+import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
 import { chatReactions, useMessageInteractions, type ReactionKey } from "./messageInteractions";
 import { bubbleStyle, getChatTheme, isChatMuted, toneUrl, wallpaperStyle } from "./chatAppearance";
 import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
@@ -1028,7 +1028,7 @@ export default function FamilyChatShell({
 
                           {isRemoved ? <p className="mt-1 rounded-xl border border-night-sky/10 bg-white px-3 py-2 text-sm italic text-night-sky/65">Message removed</p> : <>
                             {message.reply_to_id && <div className={`mt-1 max-w-60 rounded-xl border border-night-sky/10 bg-white/95 px-3 py-2 text-left text-night-sky/75 ${isCurrentUser ? "ml-auto" : ""}`}>
-                              <p className="mb-1 text-xs font-bold text-night-sky">{isCurrentUser ? "You" : memberLabel(message)} replied to {replyLabel}</p>
+                              <p className="mb-1 flex items-center gap-1 text-xs font-bold text-night-sky"><span className="[&>svg]:size-3.5"><MessageActionIcon name="reply" /></span>{isCurrentUser ? "You" : memberLabel(message)} replied to {replyLabel}</p>
                               {quoteRemoved ? <span className="text-sm italic">Message removed</span> : <MessageQuote message={quote} file={fileRows[message.reply_to_id]} />}
                             </div>}
                             <MessagePress onOpen={() => setActionTarget(message.id)}>
@@ -1138,7 +1138,7 @@ export default function FamilyChatShell({
       </div>
 
       {menuMessage && !removed(menuMessage) && (
-        <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} sender={memberLabel(menuMessage)}
+        <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
           reaction={reactions.get(menuMessage.id)?.find((item) => item.user_id === currentUserId)?.reaction}
           onClose={() => setActionTarget(null)} onReact={(key) => reactToMessage(menuMessage, key)}

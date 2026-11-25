@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PropsWithChildren } from "react";
+import type { CSSProperties, PropsWithChildren } from "react";
 import type { SharedFile } from "./chatFiles";
 import type { ChatMessage } from "./useChatHistory";
 import { chatReactions, type ReactionKey } from "./messageInteractions";
@@ -56,7 +56,9 @@ export function MessageQuote({ message, file, compact = false }: {
 }) {
   if (!message || message.removed_for_everyone) return <span className="block text-sm italic text-night-sky/70">{message ? "Message removed" : "Original message unavailable"}</span>;
   const thumbnail = file?.url && file.mime_type.startsWith("image/");
-  const summary = file ? file.file_name : message.body;
+  const summary = file?.mime_type.startsWith("image/") ? mediaCaption(message, file) || "Photo"
+    : file?.mime_type.startsWith("video/") ? mediaCaption(message, file) || "Video"
+    : file?.file_name ?? message.body;
   return <span className="flex min-w-0 items-center gap-2">
     <span className={`min-w-0 flex-1 break-words text-sm ${compact ? "truncate" : "line-clamp-3"}`}>{summary}</span>
     {thumbnail && (
@@ -67,8 +69,44 @@ export function MessageQuote({ message, file, compact = false }: {
   </span>;
 }
 
-export default function MessageActions({ message, file, ownMessage, sender, pinned, reaction, onClose, onReply, onReact, onPin, onDelete }: {
-  message: ChatMessage; file?: SharedFile; ownMessage: boolean; sender: string; pinned: boolean; reaction?: ReactionKey;
+function mediaCaption(message: ChatMessage, file: SharedFile) {
+  return message.body === `Shared ${file.file_name}` ? "" : message.body;
+}
+
+export function MessageActionIcon({ name }: { name: "reply" | "pin" | "delete" }) {
+  const paths = {
+    reply: "m9 4-6 6 6 6m-6-6h10a6 6 0 0 1 6 6v3",
+    pin: "m15 3 6 6-3 2-2 5-3 3-8-8 3-3 5-2 2-3ZM10 14l-7 7",
+    delete: "M4 7h16m-14 0 1 13h10l1-13m-9 0V4h6v3m-5 4v5m4-5v5",
+  };
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d={paths[name]} />
+  </svg>;
+}
+
+function SelectedMessage({ message, file, style, ownMessage }: {
+  message: ChatMessage; file?: SharedFile; style?: CSSProperties; ownMessage: boolean;
+}) {
+  const photo = file?.mime_type.startsWith("image/");
+  const video = file?.mime_type.startsWith("video/");
+  if (file && (photo || video)) {
+    const caption = mediaCaption(message, file);
+    return <div className={`flex w-fit max-w-full flex-col gap-1.5 ${ownMessage ? "self-end" : "self-start"}`}>
+      {file.url && photo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={file.url} alt="Selected photo" className="block max-h-[min(35dvh,18rem)] max-w-full rounded-2xl object-contain shadow-lg sm:max-w-72" />
+      )}
+      {file.url && video && <video aria-label="Selected video" src={file.url} muted playsInline preload="metadata" className="block max-h-[min(35dvh,18rem)] max-w-full rounded-2xl bg-night-sky shadow-lg sm:max-w-72" />}
+      {(!file.url || caption) && <p className="max-w-72 rounded-xl bg-white px-3 py-2 text-sm text-night-sky">{caption || (photo ? "Photo" : "Video")}</p>}
+    </div>;
+  }
+  return <p style={style} className={`max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-4 py-2.5 text-base shadow-lg ${ownMessage ? "self-end bg-sky-depth text-white" : "self-start bg-white text-night-sky"}`}>
+    <span className="line-clamp-5">{file?.file_name || message.body}</span>
+  </p>;
+}
+
+export default function MessageActions({ message, file, ownMessage, style, pinned, reaction, onClose, onReply, onReact, onPin, onDelete }: {
+  message: ChatMessage; file?: SharedFile; ownMessage: boolean; style?: CSSProperties; pinned: boolean; reaction?: ReactionKey;
   onClose: () => void; onReply: () => void; onReact: (key: ReactionKey | null) => Promise<boolean>;
   onPin: () => Promise<boolean>; onDelete: () => Promise<boolean>;
 }) {
@@ -95,36 +133,36 @@ export default function MessageActions({ message, file, ownMessage, sender, pinn
     }
   }
 
-  return <dialog ref={dialog} aria-labelledby="message-actions-title" onClose={onClose}
-    onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
-    className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-3xl bg-white p-0 text-night-sky shadow-xl backdrop:bg-night-sky/50 sm:inset-0 sm:m-auto sm:max-w-sm sm:rounded-3xl">
-    <section className="space-y-3 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <header className="flex items-center justify-between">
-        <h2 id="message-actions-title" className="text-base font-black">{confirmDelete ? "Delete your message?" : "Message actions"}</h2>
-        <button type="button" aria-label="Close message actions" onClick={() => dialog.current?.close()} className="grid size-10 place-items-center rounded-full bg-sand text-xl">×</button>
-      </header>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      {confirmDelete ? <>
+  const close = () => dialog.current?.close();
+  const rowClass = "flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left text-sm font-bold hover:bg-sky/10 focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-depth disabled:opacity-50";
+
+  return <dialog ref={dialog} aria-label={confirmDelete ? "Delete your message?" : "Message actions"} onClose={onClose}
+    className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto bg-transparent p-0 text-night-sky backdrop:bg-night-sky/70 backdrop:backdrop-blur-sm">
+    <div className="flex min-h-full flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+      {confirmDelete ? <section className="m-auto w-full max-w-xs space-y-4 rounded-2xl bg-white p-5 shadow-xl">
+        <h2 className="text-lg font-black">Delete your message?</h2>
         <p className="text-sm">Everyone in the chat will see “Message removed” in its place.</p>
-        <div className="flex gap-3">
-          <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)} className="min-h-12 flex-1 rounded-xl bg-sand px-3 font-bold">Cancel</button>
-          <button type="button" disabled={busy} onClick={() => void perform(onDelete)} className="min-h-12 flex-1 rounded-xl bg-red-700 px-3 font-bold text-white disabled:opacity-50">Delete message</button>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <div className="flex gap-2">
+          <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)} className="min-h-11 flex-1 rounded-xl bg-sand px-3 text-sm font-bold">Cancel</button>
+          <button type="button" disabled={busy} onClick={() => void perform(onDelete)} className="min-h-11 flex-1 rounded-xl bg-red-700 px-3 text-sm font-bold text-white disabled:opacity-50">Delete message</button>
         </div>
-      </> : <>
-        <div className="grid grid-cols-6 gap-0.5 rounded-2xl bg-sand p-1" role="group" aria-label="Reactions">
+      </section> : <section className={`relative m-auto flex w-fit max-w-full flex-col gap-2.5 ${ownMessage ? "items-end" : "items-start"}`}>
+        <button type="button" aria-label="Close message actions" autoFocus onClick={close} className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:-top-11 focus-visible:right-0 focus-visible:grid focus-visible:size-10 focus-visible:place-items-center focus-visible:rounded-full focus-visible:bg-white focus-visible:text-xl">×</button>
+        <div className="flex max-w-full rounded-full bg-sand px-1.5 py-1 shadow-lg" role="group" aria-label="Reactions">
           {chatReactions.map(({ key, emoji, label }) => <button key={key} type="button" aria-label={label} aria-pressed={reaction === key}
             disabled={busy} onClick={() => void perform(() => onReact(reaction === key ? null : key))}
-            className={`min-h-11 rounded-xl text-2xl hover:bg-white ${reaction === key ? "bg-white ring-1 ring-sky-depth" : ""}`}>{emoji}</button>)}
+            className={`grid h-11 w-11 min-w-0 shrink place-items-center rounded-full text-2xl leading-none hover:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-depth sm:size-12 ${reaction === key ? "bg-white ring-1 ring-inset ring-sky-depth" : ""}`}>{emoji}</button>)}
         </div>
-        <div className="rounded-xl border border-night-sky/10 bg-sand/50 px-3 py-2">
-          <p className="mb-1 text-xs font-bold text-night-sky/70">{sender}</p><MessageQuote message={message} file={file} />
+        <SelectedMessage message={message} file={file} style={style} ownMessage={ownMessage} />
+        <div className="relative w-48 max-w-full divide-y divide-night-sky/10 overflow-hidden rounded-2xl bg-white shadow-lg">
+          <button type="button" disabled={busy} onClick={() => { close(); onReply(); }} className={rowClass}>Reply<MessageActionIcon name="reply" /></button>
+          <button type="button" disabled={busy} onClick={() => void perform(onPin)} className={rowClass}>{pinned ? "Unpin" : "Pin"}<MessageActionIcon name="pin" /></button>
+          {ownMessage && <button type="button" disabled={busy} onClick={() => { setError(""); setConfirmDelete(true); }} className={`${rowClass} text-red-700`}>Delete<MessageActionIcon name="delete" /></button>}
         </div>
-        <div className="divide-y divide-night-sky/10 overflow-hidden rounded-xl border border-night-sky/10">
-          <button type="button" disabled={busy} onClick={() => { dialog.current?.close(); onReply(); }} className="flex min-h-12 w-full items-center px-4 font-bold hover:bg-sand">Reply</button>
-          <button type="button" disabled={busy} onClick={() => void perform(onPin)} className="flex min-h-12 w-full items-center px-4 font-bold hover:bg-sand">{pinned ? "Unpin message" : "Pin message"}</button>
-          {ownMessage && <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} className="flex min-h-12 w-full items-center px-4 font-bold text-red-700 hover:bg-sand">Delete</button>}
-        </div>
-      </>}
-    </section>
+        {error && <p role="alert" className="max-w-60 rounded-xl bg-white px-3 py-2 text-sm text-red-700">{error}</p>}
+      </section>}
+    </div>
   </dialog>;
 }
