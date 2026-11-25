@@ -4,6 +4,5 @@
     "deploymentEnabled": {
       "feature/family-chat": false
     }
-  },
-  "buildCommand": "node scripts/print-stream-preview-lock.mjs && npm run build"
+  }
 }
