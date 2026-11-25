@@ -110,6 +110,8 @@ export default function ChatGroupDetails({
   const latestFilesRevision = filesRevision;
   const muted = Boolean(thread.mutedAt && (!thread.mutedUntil || thread.mutedUntil !== expiredMute));
   const activeTone = tones.find((tone) => tone.id === thread.notificationTone) ?? tones[0];
+  const themePreview = page === "theme-preview" ? getChatTheme(previewTheme) : null;
+  const previewWallpaper = themePreview && wallpaperStyle(themePreview);
 
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -395,13 +397,15 @@ export default function ChatGroupDetails({
   return (
     <div className="absolute inset-0 z-50 lg:fixed">
       <button type="button" aria-label="Close group details" className="absolute inset-0 hidden bg-night-sky/25 lg:block" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-labelledby="chat-group-panel-title" ref={panel} onKeyDown={handleKeys} className="chat-details-slide absolute inset-y-0 right-0 flex w-full flex-col bg-sand/100 shadow-xl lg:w-[min(100%,27rem)]">
-        <div inert={muteDialog} className="flex min-h-14 shrink-0 items-center gap-2 border-b border-night-sky/10 bg-white px-3">
-          <button ref={back} type="button" onClick={goBack} className="grid h-10 w-10 place-items-center rounded-lg text-2xl hover:bg-sand" aria-label={page === "details" ? "Back to conversation" : page === "tones" ? "Back to notifications" : page === "theme-preview" ? "Back to themes" : "Back to chat details"}>‹</button>
-          <h2 id="chat-group-panel-title" className="min-w-0 truncate text-base font-black">{page === "details" && thread.threadType === "direct" ? "Chat details" : titles[page]}</h2>
+      <div role="dialog" aria-modal="true" aria-labelledby="chat-group-panel-title" ref={panel} onKeyDown={handleKeys}
+        style={previewWallpaper || undefined}
+        className={`chat-details-slide absolute inset-y-0 right-0 flex w-full flex-col bg-cover bg-center shadow-xl lg:w-[min(100%,27rem)] ${previewWallpaper ? "bg-night-sky" : "bg-sand"}`}>
+        <div inert={muteDialog} className={`flex min-h-14 shrink-0 items-center gap-2 px-3 ${previewWallpaper ? "bg-linear-to-b from-night-sky/95 to-night-sky/75 pb-3 pt-2 text-white" : "border-b border-night-sky/10 bg-white"}`}>
+          <button ref={back} type="button" onClick={goBack} className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-2xl ${previewWallpaper ? "hover:bg-white/15" : "hover:bg-sand"}`} aria-label={page === "details" ? "Back to conversation" : page === "tones" ? "Back to notifications" : page === "theme-preview" ? "Back to themes" : "Back to chat details"}>‹</button>
+          <h2 id="chat-group-panel-title" className="min-w-0 truncate text-base font-black">{themePreview ? `Previewing ${themePreview.name}` : page === "details" && thread.threadType === "direct" ? "Chat details" : titles[page]}</h2>
         </div>
         <div key={page} inert={muteDialog} ref={scrollArea} className="chat-details-slide min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4">
-          {error && !muteDialog && <p role="alert" className="rounded-lg bg-coral/10 p-2 text-sm text-red-800">{error}</p>}
+          {error && !muteDialog && <p role="alert" className={`rounded-lg p-2 text-sm text-red-800 ${themePreview ? "bg-white" : "bg-coral/10"}`}>{error}</p>}
           {confirmation && <p role="status" className="rounded-lg bg-sky/10 p-2 text-sm">{confirmation}</p>}
           {page === "details" && <>
             <div className="flex flex-col items-center gap-2 text-center">
@@ -556,21 +560,11 @@ export default function ChatGroupDetails({
               })}
             </div>
           </section>}
-          {page === "theme-preview" && (() => {
-            const selected = getChatTheme(previewTheme);
-            return <section className="flex min-h-full flex-col gap-4">
-              <h3 className="text-lg font-black">{selected.name}</h3>
-              <div style={wallpaperStyle(selected)} className="flex min-h-64 flex-1 flex-col justify-end gap-3 rounded-2xl border border-night-sky/10 bg-sand bg-cover bg-center p-4 shadow-sm">
-                <p style={bubbleStyle(selected, false)} className="max-w-[80%] self-start rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">Anyone up for a family picnic?</p>
-                <p style={bubbleStyle(selected, true)} className="max-w-[80%] self-end rounded-2xl bg-sky px-4 py-2 text-sm text-white shadow-sm">Count me in! I’ll bring lemonade.</p>
-                <p style={bubbleStyle(selected, false)} className="max-w-[80%] self-start rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">See you there!</p>
-              </div>
-              <div className="flex gap-3">
-                <button type="button" disabled={busy} className="min-h-12 flex-1 rounded-xl border border-night-sky/15 bg-white px-3 text-sm font-bold" onClick={() => go("themes")}>Cancel</button>
-                <button type="button" disabled={busy} className={`${buttonClass} min-h-12 flex-1`} onClick={applyTheme}>Apply theme</button>
-              </div>
-            </section>;
-          })()}
+          {themePreview && <div className="mx-auto flex max-w-sm flex-col gap-3 py-2 sm:py-5" aria-label="Example messages">
+            <p style={bubbleStyle(themePreview, false)} className="max-w-[85%] self-start rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-base leading-snug shadow-md">Anyone up for a family picnic?</p>
+            <p style={bubbleStyle(themePreview, true)} className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-sky-depth px-4 py-2.5 text-base leading-snug text-white shadow-md">Count me in! I’ll bring lemonade.</p>
+            <p style={bubbleStyle(themePreview, false)} className="max-w-[85%] self-start rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-base leading-snug shadow-md">See you there!</p>
+          </div>}
           {page === "pins" && <div className={cardClass}>
             {!busy && !pins.length && <p className="p-3 text-sm">No pinned messages yet. Use the pin button next to a message to save it here.</p>}
             {pins.map((message) => messageRow(message))}
@@ -586,8 +580,14 @@ export default function ChatGroupDetails({
             <p className="text-sm text-night-sky/65">Your report includes this chat’s ID. Message content is included only if you enter it yourself.</p>
             <button type="submit" className={buttonClass} disabled={busy}>Submit report</button>
           </form>}
-          {busy && <p role="status" className="text-sm text-night-sky/60">Working…</p>}
+          {busy && !themePreview && <p role="status" className="text-sm text-night-sky/60">Working…</p>}
         </div>
+        {themePreview && <footer className={`shrink-0 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${previewWallpaper ? "bg-linear-to-t from-night-sky/95 to-night-sky/65" : "border-t border-night-sky/10"}`}>
+          <div className="mx-auto flex max-w-sm gap-3">
+            <button type="button" disabled={busy} style={bubbleStyle(themePreview, false)} className="min-h-12 flex-1 rounded-xl bg-white px-3 text-sm font-bold shadow-md disabled:opacity-60" onClick={() => go("themes")}>Cancel</button>
+            <button type="button" disabled={busy} style={bubbleStyle(themePreview, true)} className={`${buttonClass} min-h-12 flex-1 shadow-md`} onClick={applyTheme}>{busy ? "Applying…" : "Apply theme"}</button>
+          </div>
+        </footer>}
         {muteDialog && <div className="absolute inset-0 z-10 grid place-items-center overflow-y-auto bg-night-sky/45 p-5">
           <section role="dialog" aria-modal="true" aria-labelledby="chat-mute-title"
             className="w-full max-w-sm space-y-2.5 rounded-3xl border border-white/60 bg-white p-4 text-center shadow-xl">
