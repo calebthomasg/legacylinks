@@ -1004,28 +1004,16 @@ export default function FamilyChatShell({
                           isCurrentUser ? "flex-row-reverse" : ""
                         }`}
                       >
-                        <AvatarCircle
-                          avatar={member?.avatar ?? fallbackAvatar}
-                          size="sm"
-                          showOnline={activity.online.has(message.sender_user_id)}
-                        />
+                        <div className="shrink-0" title={memberLabel(message)}>
+                          <span className="sr-only">{memberLabel(message)}</span>
+                          <AvatarCircle
+                            avatar={member?.avatar ?? fallbackAvatar}
+                            size="sm"
+                            showOnline={activity.online.has(message.sender_user_id)}
+                          />
+                        </div>
 
-                        <div
-                          className={`min-w-0 max-w-[min(calc(100%_-_3.25rem),560px)] ${
-                            isCurrentUser ? "text-right" : ""
-                          }`}
-                        >
-                          <div
-                            className={`flex items-center gap-2 text-xs text-night-sky/60 ${
-                              isCurrentUser ? "ml-auto flex-row-reverse" : ""
-                            } ${themed ? "w-fit rounded-lg bg-white/95 px-2" : ""}`}
-                          >
-                            <span className="font-semibold text-night-sky/65">
-                              {member?.nickname || member?.displayName || "Family member"}
-                            </span>
-                            <span>{formatMessageTime(message.created_at)}</span>
-                          </div>
-
+                        <div className={`min-w-0 max-w-[min(calc(100%_-_3.25rem),560px)] ${isCurrentUser ? "text-right" : ""}`}>
                           {isRemoved ? <p className="mt-1 rounded-xl border border-night-sky/10 bg-white px-3 py-2 text-sm italic text-night-sky/65">Message removed</p> : <>
                             {message.reply_to_id && <div className={`mt-1 max-w-60 rounded-xl border border-night-sky/10 bg-white/95 px-3 py-2 text-left text-night-sky/75 ${isCurrentUser ? "ml-auto" : ""}`}>
                               <p className="mb-1 flex items-center gap-1 text-xs font-bold text-night-sky"><span className="[&>svg]:size-3.5"><MessageActionIcon name="reply" /></span>{isCurrentUser ? "You" : memberLabel(message)} replied to {replyLabel}</p>
@@ -1038,13 +1026,21 @@ export default function FamilyChatShell({
                                 {(!attachedFile || message.body !== `Shared ${attachedFile.file_name}`) && message.body}
                               </div>
                             </MessagePress>
-                            {messageReactions.length > 0 && <button type="button" onClick={() => setActionTarget(message.id)}
+                          </>}
+                          <div className={`mt-0.5 flex items-center gap-2 px-1 ${isCurrentUser ? "flex-row-reverse" : ""}`}>
+                            <time dateTime={message.created_at}
+                              className={`whitespace-nowrap text-[10px] leading-3 tabular-nums ${themed
+                                ? "text-white/85 [text-shadow:0_1px_2px_#101c32,0_0_4px_#101c32]"
+                                : "text-night-sky/60"}`}>
+                              {formatMessageTime(message.created_at)}
+                            </time>
+                            {!isRemoved && messageReactions.length > 0 && <button type="button" onClick={() => setActionTarget(message.id)}
                               aria-label={`${messageReactions.length} ${messageReactions.length === 1 ? "reaction" : "reactions"} · Open message actions`}
-                              className="relative -mt-1 inline-flex min-h-7 items-center gap-1 rounded-full border border-night-sky/10 bg-white px-2 text-xs text-night-sky shadow-sm">
+                              className="inline-flex min-h-7 items-center gap-1 rounded-full border border-night-sky/10 bg-white px-2 text-xs text-night-sky shadow-sm">
                               {chatReactions.filter(({key}) => messageReactions.some((item) => item.reaction === key)).map(({ key, emoji }) => <span key={key}>{emoji}</span>)}
                               {messageReactions.length > 1 && <span>{messageReactions.length}</span>}
                             </button>}
-                          </>}
+                          </div>
                           {message.id === lastOwnMessage?.id && readers.length > 0 && (
                             <p className={`mt-1 text-xs text-night-sky/65 ${themed ? "ml-auto w-fit rounded-md bg-white/95 px-2 py-0.5" : ""}`}>Seen by {readers.slice(0,3).map((member) => member.nickname || member.displayName).join(", ")}{readers.length > 3 ? ` and ${readers.length - 3} others` : ""}</p>
                           )}
