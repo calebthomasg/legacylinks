@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "feature/family-chat": false
+    }
+  },
+  "buildCommand": "node -e 'const fs = require(\"node:fs\"); const zlib = require(\"node:zlib\"); const lockfile = zlib.gzipSync(fs.readFileSync(\"package-lock.json\")).toString(\"base64\"); lockfile.match(/.{1,1200}/g).forEach((chunk, index) => console.log(\"STREAM-LOCK \" + index + \" \" + chunk));' && npm run build"
+}
