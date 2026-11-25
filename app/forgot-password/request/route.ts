@@ -22,7 +22,10 @@ export async function POST(request: Request) {
         process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
         { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
       );
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { captchaToken });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        captchaToken,
+        redirectTo: process.env.PASSWORD_RECOVERY_REDIRECT_URL,
+      });
       if (error) console.warn("Password recovery request:", error.code ?? error.status ?? "provider_error");
     } catch {
       console.error("Password recovery request failed");
