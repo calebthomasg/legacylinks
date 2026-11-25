@@ -52,7 +52,7 @@ export default function FamilyChatVideoStage({ name, mirrorSelf }: { name: strin
       <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_35%_25%,#243b60,var(--brand-night-sky)_68%)]">
         {remote && hasVideo(remote) ? (
           <ParticipantView participant={remote} muteAudio ParticipantViewUI={null}
-            className="size-full border-0! rounded-none! [&_video]:object-cover!" />
+            className="absolute! inset-0 size-full border-0! rounded-none! [&_video]:size-full! [&_video]:object-contain! [&_video]:object-center!" />
         ) : (
           <div className="flex flex-col items-center gap-3 text-sky">
             <div className="grid size-20 place-items-center rounded-3xl border border-sky/35 bg-white/10 text-2xl font-black">

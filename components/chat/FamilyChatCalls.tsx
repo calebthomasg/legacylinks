@@ -30,13 +30,13 @@ async function post<T>(path: string, body: object = {}): Promise<T> {
 const glyphs = {
   accept: "m5 12 5 5L20 7",
   decline: "m6 6 12 12M18 6 6 18",
-  hangup: "M3 16v-2a2 2 0 0 1 1-1.7 16 16 0 0 1 16 0 2 2 0 0 1 1 1.7v2h-5v-3a12 12 0 0 0-8 0v3Z",
-  microphone: "M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Zm-3 6a6 6 0 0 0 12 0m-6 6v4m-4 0h8",
-  speaker: "M3 9h4l5-4v14l-5-4H3Zm12 0a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12",
-  video: "M3 6h12v12H3Zm12 4 6-4v12l-6-4",
-  videoOff: "M3 6h3m4 0h5v4l6-4v12l-3-2M3 10v8h12v-3M3 3l18 18",
-  microphoneOff: "M9 6a3 3 0 0 1 6 0v4M7 15a6 6 0 0 0 8 2m-3 1v4m-4 0h8M3 3l18 18",
-  flip: "M7 5h3l1-2h3l1 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm1 7a4 4 0 0 1 7-2m0-3v3h-3m3 4a4 4 0 0 1-7 2m0 3v-3h3",
+  hangup: "M2.6 11.2a16 16 0 0 1 18.8 0c.5.4.7 1 .6 1.6l-.6 2.9c-.1.5-.7.9-1.2.7l-4.5-1.2c-.5-.1-.8-.6-.8-1v-2.5a13 13 0 0 0-5.8 0v2.5c0 .4-.3.9-.8 1l-4.5 1.2c-.5.2-1.1-.2-1.2-.7L2 12.8c-.1-.6.1-1.2.6-1.6Z",
+  microphone: "M12 2a3.5 3.5 0 0 0-3.5 3.5V11a3.5 3.5 0 1 0 7 0V5.5A3.5 3.5 0 0 0 12 2Zm-7 9h2a5 5 0 1 0 10 0h2a7 7 0 0 1-6 6.9V21h3v2H8v-2h3v-3.1A7 7 0 0 1 5 11Z",
+  microphoneOff: "M12 2a3.5 3.5 0 0 0-3.1 1.9l6.6 6.6v-5A3.5 3.5 0 0 0 12 2ZM3.7 2.3l18 18-1.4 1.4-4.6-4.6a7 7 0 0 1-2.7.8V21h3v2H8v-2h3v-3.1A7 7 0 0 1 5 11h2a5 5 0 0 0 7.2 4.5l-1.4-1.4A3.5 3.5 0 0 1 8.5 11V9.8L2.3 3.7Z",
+  speaker: "M3 8.5h4L13 4v16l-6-4.5H3a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Zm12 0v7a4 4 0 0 0 0-7Zm2-4.5v2.2a7 7 0 0 1 0 11.6V20a9 9 0 0 0 0-16Z",
+  video: "M3.5 5h10A2.5 2.5 0 0 1 16 7.5v2l4.5-3a1 1 0 0 1 1.5.9v9.2a1 1 0 0 1-1.5.9l-4.5-3v2A2.5 2.5 0 0 1 13.5 19h-10A2.5 2.5 0 0 1 1 16.5v-9A2.5 2.5 0 0 1 3.5 5Z",
+  videoOff: "m3.7 2.3 18 18-1.4 1.4-4.4-4.4a2.5 2.5 0 0 1-2.4 1.7h-10A2.5 2.5 0 0 1 1 16.5v-9A2.5 2.5 0 0 1 3.4 5l-1.1-1.3L3.7 2.3ZM8 5h5.5A2.5 2.5 0 0 1 16 7.5v2l4.5-3a1 1 0 0 1 1.5.9v9.2c0 .3-.1.6-.3.8L9.3 5H8Z",
+  flip: "M3.5 5.5h2.7c.6 0 1-.2 1.4-.6l1-1.1c.5-.5 1-.8 1.7-.8h3.4c.7 0 1.2.3 1.7.8l1 1.1c.4.4.8.6 1.4.6h2.7A3.5 3.5 0 0 1 24 9v8.5a3.5 3.5 0 0 1-3.5 3.5h-17A3.5 3.5 0 0 1 0 17.5V9a3.5 3.5 0 0 1 3.5-3.5Zm6 3.7a.7.7 0 1 0 .8 1.2 3.8 3.8 0 0 1 5.5 2.6h-1.1a.45.45 0 0 0-.35.73l1.8 2.1c.2.23.55.23.74 0l1.8-2.1a.45.45 0 0 0-.35-.73h-1.1a5.2 5.2 0 0 0-7.7-3.8Zm5 8.6a.7.7 0 1 0-.8-1.2A3.8 3.8 0 0 1 8.2 14h1.1a.45.45 0 0 0 .35-.73l-1.8-2.1a.48.48 0 0 0-.74 0l-1.8 2.1a.45.45 0 0 0 .35.73h1.1a5.2 5.2 0 0 0 7.7 3.8Z",
 };
 
 function CallControl({ label, icon, style = "standard", onClick, disabled, pressed, compact = false }: {
@@ -48,16 +48,19 @@ function CallControl({ label, icon, style = "standard", onClick, disabled, press
   pressed?: boolean;
   compact?: boolean;
 }) {
-  const color = style === "coral" ? "bg-coral text-night-sky"
+  const outlined = icon === "accept" || icon === "decline";
+  const color = style === "coral" ? `bg-coral ${outlined ? "text-night-sky" : "text-white"}`
     : style === "sky" ? "bg-sky text-night-sky"
-      : "border border-white/30 bg-white/10 text-white aria-pressed:bg-white aria-pressed:text-night-sky";
+      : `border border-white/30 text-white ${pressed ? "bg-sky/25" : "bg-white/10"}`;
   return (
     <button type="button" disabled={disabled} aria-pressed={pressed} onClick={onClick}
       className={`group flex flex-col items-center gap-2 font-bold disabled:opacity-45 ${compact ? "min-w-0 flex-1 text-xs" : "min-w-20 text-sm"}`}>
       <span className={`grid place-items-center rounded-full transition group-hover:brightness-110 ${compact ? "size-11 sm:size-12" : "size-14 sm:size-16"} ${color}`}>
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round" className="size-7">
-          <path d={glyphs[icon]} />
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-7">
+          {outlined
+            ? <path d={glyphs[icon]} fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" />
+            : <path d={glyphs[icon]} fill="currentColor" fillRule="evenodd" />}
         </svg>
       </span>
       {label}
