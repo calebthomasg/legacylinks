@@ -1,5 +1,6 @@
 import { getFamilyCallConfig } from "@/lib/family-calls/config";
 import { redirect } from "next/navigation";
+import { PROFILE_PHOTO_BUCKET, profileThumbnailPath } from "@/utils/images/profileThumbnail.mjs";
 import AppShell from "@/components/layout/AppShell";
 import FamilyChatShell, {
   type ChatRecipientOption,
@@ -124,12 +125,20 @@ async function loadChatPhotoUrls(
   const photos = (data ?? []) as { user_id: string; photo_path: string }[];
   if (!photos.length) return new Map<string, string>();
 
-  const { data: signed } = await supabase.storage.from("person-photos")
-    .createSignedUrls([...new Set(photos.map((photo) => photo.photo_path))], 60 * 60);
-  const urlsByPath = new Map((signed ?? []).map(({ path, signedUrl }) => [path, signedUrl]));
+  const bucket = supabase.storage.from(PROFILE_PHOTO_BUCKET);
+  async function sign(paths: string[]) {
+    if (!paths.length) return new Map<string | null, string>();
+    const { data: signed } = await bucket.createSignedUrls([...new Set(paths)], 60 * 60);
+    return new Map((signed ?? []).flatMap(({ path, signedUrl }) =>
+      signedUrl ? [[path, signedUrl] as const] : []));
+  }
+
+  const thumbnailUrls = await sign(photos.map(({ photo_path }) => profileThumbnailPath(photo_path)));
+  const originalUrls = await sign(photos.flatMap(({ photo_path }) =>
+    thumbnailUrls.has(profileThumbnailPath(photo_path)) ? [] : [photo_path]));
   const urls = new Map<string, string>();
   for (const { user_id, photo_path } of photos) {
-    const url = urlsByPath.get(photo_path);
+    const url = thumbnailUrls.get(profileThumbnailPath(photo_path)) ?? originalUrls.get(photo_path);
     if (url) urls.set(user_id, url);
   }
   return urls;

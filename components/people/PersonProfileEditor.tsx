@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ensureProfileThumbnail, removeProfilePhotoFiles, uploadProfilePhotoFiles } from "@/utils/images/client";
 import Link from "next/link";
 import {
   useRef,
@@ -422,13 +423,7 @@ export function ProfileHeader({
     setMessage("");
 
     const storagePath = getSafeImagePath(userId, person.id, file);
-    const { error: uploadError } = await supabase.storage
-      .from("person-photos")
-      .upload(storagePath, file, {
-        cacheControl: "31536000",
-        contentType: file.type || undefined,
-        upsert: false,
-      });
+    const { error: uploadError } = await uploadProfilePhotoFiles(supabase, storagePath, file);
 
     if (uploadError) {
       setMessage(uploadError.message);
@@ -443,6 +438,7 @@ export function ProfileHeader({
       .eq("uploaded_by_user_id", userId);
 
     if (resetError) {
+      await removeProfilePhotoFiles(supabase, storagePath);
       setMessage(resetError.message);
       setIsSavingProfilePhoto(false);
       return;
@@ -459,7 +455,7 @@ export function ProfileHeader({
       });
 
     if (insertError) {
-      await supabase.storage.from("person-photos").remove([storagePath]);
+      await removeProfilePhotoFiles(supabase, storagePath);
       setMessage(insertError.message);
       setIsSavingProfilePhoto(false);
       return;
@@ -525,6 +521,7 @@ export function ProfileHeader({
       return;
     }
 
+    await ensureProfileThumbnail(supabase, photo.storage_path);
     setIsSavingProfilePhoto(false);
     router.refresh();
   }

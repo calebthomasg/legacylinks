@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { removeProfilePhotoFiles, uploadProfilePhotoFiles } from "@/utils/images/client";
 import { createClient } from "@/utils/supabase/client";
 import { US_STATES } from "@/utils/usStates";
 
@@ -58,23 +59,12 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
       const safeFileName = `${crypto.randomUUID()}.${fileExtension}`;
       const storagePath = `${person.created_by_user_id}/${person.id}/${safeFileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("person-photos")
-        .upload(storagePath, photoFile, {
-          cacheControl: "31536000",
-          upsert: false,
-        });
+      const { error: uploadError } = await uploadProfilePhotoFiles(supabase, storagePath, photoFile);
 
       if (uploadError) {
         setMessage(uploadError.message);
         setIsSaving(false);
         return;
-      }
-
-      if (person.profile_photo_path) {
-        await supabase.storage
-          .from("person-photos")
-          .remove([person.profile_photo_path]);
       }
 
       profilePhotoPath = storagePath;
@@ -100,11 +90,17 @@ export default function EditPersonForm({ person }: EditPersonFormProps) {
       .eq("id", person.id);
 
     if (error) {
+      if (profilePhotoPath && profilePhotoPath !== person.profile_photo_path) {
+        await removeProfilePhotoFiles(supabase, profilePhotoPath);
+      }
       setMessage(error.message);
       setIsSaving(false);
       return;
     }
 
+    if (person.profile_photo_path && profilePhotoPath !== person.profile_photo_path) {
+      await removeProfilePhotoFiles(supabase, person.profile_photo_path);
+    }
     setPhotoFile(null);
     setMessage("Person updated.");
     setIsSaving(false);
