@@ -491,7 +491,7 @@ export default async function FamilyChatPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/login?next=/family-chat");
   }
 
   const profileHref = await getProfileNavHref(user.id);
