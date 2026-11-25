@@ -1080,7 +1080,7 @@ export default function FamilyChatShell({
                     if (file) { setDraftFiles((previous) => ({ ...previous, [selectedThread.id]: file })); setSendError(null); }
                     event.currentTarget.value = "";
                   }} />
-                  <div className="flex items-end gap-1.5 rounded-2xl border border-night-sky/10 bg-sand p-1 shadow-inner lg:gap-3 lg:p-2">
+                  <div className="flex items-center gap-1.5 rounded-2xl border border-night-sky/10 bg-sand p-1 shadow-inner lg:gap-3 lg:p-2">
                     <button type="button" aria-label="Attach a file" disabled={isSendingMessage} className="grid h-11 w-9 shrink-0 place-items-center rounded-xl text-sky-depth hover:bg-white" onClick={() => fileInput.current?.click()}><AttachmentIcon /></button>
                     <textarea
                       ref={composer}
@@ -1097,12 +1097,12 @@ export default function FamilyChatShell({
                       placeholder="Write a message..."
                       aria-label="Write a message"
                       rows={1}
-                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-base leading-5 lg:py-3 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 lg:text-sm"
+                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-base leading-5 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 lg:text-sm"
                     />
                     <button
                       type="submit"
                       disabled={!canSendMessage}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-b-[4px] border-sky-depth bg-sky font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:border-b-[6px] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-b-[4px]"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-b-[4px] border-sky-depth bg-sky pt-1 font-black text-white shadow-sm transition-colors enabled:hover:bg-sky-depth disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="Send message"
                     >
                       {isSendingMessage ? (
