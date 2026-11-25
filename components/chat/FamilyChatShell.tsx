@@ -133,24 +133,25 @@ function IconButton({
   children,
   disabled = false,
   onClick,
-  comingSoon = false,
+  comingSoon,
   callControl = false,
 }: {
   label: string;
   children: React.ReactNode;
   disabled?: boolean;
   onClick?: () => void;
-  comingSoon?: boolean;
+  comingSoon?: string;
   callControl?: boolean;
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-label={label}
-      title={comingSoon ? `${label} coming soon` : label}
-      className={`flex shrink-0 items-center justify-center text-night-sky/75 transition hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60 ${callControl ? "h-11 w-11 rounded-xl [&>svg]:h-6 [&>svg]:w-6" : "h-10 w-10 rounded-full border border-night-sky/10 bg-white shadow-sm"}`}
+      disabled={disabled && !comingSoon}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      aria-label={comingSoon ? `${label}. ${comingSoon}` : label}
+      title={comingSoon ?? label}
+      className={`flex shrink-0 items-center justify-center text-night-sky/75 transition hover:bg-sand aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${callControl ? "h-11 w-11 rounded-xl [&>svg]:h-6 [&>svg]:w-6" : "h-10 w-10 rounded-full border border-night-sky/10 bg-white shadow-sm"}`}
     >
       {children}
     </button>
@@ -982,11 +983,13 @@ export default function FamilyChatShell({
 
                 <div className="flex shrink-0 items-center lg:gap-2">
                   <IconButton label="Phone call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
-                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "audio" })}>
+                    comingSoon={selectedThread.threadType === "group" ? "Group calling coming soon" : !directCalls ? "Phone call coming soon" : undefined}
+                    onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "audio" })}>
                     <PhoneIcon />
                   </IconButton>
                   <IconButton label="Video call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
-                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "video" })}>
+                    comingSoon={selectedThread.threadType === "group" ? "Group calling coming soon" : !directCalls ? "Video call coming soon" : undefined}
+                    onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "video" })}>
                     <VideoIcon />
                   </IconButton>
                 </div>
