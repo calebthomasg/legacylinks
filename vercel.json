@@ -5,5 +5,5 @@
       "feature/family-chat": false
     }
   },
-  "buildCommand": "node -e 'const fs = require(\"node:fs\"); const zlib = require(\"node:zlib\"); const lockfile = zlib.gzipSync(fs.readFileSync(\"package-lock.json\")).toString(\"base64\"); lockfile.match(/.{1,1200}/g).forEach((chunk, index) => console.log(\"STREAM-LOCK \" + index + \" \" + chunk));' && npm run build"
+  "buildCommand": "node scripts/print-stream-preview-lock.mjs && npm run build"
 }
