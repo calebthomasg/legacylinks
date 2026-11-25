@@ -2,8 +2,8 @@ const previewSupabaseHost = "dlgwijztbinnfklugyip.supabase.co";
 
 export function getFamilyCallConfig() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const apiKey = process.env.STREAM_API_KEY;
-  const secret = process.env.STREAM_API_SECRET;
+  const apiKey = process.env.STREAM_API_KEY?.trim();
+  const secret = process.env.STREAM_API_SECRET?.trim();
   if (
     process.env.VERCEL_ENV !== "preview" ||
     process.env.VERCEL_GIT_COMMIT_REF !== "feature/stream-calling" ||

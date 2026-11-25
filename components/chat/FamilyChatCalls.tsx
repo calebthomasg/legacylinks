@@ -16,8 +16,10 @@ async function post<T>(path: string, body: object = {}): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Family Chat calling is unavailable.");
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result) {
+    throw new Error(result?.error ?? `Family Chat calling is unavailable (${response.status}).`);
+  }
   return result;
 }
 
@@ -185,7 +187,7 @@ export default function FamilyChatCalls({ userId, request, onHandled, onReady, o
   onBusy: (busy: boolean) => void;
 }) {
   const [client, setClient] = useState<StreamVideoClient | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -195,8 +197,11 @@ export default function FamilyChatCalls({ userId, request, onHandled, onReady, o
     const getCredentials = () => post<Credentials>("/api/family-chat/calls/token");
     void (async () => {
       try {
-        const { apiKey, token } = await getCredentials();
-        if (ended) return;
+        const { apiKey, token } = await getCredentials().catch((error: unknown) => {
+          if (!ended) setFailure(error instanceof Error ? error.message : "Could not load calling credentials.");
+          return { apiKey: "", token: "" };
+        });
+        if (ended || !apiKey || !token) return;
         let initialToken: string | undefined = token;
         const sdk = new StreamVideoClient({ apiKey });
         connected = sdk;
@@ -209,7 +214,7 @@ export default function FamilyChatCalls({ userId, request, onHandled, onReady, o
         setClient(sdk);
         onReady(true);
       } catch {
-        if (!ended) setFailed(true);
+        if (!ended) setFailure("Could not open Stream’s live connection.");
       }
     })();
     return () => {
@@ -219,11 +224,11 @@ export default function FamilyChatCalls({ userId, request, onHandled, onReady, o
     };
   }, [attempt, onReady, userId]);
 
-  if (failed) return (
+  if (failure) return (
     <div role="alert" className="fixed bottom-5 right-5 z-[90] rounded-xl bg-night-sky px-4 py-3 text-sm text-white shadow-xl">
-      Calling could not connect.{" "}
+      {failure}{" "}
       <button type="button" className="font-bold underline" onClick={() => {
-        setFailed(false);
+        setFailure(null);
         setAttempt((previous) => previous + 1);
       }}>Retry</button>
     </div>

@@ -10,7 +10,13 @@ export async function POST(request: Request) {
       apiKey: auth.apiKey,
       token: auth.stream.generateUserToken({ user_id: auth.userId, validity_in_seconds: 900 }),
     });
-  } catch {
-    return callResponse({ error: "Could not connect to Family Chat calling." }, 502);
+  } catch (error) {
+    const details = error as { status?: unknown; response?: { status?: unknown }; code?: unknown };
+    const status = details?.response?.status ?? details?.status;
+    console.warn("[family-calls] Stream token setup failed", {
+      status: typeof status === "number" ? status : undefined,
+      code: typeof details?.code === "number" ? details.code : undefined,
+    });
+    return callResponse({ error: "The preview could not verify its Stream connection (502)." }, 502);
   }
 }
