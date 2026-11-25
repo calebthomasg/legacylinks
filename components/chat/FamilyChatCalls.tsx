@@ -2,12 +2,13 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
-  CallingState, ParticipantsAudio, SpeakerLayout, StreamCall, StreamTheme, StreamVideo, StreamVideoClient,
+  CallingState, ParticipantsAudio, StreamCall, StreamVideo, StreamVideoClient,
   hasVideo, useCalls, useCallStateHooks,
   type Call,
 } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 
+import FamilyChatVideoStage from "./FamilyChatVideoStage";
 import { useCallTone, useCallToneUnlock } from "./useCallTone";
 import type { CallActivity, MissedCall } from "@/lib/family-calls/activity";
 
@@ -33,23 +34,27 @@ const glyphs = {
   microphone: "M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Zm-3 6a6 6 0 0 0 12 0m-6 6v4m-4 0h8",
   speaker: "M3 9h4l5-4v14l-5-4H3Zm12 0a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12",
   video: "M3 6h12v12H3Zm12 4 6-4v12l-6-4",
+  videoOff: "M3 6h3m4 0h5v4l6-4v12l-3-2M3 10v8h12v-3M3 3l18 18",
+  microphoneOff: "M9 6a3 3 0 0 1 6 0v4M7 15a6 6 0 0 0 8 2m-3 1v4m-4 0h8M3 3l18 18",
+  flip: "M7 5h3l1-2h3l1 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm1 7a4 4 0 0 1 7-2m0-3v3h-3m3 4a4 4 0 0 1-7 2m0 3v-3h3",
 };
 
-function CallControl({ label, icon, style = "standard", onClick, disabled, pressed }: {
+function CallControl({ label, icon, style = "standard", onClick, disabled, pressed, compact = false }: {
   label: string;
   icon: keyof typeof glyphs;
   style?: "standard" | "coral" | "sky";
   onClick: () => void;
   disabled?: boolean;
   pressed?: boolean;
+  compact?: boolean;
 }) {
   const color = style === "coral" ? "bg-coral text-night-sky"
     : style === "sky" ? "bg-sky text-night-sky"
       : "border border-white/30 bg-white/10 text-white aria-pressed:bg-white aria-pressed:text-night-sky";
   return (
     <button type="button" disabled={disabled} aria-pressed={pressed} onClick={onClick}
-      className="group flex min-w-20 flex-col items-center gap-2 text-sm font-bold disabled:opacity-45">
-      <span className={`grid size-14 place-items-center rounded-full transition group-hover:brightness-110 sm:size-16 ${color}`}>
+      className={`group flex flex-col items-center gap-2 font-bold disabled:opacity-45 ${compact ? "min-w-0 flex-1 text-xs" : "min-w-20 text-sm"}`}>
+      <span className={`grid place-items-center rounded-full transition group-hover:brightness-110 ${compact ? "size-11 sm:size-12" : "size-14 sm:size-16"} ${color}`}>
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round" className="size-7">
           <path d={glyphs[icon]} />
@@ -81,11 +86,12 @@ function CallPanel({ call, recovered, dismissRecovered }: {
   const remoteParticipants = useRemoteParticipants();
   const blockedAudio = useAutoplayBlockedSessionIds();
   const { optimisticIsMute: microphoneMuted } = useMicrophoneState();
-  const { optimisticIsMute: cameraMuted } = useCameraState();
+  const { optimisticIsMute: cameraMuted, direction } = useCameraState();
   const { devices, selectedDevice, isDeviceSelectionSupported } = useSpeakerState();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [usedVideo, setUsedVideo] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const initiallyAudio = call.type === "family_audio" || custom.family_chat_mode === "audio";
   const ringing = state === CallingState.RINGING || (recovered && state === CallingState.IDLE);
@@ -93,7 +99,9 @@ function CallPanel({ call, recovered, dismissRecovered }: {
   const connected = state === CallingState.JOINED || state === CallingState.RECONNECTING;
   const liveMedia = connected && remoteParticipants.length > 0;
   const upgraded = connected && (cameraMuted === false || remoteParticipants.some((participant) => hasVideo(participant)));
-  const video = !initiallyAudio || upgraded;
+  if (upgraded && !usedVideo) setUsedVideo(true);
+  const video = !initiallyAudio || usedVideo || upgraded;
+  const videoStage = connected && video;
   const other = call.isCreatedByMe
     ? members.find((member) => member.user_id !== creator?.id)?.user
     : creator;
@@ -155,62 +163,95 @@ function CallPanel({ call, recovered, dismissRecovered }: {
     }, "Could not close the call. Please try again.");
   }
 
+  const status = incoming ? "Incoming call" : ringing ? "Calling…"
+    : state === CallingState.RECONNECTING ? "Reconnecting…"
+      : liveMedia ? "Connected" : "Connecting…";
+  const cameraControl = call.type !== "family_audio" && (
+    <CallControl label={cameraMuted === false ? "Stop video" : "Video"}
+      icon={cameraMuted === false ? "video" : "videoOff"} pressed={cameraMuted === false}
+      compact={videoStage} disabled={!connected || pending}
+      onClick={() => void act(() => call.camera.toggle(), "Could not change your camera. Check camera permissions.")} />
+  );
+  const microphoneControl = (
+    <CallControl label={microphoneMuted ? "Unmute" : "Mute"}
+      icon={microphoneMuted ? "microphoneOff" : "microphone"} pressed={microphoneMuted}
+      compact={videoStage} disabled={!connected || pending}
+      onClick={() => void act(() => call.microphone.toggle(), "Could not change the microphone.")} />
+  );
+  const endControl = (
+    <CallControl label="Hang up" icon="hangup" style="coral" compact={videoStage}
+      onClick={hangUp} disabled={pending} />
+  );
+  const audioRecovery = connected && blockedAudio.length > 0 && (
+    <button type="button" className="rounded-full border border-sky/50 bg-night-sky px-4 py-2 text-sm font-bold text-sky"
+      onClick={() => void call.resumeAudio()}>Play call audio</button>
+  );
+
   return (
     <dialog ref={dialog} aria-labelledby="family-call-title" onCancel={(event) => event.preventDefault()}
-      className="m-auto max-h-[96dvh] w-[calc(100%-1rem)] max-w-xl overflow-y-auto rounded-[2rem] border border-white/15 bg-night-sky p-0 text-white shadow-2xl backdrop:bg-night-sky/80">
-      <div className="flex min-h-[min(36rem,90dvh)] flex-col items-center bg-linear-to-br from-night-sky via-[#162c42] to-[#26334c] px-5 py-7 text-center sm:px-8">
-        <div className="mb-4 grid size-16 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
-          {name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-        </div>
-        <h2 id="family-call-title" className="max-w-full wrap-break-word text-2xl font-black sm:text-3xl">{name}</h2>
-        <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-sky sm:text-base">
-          Family Chat {video ? "Video" : "Audio"}
-          {!incoming && <span className="tabular-nums text-white/85">{formatDuration(elapsed)}</span>}
-        </p>
-        <p role="status" className="mt-1 text-sm text-white/70">
-          {incoming ? "Incoming call" : ringing ? "Calling…"
-            : state === CallingState.RECONNECTING ? "Reconnecting…"
-              : liveMedia ? "Connected" : "Connecting…"}
-        </p>
-        {connected && (
-          <StreamTheme className="mt-4 w-full">
-            {video ? <div className="aspect-video overflow-hidden rounded-2xl bg-night-sky"><SpeakerLayout /></div>
-              : <ParticipantsAudio participants={remoteParticipants} />}
-          </StreamTheme>
-        )}
-        {error && <p role="alert" className="mt-4 text-sm text-coral">{error}</p>}
-        <div className="mt-auto pt-7">
-          {incoming ? (
-            <div className="flex gap-10 sm:gap-16">
-              <CallControl label="Decline" icon="decline" style="coral" onClick={hangUp} disabled={pending} />
-              <CallControl label="Accept" icon="accept" style="sky" onClick={accept} disabled={pending} />
+      className={`fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden border-0 bg-night-sky p-0 text-white backdrop:bg-night-sky/80 ${videoStage || incoming
+        ? "" : "sm:pointer-fine:m-auto sm:pointer-fine:h-[min(36rem,94dvh)] sm:pointer-fine:max-w-xl sm:pointer-fine:rounded-[2rem] sm:pointer-fine:border sm:pointer-fine:border-white/15 sm:pointer-fine:shadow-2xl"}`}>
+      {connected && <ParticipantsAudio participants={remoteParticipants} />}
+      {videoStage ? (
+        <div className="relative isolate h-full overflow-hidden">
+          <FamilyChatVideoStage name={name} mirrorSelf={direction !== "back"} />
+          <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-night-sky/90 to-transparent px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
+            <h2 id="family-call-title" className="truncate text-lg font-black text-white">{name}</h2>
+            <p className="mt-0.5 text-xs font-semibold text-sky">
+              Family Chat Video <span className="ml-2 tabular-nums text-white/85">{formatDuration(elapsed)}</span>
+            </p>
+            {state === CallingState.RECONNECTING && <p role="status" className="mt-1 text-xs">{status}</p>}
+          </header>
+          <footer className="absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 mx-auto flex max-w-md flex-col items-center gap-2">
+            {error && <p role="alert" className="rounded-xl bg-night-sky px-3 py-2 text-center text-sm text-coral">{error}</p>}
+            {audioRecovery}
+            <div className="flex w-full items-start gap-1 rounded-3xl border border-sky/25 bg-night-sky/90 px-2 py-2.5 shadow-xl backdrop-blur-md sm:px-3">
+              {cameraControl}
+              {direction && (
+                <CallControl label="Flip camera" icon="flip" compact disabled={cameraMuted !== false || pending}
+                  onClick={() => void act(() => call.camera.flip(), "Could not switch cameras.")} />
+              )}
+              {microphoneControl}
+              {endControl}
             </div>
-          ) : (
-            <>
-              <div className="mb-5 flex flex-wrap justify-center gap-2 sm:gap-5">
-                <CallControl label={microphoneMuted ? "Unmute" : "Mute"} icon="microphone" pressed={microphoneMuted}
-                  disabled={!connected || pending} onClick={() => void act(() => call.microphone.toggle(), "Could not change the microphone.")} />
-                {isDeviceSelectionSupported && speaker && earpiece && (
-                  <CallControl label={speakerOn ? "Earpiece" : "Speaker"} icon="speaker" pressed={speakerOn}
-                    disabled={!connected || pending}
-                    onClick={() => void act(() => call.speaker.select(speakerOn ? earpiece.deviceId : speaker.deviceId), "Could not change the audio output.")} />
-                )}
-                {call.type !== "family_audio" && (
-                  <CallControl label={cameraMuted === false ? "Stop video" : "Video"} icon="video" pressed={cameraMuted === false}
-                    disabled={!connected || pending} onClick={() => void act(() => call.camera.toggle(), "Could not turn on video. Check camera permissions.")} />
-                )}
-              </div>
-              <div className="flex justify-center">
-                <CallControl label="Hang up" icon="hangup" style="coral" onClick={hangUp} disabled={pending} />
-              </div>
-            </>
-          )}
-          {connected && blockedAudio.length > 0 && (
-            <button type="button" className="mt-4 rounded-full border border-sky/50 px-4 py-2 text-sm font-bold text-sky"
-              onClick={() => void call.resumeAudio()}>Play call audio</button>
-          )}
+          </footer>
         </div>
-      </div>
+      ) : (
+        <div className="flex h-full flex-col items-center overflow-y-auto bg-linear-to-br from-night-sky via-[#162c42] to-[#26334c] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-center sm:px-8">
+          <div className="mb-4 mt-[min(8dvh,3rem)] grid size-16 shrink-0 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
+            {name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+          </div>
+          <h2 id="family-call-title" className="max-w-full wrap-break-word text-2xl font-black sm:text-3xl">{name}</h2>
+          <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-sky sm:text-base">
+            Family Chat {video ? "Video" : "Audio"}
+            {!incoming && <span className="tabular-nums text-white/85">{formatDuration(elapsed)}</span>}
+          </p>
+          <p role="status" className="mt-1 text-sm text-white/70">{status}</p>
+          {error && <p role="alert" className="mt-4 text-sm text-coral">{error}</p>}
+          <div className="mt-auto flex flex-col items-center gap-4 pt-6">
+            {incoming ? (
+              <div className="flex gap-10 sm:gap-16">
+                <CallControl label="Decline" icon="decline" style="coral" onClick={hangUp} disabled={pending} />
+                <CallControl label="Accept" icon="accept" style="sky" onClick={accept} disabled={pending} />
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-5">
+                  {microphoneControl}
+                  {isDeviceSelectionSupported && speaker && earpiece && (
+                    <CallControl label={speakerOn ? "Earpiece" : "Speaker"} icon="speaker" pressed={speakerOn}
+                      disabled={!connected || pending}
+                      onClick={() => void act(() => call.speaker.select(speakerOn ? earpiece.deviceId : speaker.deviceId), "Could not change the audio output.")} />
+                  )}
+                  {cameraControl}
+                </div>
+                {endControl}
+              </>
+            )}
+            {audioRecovery}
+          </div>
+        </div>
+      )}
     </dialog>
   );
 }
