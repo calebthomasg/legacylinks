@@ -10,7 +10,7 @@ type AppShellProps = {
   active?: "journal"|"trailhead"|"tree"|"gallery"|"family"|"find-family"|"family-chat"|"profile"|null;
   userEmail?: string|null; userName?: string|null; profileHref?: string; isAdmin?: boolean; children:React.ReactNode; contentClassName?:string;
 };
-function getPrimaryLinks(profileHref:string){return [{href:"/dashboard",label:"Journal",active:"journal"},{href:"/trailhead",label:"Trailhead",active:"trailhead"},{href:"/tree",label:"My Family Tree",active:"tree"},{href:profileHref,label:"Profile",active:"profile"},{href:"/gallery",label:"Photo Gallery",active:"gallery"},{href:"/family",label:"Manage Family",active:"family"},{href:"/family/connect",label:"Find Family",active:"find-family"},{href:"/family-chat",label:"Family Chat",active:"family-chat"}] as const}
+function getPrimaryLinks(profileHref:string){return [{href:"/dashboard",label:"Journal",active:"journal"},{href:"/trailhead",label:"Trailhead",active:"trailhead"},{href:"/family-chat",label:"Family Chat",active:"family-chat"},{href:"/tree",label:"My Family Tree",active:"tree"},{href:profileHref,label:"Profile",active:"profile"},{href:"/gallery",label:"Photo Gallery",active:"gallery"},{href:"/family",label:"Manage Family",active:"family"},{href:"/family/connect",label:"Find Family",active:"find-family"}] as const}
 const comingLaterLinks=["Family Feed","Clans","FamilySearch Sync","Bedtime Stories"];
 export default function AppShell({active,userEmail,userName="LegacyLinks",profileHref="/family",isAdmin=false,children,contentClassName="bg-sand"}:AppShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
