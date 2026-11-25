@@ -484,6 +484,7 @@ export default function FamilyChatShell({
 
   const onNewMessage = useEffectEvent((message: ChatMessage) => {
     noteMessage(message);
+    if (message.theme_change_id) return;
     const thread = threads.find((item) => item.id === message.thread_id);
     if (!thread || !thread.messageAlerts || isChatMuted(thread.mutedAt, thread.mutedUntil) || document.hidden || message.sender_user_id === currentUserId || notified.current.has(message.id)) return;
     notified.current.add(message.id);
@@ -1047,6 +1048,16 @@ export default function FamilyChatShell({
                       );
                     }
                     const { message } = entry;
+                    if (message.theme_change_id) {
+                      return (
+                        <p key={message.id}
+                          className={`text-center text-sm leading-5 ${themed
+                            ? "text-white/85 [text-shadow:0_1px_2px_#101c32,0_0_4px_#101c32]"
+                            : "text-night-sky/60"}`}>
+                          {message.body}
+                        </p>
+                      );
+                    }
                     const member = getMemberForMessage(message);
                     const isCurrentUser = message.sender_user_id === currentUserId;
                     const attachedFile = fileRows[message.id];

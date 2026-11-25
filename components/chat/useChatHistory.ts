@@ -8,6 +8,7 @@ export type ChatMessage = {
   thread_id: string;
   sender_user_id: string;
   body: string;
+  theme_change_id?: string | null;
   created_at: string;
   reply_to_id: string | null;
   removed_for_everyone: boolean;
