@@ -1,4 +1,5 @@
-export type MissedCall = {
+export type CallLogEntry = {
+  kind: "completed" | "missed";
   id: string;
   threadId: string;
   callerId: string;
@@ -12,7 +13,7 @@ export type IncomingCall = {
   expiresAt: number;
 };
 
-export type CallActivity = { incoming: IncomingCall | null; missed: MissedCall[]; latestCalls: ConversationCallActivity[] };
+export type CallActivity = { incoming: IncomingCall | null; entries: CallLogEntry[]; missed: Omit<CallLogEntry, "kind">[]; latestCalls: ConversationCallActivity[] };
 
 export type ConversationCallActivity = {
   threadId: string;
