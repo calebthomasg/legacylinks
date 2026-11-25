@@ -90,7 +90,7 @@ function SettingsSwitch({ label, checked, disabled, onChange }: {
 }
 
 export default function ChatGroupDetails({
-  client, thread, currentUserId, privacy, online, filesRevision, onClose, onAdd, onLeave,
+  client, thread, currentUserId, privacy, online, filesRevision, removedIds, onClose, onAdd, onLeave,
   leaving, leaveError, onRefresh, onPrivacyChange, onPin, avatar,
 }: {
   client: ReturnType<typeof createClient>;
@@ -99,6 +99,7 @@ export default function ChatGroupDetails({
   privacy: Privacy;
   online: Set<string>;
   filesRevision: number;
+  removedIds: Set<string>;
   onClose: () => void;
   onAdd: () => void;
   onLeave: () => void;
@@ -397,7 +398,7 @@ export default function ChatGroupDetails({
       if (problem) throw problem;
       const ids = (result ?? []).map((row) => row.message_id);
       if (!ids.length) { setPins([]); return; }
-      const { data, error } = await client.from("chat_messages").select("id,thread_id,sender_user_id,body,created_at").in("id", ids);
+      const { data, error } = await client.from("chat_messages").select("id,thread_id,sender_user_id,body,created_at,removed_for_everyone").in("id", ids).is("deleted_at", null);
       if (error) throw error;
       const messages = new Map(((data ?? []) as ChatMessage[]).map((message) => [message.id, message]));
       setPins(ids.flatMap((id) => { const message = messages.get(id); return message ? [message] : []; }));
@@ -418,6 +419,7 @@ export default function ChatGroupDetails({
   }
 
   function messageRow(message: ChatMessage, contextMode = false) {
+    if (removedIds.has(message.id) || message.removed_for_everyone) return null;
     const sender = [...thread.members, ...thread.pastMembers].find((member) => member.userId === message.sender_user_id);
     return (
       <div key={message.id} className={`border-b border-night-sky/10 px-3 py-2.5 last:border-0 ${message.id === linkedMessage && contextMode ? "bg-sky/15" : ""}`}>
@@ -488,7 +490,7 @@ export default function ChatGroupDetails({
             <section>
               <h3 className={sectionClass}>Shared in this chat</h3>
               <div className={cardClass}>
-                {recent.length ? <div className="grid grid-cols-3 gap-1.5 p-2">{recent.map((file) => <ChatFile key={file.message_id} file={file} tile />)}</div>
+                {recent.length ? <div className="grid grid-cols-3 gap-1.5 p-2">{recent.filter((file) => !removedIds.has(file.message_id)).map((file) => <ChatFile key={file.message_id} file={file} tile />)}</div>
                   : <p className="px-4 py-3 text-xs text-night-sky/65">Photos and videos will appear here after someone shares them.</p>}
                 <Row label="Media, links, and files" onClick={() => showGallery()} />
               </div>
@@ -542,13 +544,13 @@ export default function ChatGroupDetails({
             <div role="group" aria-label="Shared items" className="flex gap-2">
               {(["Media","Links","Files"] as const).map((item) => <button type="button" key={item} aria-pressed={tab === item} disabled={busy} onClick={() => showGallery(item)} className={`rounded-lg px-3 py-2 text-sm font-bold ${item === tab ? "bg-night-sky text-white" : "bg-white"}`}>{item}</button>)}
             </div>
-            {tab === "Links" ? <div className="space-y-2">{links.map((item, index) => {
+            {tab === "Links" ? <div className="space-y-2">{links.filter((item) => !removedIds.has(item.message_id)).map((item, index) => {
               let safe: URL;
               try { safe = new URL(item.url); } catch { return null; }
               if (safe.protocol !== "https:" && safe.protocol !== "http:") return null;
               return <a key={`${item.message_id}-${index}`} className="block break-all rounded-lg bg-white p-2 text-sm underline" href={safe.href} target="_blank" rel="noreferrer">{item.url}</a>;
             })}</div> : <div className={tab === "Media" ? "grid grid-cols-3 gap-2" : "space-y-3"}>
-              {gallery.map((file) => <ChatFile key={file.message_id} file={file} tile={tab === "Media"} />)}
+              {gallery.filter((file) => !removedIds.has(file.message_id)).map((file) => <ChatFile key={file.message_id} file={file} tile={tab === "Media"} />)}
             </div>}
             {!busy && !(tab === "Links" ? links.length : gallery.length) && <p className="text-sm">Nothing has been shared here yet.</p>}
             {moreGallery && <button type="button" className={buttonClass} disabled={busy} onClick={() => void loadGallery(tab, true)}>Load more</button>}

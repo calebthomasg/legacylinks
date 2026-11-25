@@ -9,6 +9,8 @@ export type ChatMessage = {
   sender_user_id: string;
   body: string;
   created_at: string;
+  reply_to_id: string | null;
+  removed_for_everyone: boolean;
 };
 
 type Cursor = Pick<ChatMessage, "id" | "created_at">;
@@ -29,7 +31,9 @@ function emptyHistory(threadId: string): History {
 
 function mergeMessages(first: ChatMessage[], second: ChatMessage[]) {
   const messages = new Map(first.map((message) => [message.id, message]));
-  for (const message of second) messages.set(message.id, message);
+  for (const message of second) {
+    if (!messages.get(message.id)?.removed_for_everyone) messages.set(message.id, message);
+  }
   return [...messages.values()].sort((a, b) =>
     a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
   );
@@ -45,7 +49,7 @@ export function useChatHistory(client: ReturnType<typeof createClient>, threadId
   const current = history?.threadId === threadId ? history : null;
 
   const readPage = useCallback(async (id: string, cursor: Cursor | null = null) => {
-    const response = await client.rpc("read_chat_history", {
+    const response = await client.rpc("read_chat_timeline", {
       thread_uuid: id,
       before_created_at: cursor?.created_at ?? null,
       before_id: cursor?.id ?? null,
@@ -98,8 +102,9 @@ export function useChatHistory(client: ReturnType<typeof createClient>, threadId
   useLayoutEffect(() => { activeThread.current = threadId; }, [threadId]);
 
   useEffect(() => {
-    void refresh();
+    const timer = window.setTimeout(() => void refresh(), 0);
     return () => {
+      window.clearTimeout(timer);
       generation.current += 1;
       olderRequest.current = null;
     };
@@ -112,6 +117,13 @@ export function useChatHistory(client: ReturnType<typeof createClient>, threadId
       const existing = previous?.threadId === id ? previous : emptyHistory(id);
       return { ...existing, rows: mergeMessages(existing.rows, [message]) };
     });
+  }, []);
+
+  const replace = useCallback((message: ChatMessage) => {
+    if (message.thread_id !== activeThread.current) return;
+    setHistory((previous) => previous?.threadId === message.thread_id && previous.rows.some((item) => item.id === message.id)
+      ? { ...previous, rows: mergeMessages(previous.rows, [message]) }
+      : previous);
   }, []);
 
   async function loadOlder() {
@@ -150,6 +162,7 @@ export function useChatHistory(client: ReturnType<typeof createClient>, threadId
     hasOlder: Boolean(current?.cursor),
     loadingOlder: Boolean(threadId && loadingOlderId === threadId && current?.cursor),
     append,
+    replace,
     refresh,
     loadOlder,
   };

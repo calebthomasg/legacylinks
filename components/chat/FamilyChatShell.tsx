@@ -13,6 +13,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
+import MessageActions, { MessagePress, MessageQuote } from "./MessageActions";
+import { chatReactions, useMessageInteractions, type ReactionKey } from "./messageInteractions";
 import { bubbleStyle, getChatTheme, isChatMuted, toneUrl, wallpaperStyle } from "./chatAppearance";
 import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
 import { useChatActivity } from "./useChatActivity";
@@ -190,10 +192,6 @@ function VideoIcon() {
   );
 }
 
-function PinIcon() {
-  return <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 3 6 6-3 2-2 5-3 3-8-8 3-3 5-2 2-3ZM10 14l-7 7" /></svg>;
-}
-
 function AttachmentIcon() {
   return <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8.5-8.5" /></svg>;
 }
@@ -309,12 +307,17 @@ export default function FamilyChatShell({
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
   const pinnedToBottom = useRef(true);
-  const pendingSend = useRef(new Map<string, { id: string; body: string; file?: File; path?: string }>());
+  const pendingSend = useRef(new Map<string, { id: string; body: string; replyId: string | null; file?: File; path?: string }>());
   const sending = useRef(false);
   const audio = useRef<AudioContext | null>(null);
   const decodedTones = useRef(new Map<string, Promise<AudioBuffer>>());
   const notified = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const [actionTarget, setActionTarget] = useState<string | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string | null>>({});
+  const [interactionsRevision, setInteractionsRevision] = useState(0);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const rosterRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detailsFor, setDetailsFor] = useState<string | null>(null);
   const [draftFiles, setDraftFiles] = useState<Record<string, File>>({});
@@ -365,9 +368,23 @@ export default function FamilyChatShell({
   const draftFile = threadId ? draftFiles[threadId] : undefined;
   const showingDetails = Boolean(threadId && detailsFor === threadId);
   const openThread = activePanel === "thread" && Boolean(selectedThread);
-  const fileRows = useMessageFiles(supabase, threadId, selectedMessages.map((message) => message.id).join(","), filesRevision);
-  const newestMessageId = selectedMessages.at(-1)?.id;
-  const lastOwnMessage = selectedMessages.findLast((message) => message.sender_user_id === currentUserId);
+  const selectedById = new Map(selectedMessages.map((message) => [message.id, message]));
+  const removed = (message: ChatMessage) => message.removed_for_everyone || removedIds.has(message.id);
+  const menuMessage = actionTarget ? selectedById.get(actionTarget) : undefined;
+  const replyDraft = threadId ? replyDrafts[threadId] ?? null : null;
+  const replyIds = [...new Set([
+    ...selectedMessages.flatMap((message) => message.reply_to_id && !removed(message) ? [message.reply_to_id] : []),
+    ...(replyDraft ? [replyDraft] : []),
+  ])];
+  const visibleIds = selectedMessages.filter((message) => !removed(message)).map((message) => message.id);
+  const { reactions, targets } = useMessageInteractions(supabase, threadId, visibleIds.join(","), replyIds.join(","), interactionsRevision);
+  const fileIds = [...new Set([...visibleIds, ...replyIds])].filter((id) => !removedIds.has(id));
+  const fileRows = useMessageFiles(supabase, threadId, fileIds.join(","), filesRevision);
+  const replySource = replyDraft ? selectedById.get(replyDraft) ?? targets[replyDraft] : undefined;
+  const replyUnavailable = Boolean(replyDraft && (removedIds.has(replyDraft) || replySource?.removed_for_everyone));
+  const replyId = replyUnavailable ? null : replyDraft;
+  const newestMessageId = selectedMessages.findLast((message) => !removed(message))?.id;
+  const lastOwnMessage = selectedMessages.findLast((message) => message.sender_user_id === currentUserId && !removed(message));
   const readers = readPositions?.threadId === threadId && lastOwnMessage
     ? (selectedThread?.members ?? []).filter((member) => readPositions.rows.some((row) =>
       row.user_id === member.userId && Date.parse(row.read_through) >= Date.parse(lastOwnMessage.created_at)))
@@ -386,7 +403,7 @@ export default function FamilyChatShell({
   const filteredRecipients = eligibleRecipients.filter((recipient) =>
     recipient.displayName.toLowerCase().includes(recipientFilter.trim().toLowerCase())
   );
-  const canSendMessage = Boolean(threadId && (messageDraft.trim() || draftFile) && !isSendingMessage);
+  const canSendMessage = Boolean(threadId && (messageDraft.trim() || draftFile) && !replyUnavailable && !isSendingMessage);
 
   function noteMessage(message: ChatMessage) {
     history.append(message);
@@ -396,6 +413,18 @@ export default function FamilyChatShell({
         || (latest.created_at === message.created_at && latest.id >= message.id))) return previous;
       return { ...previous, [message.thread_id]: message };
     });
+  }
+
+  function noteRemoval(message: ChatMessage) {
+    history.replace(message);
+    setRemovedIds((previous) => previous.has(message.id) ? previous : new Set([...previous, message.id]));
+    setLatestByThread((previous) => {
+      const lastKnown = previous[message.thread_id];
+      return lastKnown?.id === message.id ? { ...previous, [message.thread_id]: message } : previous;
+    });
+    setFilesRevision((revision) => revision + 1);
+    setInteractionsRevision((revision) => revision + 1);
+    setPinsRevision((revision) => revision + 1);
   }
 
   function unlockSound() {
@@ -497,6 +526,28 @@ export default function FamilyChatShell({
     if (document.hidden || !navigator.onLine) return;
     router.refresh();
     void history.refresh();
+    setInteractionsRevision((revision) => revision + 1);
+    setFilesRevision((revision) => revision + 1);
+    setPinsRevision((revision) => revision + 1);
+    // Reconcile loaded older messages when an update was missed while offline.
+    const ids = selectedMessages.filter((message) => !removed(message)).map((message) => message.id);
+    if (threadId && ids.length) void (async () => {
+      for (let i = 0; i < ids.length; i += 50) {
+        const { data } = await supabase.from("chat_messages").select("*").eq("thread_id", threadId)
+          .in("id", ids.slice(i, i + 50)).eq("removed_for_everyone", true);
+        for (const row of (data ?? []) as ChatMessage[]) noteRemoval(row);
+      }
+    })();
+  });
+
+  const onRemovedMessage = useEffectEvent((message: ChatMessage) => {
+    if (message.removed_for_everyone) {
+      noteRemoval(message);
+      router.refresh();
+    }
+  });
+  const onReactionChange = useEffectEvent((row: Record<string, unknown>) => {
+    if (row.thread_id === threadId) setInteractionsRevision((revision) => revision + 1);
   });
 
   useEffect(() => {
@@ -512,6 +563,12 @@ export default function FamilyChatShell({
     const channel = supabase.channel("family-chat:" + currentUserId)
       .on("postgres_changes", { schema: "public", table: "chat_messages", event: "INSERT" },
         ({ new: row }) => onNewMessage(row as ChatMessage))
+      .on("postgres_changes", { schema: "public", table: "chat_messages", event: "UPDATE" },
+        ({ new: row }) => onRemovedMessage(row as ChatMessage))
+      .on("postgres_changes", { schema: "public", table: "chat_message_reactions", event: "INSERT" },
+        ({ new: row }) => onReactionChange(row))
+      .on("postgres_changes", { schema: "public", table: "chat_message_reactions", event: "UPDATE" },
+        ({ new: row }) => onReactionChange(row))
       .on("postgres_changes", { schema: "public", table: "chat_shared_files", event: "INSERT" },
         () => setFilesRevision((revision) => revision + 1))
       .on("postgres_changes", { schema: "public", table: "chat_pins", event: "INSERT" },
@@ -670,10 +727,10 @@ export default function FamilyChatShell({
   async function sendMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const body = messageDraft.trim();
-    if (!threadId || (!body && !draftFile) || sending.current) return;
+    if (!threadId || (!body && !draftFile) || replyUnavailable || sending.current) return;
     const existing = pendingSend.current.get(threadId);
-    const pending = existing && existing.body === body && existing.file === draftFile
-      ? existing : { id: crypto.randomUUID(), body, file: draftFile };
+    const pending = existing && existing.body === body && existing.file === draftFile && existing.replyId === replyId
+      ? existing : { id: crypto.randomUUID(), body, replyId, file: draftFile };
     pendingSend.current.set(threadId, pending);
     sending.current = true;
     setIsSendingMessage(true);
@@ -685,13 +742,14 @@ export default function FamilyChatShell({
       }
       const { data, error } = draftFile ? await supabase.rpc("send_chat_file", {
         thread_uuid: threadId, client_message_id: pending.id, file_path: pending.path,
-        display_name: draftFile.name.slice(0,240), caption: body || null,
+        display_name: draftFile.name.slice(0,240), caption: body || null, reply_message_id: pending.replyId,
       }) : await supabase.rpc("send_chat_message", {
-        thread_uuid: threadId, message_body: body, client_message_id: pending.id,
+        thread_uuid: threadId, message_body: body, client_message_id: pending.id, reply_message_id: pending.replyId,
       });
       if (error || !data) throw error ?? new Error("Missing message");
       noteMessage(data as ChatMessage);
       pendingSend.current.delete(threadId);
+      setReplyDrafts((previous) => previous[threadId] === replyDraft ? { ...previous, [threadId]: null } : previous);
       if (draftFile) {
         setDraftFiles((previous) => {
           const next = { ...previous };
@@ -704,8 +762,10 @@ export default function FamilyChatShell({
         ? { ...previous, [threadId]: "" }
         : previous);
     } catch (problem) {
-      setSendError(problem instanceof Error && /^Choose |^We couldn’t upload/.test(problem.message)
-        ? problem.message : "We couldn’t confirm this message was sent. Try sending again.");
+      const errorMessage = problem && typeof problem === "object" && "message" in problem ? String(problem.message) : "";
+      setSendError(/^Choose |^We couldn’t upload/.test(errorMessage) ? errorMessage : errorMessage === "Reply target unavailable"
+        ? "The original message is unavailable. Cancel the reply to send this as a new message."
+        : "We couldn’t confirm this message was sent. Try sending again.");
     } finally {
       sending.current = false;
       setIsSendingMessage(false);
@@ -719,6 +779,26 @@ export default function FamilyChatShell({
     setPinError("");
     setPinnedIds((previous) => pin ? [...new Set([...previous, id])] : previous.filter((item) => item !== id));
     return true;
+  }
+
+  async function reactToMessage(message: ChatMessage, key: ReactionKey | null) {
+    const { error } = await supabase.rpc("set_chat_reaction", { thread_uuid: message.thread_id, message_uuid: message.id, reaction_key: key });
+    if (error) return false;
+    setInteractionsRevision((revision) => revision + 1);
+    return true;
+  }
+
+  async function removeMessage(message: ChatMessage) {
+    const { data, error } = await supabase.rpc("remove_own_chat_message", { thread_uuid: message.thread_id, message_uuid: message.id });
+    if (error || !data) return false;
+    noteRemoval(data as ChatMessage);
+    router.refresh();
+    return true;
+  }
+
+  function memberLabel(message: ChatMessage) {
+    const member = getMemberForMessage(message);
+    return member?.nickname || member?.displayName || "Family member";
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -909,7 +989,13 @@ export default function FamilyChatShell({
                     const member = getMemberForMessage(message);
                     const isCurrentUser = message.sender_user_id === currentUserId;
                     const attachedFile = fileRows[message.id];
-                    const pinned = pinnedIds.includes(message.id);
+                    const isRemoved = removed(message);
+                    const quote = message.reply_to_id ? selectedById.get(message.reply_to_id) ?? targets[message.reply_to_id] : undefined;
+                    const quoteRemoved = message.reply_to_id && (removedIds.has(message.reply_to_id) || quote?.removed_for_everyone);
+                    const messageReactions = reactions.get(message.id) ?? [];
+                    const replyLabel = quote?.sender_user_id === message.sender_user_id
+                      ? isCurrentUser ? "yourself" : "their own message"
+                      : quote?.sender_user_id === currentUserId ? "you" : quote ? memberLabel(quote) : "a message";
 
                     return (
                       <div
@@ -938,22 +1024,27 @@ export default function FamilyChatShell({
                               {member?.nickname || member?.displayName || "Family member"}
                             </span>
                             <span>{formatMessageTime(message.created_at)}</span>
-                            <button type="button" aria-label={pinned ? "Unpin message" : "Pin message"} title={pinned ? "Unpin message" : "Pin message"} aria-pressed={pinned} className={`grid h-6 w-6 shrink-0 place-items-center rounded-md hover:bg-white ${pinned ? "text-sky-depth" : "text-night-sky/45"}`} onClick={() => void pinMessage(message.id,!pinned)}>
-                              <PinIcon />
-                            </button>
                           </div>
 
-                          <div
-                            style={bubbleStyle(theme, isCurrentUser)}
-                            className={`mt-0.5 whitespace-pre-wrap wrap-anywhere rounded-2xl px-3 py-2 text-sm leading-5 shadow-sm lg:mt-1 lg:px-4 lg:py-3 lg:leading-6 ${
-                              isCurrentUser
-                                ? "bg-sky text-white"
-                                : "border border-night-sky/10 bg-white text-night-sky/75"
-                            }`}
-                          >
-                            {attachedFile && <ChatFile file={attachedFile} />}
-                            {(!attachedFile || message.body !== `Shared ${attachedFile.file_name}`) && message.body}
-                          </div>
+                          {isRemoved ? <p className="mt-1 rounded-xl border border-night-sky/10 bg-white px-3 py-2 text-sm italic text-night-sky/65">Message removed</p> : <>
+                            {message.reply_to_id && <div className={`mt-1 max-w-60 rounded-xl border border-night-sky/10 bg-white/95 px-3 py-2 text-left text-night-sky/75 ${isCurrentUser ? "ml-auto" : ""}`}>
+                              <p className="mb-1 text-xs font-bold text-night-sky">{isCurrentUser ? "You" : memberLabel(message)} replied to {replyLabel}</p>
+                              {quoteRemoved ? <span className="text-sm italic">Message removed</span> : <MessageQuote message={quote} file={fileRows[message.reply_to_id]} />}
+                            </div>}
+                            <MessagePress onOpen={() => setActionTarget(message.id)}>
+                              <div style={bubbleStyle(theme, isCurrentUser)}
+                                className={`mt-0.5 whitespace-pre-wrap wrap-anywhere rounded-2xl px-3 py-2 text-sm leading-5 shadow-sm lg:mt-1 lg:px-4 lg:py-3 lg:leading-6 ${isCurrentUser ? "bg-sky text-white" : "border border-night-sky/10 bg-white text-night-sky/75"}`}>
+                                {attachedFile && <ChatFile file={attachedFile} />}
+                                {(!attachedFile || message.body !== `Shared ${attachedFile.file_name}`) && message.body}
+                              </div>
+                            </MessagePress>
+                            {messageReactions.length > 0 && <button type="button" onClick={() => setActionTarget(message.id)}
+                              aria-label={`${messageReactions.length} ${messageReactions.length === 1 ? "reaction" : "reactions"} · Open message actions`}
+                              className="relative -mt-1 inline-flex min-h-7 items-center gap-1 rounded-full border border-night-sky/10 bg-white px-2 text-xs text-night-sky shadow-sm">
+                              {chatReactions.filter(({key}) => messageReactions.some((item) => item.reaction === key)).map(({ key, emoji }) => <span key={key}>{emoji}</span>)}
+                              {messageReactions.length > 1 && <span>{messageReactions.length}</span>}
+                            </button>}
+                          </>}
                           {message.id === lastOwnMessage?.id && readers.length > 0 && (
                             <p className={`mt-1 text-xs text-night-sky/65 ${themed ? "ml-auto w-fit rounded-md bg-white/95 px-2 py-0.5" : ""}`}>Seen by {readers.slice(0,3).map((member) => member.nickname || member.displayName).join(", ")}{readers.length > 3 ? ` and ${readers.length - 3} others` : ""}</p>
                           )}
@@ -972,6 +1063,16 @@ export default function FamilyChatShell({
                 </div>
                 {pinError && <p role="alert" className="text-sm text-red-700">{pinError}</p>}
                 <form onSubmit={sendMessage} className="space-y-2">
+                  {replyDraft && <div className="flex items-center gap-2 rounded-xl border border-night-sky/10 bg-sand/55 px-3 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-black">{replySource ? `Replying to ${replySource.sender_user_id === currentUserId ? "yourself" : memberLabel(replySource)}` : "Replying to a message"}</p>
+                      {replyUnavailable ? <span className="text-sm italic">Message removed. Cancel the reply to send a new message.</span> : <MessageQuote message={replySource} file={fileRows[replyDraft]} compact />}
+                    </div>
+                    <button type="button" aria-label="Cancel reply" className="grid size-10 shrink-0 place-items-center rounded-full text-xl hover:bg-white" onClick={() => {
+                      setReplyDrafts((previous) => ({ ...previous, [selectedThread.id]: null }));
+                      setSendError(null);
+                    }}>×</button>
+                  </div>}
                   {draftFile && <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="truncate">{draftFile.name}</span>
                     <button type="button" disabled={isSendingMessage} onClick={() => setDraftFiles((previous) => {
@@ -986,6 +1087,7 @@ export default function FamilyChatShell({
                   <div className="flex items-end gap-1.5 rounded-2xl border border-night-sky/10 bg-sand p-1 shadow-inner lg:gap-3 lg:p-2">
                     <button type="button" aria-label="Attach a file" disabled={isSendingMessage} className="grid h-11 w-9 shrink-0 place-items-center rounded-xl text-sky-depth hover:bg-white" onClick={() => fileInput.current?.click()}><AttachmentIcon /></button>
                     <textarea
+                      ref={composer}
                       value={messageDraft}
                       onChange={(event) => {
                         const value = event.target.value;
@@ -1035,10 +1137,24 @@ export default function FamilyChatShell({
         </article>
       </div>
 
+      {menuMessage && !removed(menuMessage) && (
+        <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} sender={memberLabel(menuMessage)}
+          ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
+          reaction={reactions.get(menuMessage.id)?.find((item) => item.user_id === currentUserId)?.reaction}
+          onClose={() => setActionTarget(null)} onReact={(key) => reactToMessage(menuMessage, key)}
+          onReply={() => {
+            setReplyDrafts((previous) => ({ ...previous, [menuMessage.thread_id]: menuMessage.id }));
+            setSendError(null);
+            composer.current?.focus({ preventScroll: true });
+          }}
+          onPin={() => pinMessage(menuMessage.id,!pinnedIds.includes(menuMessage.id))}
+          onDelete={() => removeMessage(menuMessage)}
+        />
+      )}
       {showingDetails && selectedThread && (
         <div inert={Boolean(compose)} className="contents">
           <ChatGroupDetails key={selectedThread.id} client={supabase} thread={selectedThread}
-            currentUserId={currentUserId} privacy={privacy} online={activity.online} filesRevision={filesRevision}
+            currentUserId={currentUserId} privacy={privacy} online={activity.online} filesRevision={filesRevision} removedIds={removedIds}
             onClose={() => setDetailsFor(null)} onAdd={() => setCompose("add")}
             onLeave={() => void leaveGroup()} leaving={leaving} leaveError={groupError}
             onRefresh={() => router.refresh()} onPrivacyChange={(next) => {
