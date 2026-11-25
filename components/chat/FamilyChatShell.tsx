@@ -14,7 +14,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import type { CallRequest } from "./FamilyChatCalls";
-import { latestCallByConversation, type ConversationCallActivity, type MissedCall } from "@/lib/family-calls/activity";
+import { latestCallByConversation, type ConversationCallActivity, type GroupCallDeparture, type MissedCall } from "@/lib/family-calls/activity";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
@@ -302,18 +302,28 @@ export default function FamilyChatShell({
   initialThreads,
   recipients,
   callsEnabled,
+  groupsEnabled,
 }: {
   currentUserId: string;
   currentUser: ChatThreadMemberSummary;
   initialThreads: ChatThreadSummary[];
   recipients: ChatRecipientOption[];
   callsEnabled: boolean;
+  groupsEnabled: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [callRequest, setCallRequest] = useState<CallRequest | null>(null);
   const [callReady, setCallReady] = useState(false);
   const [callBusy, setCallBusy] = useState(false);
+  const [groupModeByThread, setGroupModeByThread] = useState<Record<string, "audio" | "video" | null>>({});
+  const updateGroupStatus = useCallback(({ threadId, mode }: { threadId: string; mode: "audio" | "video" | null }) => {
+    setGroupModeByThread((previous) => previous[threadId] === mode ? previous : { ...previous, [threadId]: mode });
+  }, []);
+  const [departures, setDepartures] = useState<Record<string, GroupCallDeparture>>({});
+  const noteDeparture = useCallback((entry: GroupCallDeparture) => {
+    setDepartures((previous) => ({ ...previous, [entry.id]: entry }));
+  }, []);
   const [callActivity, setCallActivity] = useState<Record<string, ConversationCallActivity>>({});
   const mergeCallActivity = useCallback((items: ConversationCallActivity[]) => {
     if (items.length > 0) setCallActivity((previous) => latestCallByConversation([...Object.values(previous), ...items]));
@@ -386,7 +396,9 @@ export default function FamilyChatShell({
   const theme = getChatTheme(selectedThread?.themeId ?? null);
   const themed = theme.id !== "default";
   const threadId = selectedThread?.id ?? null;
-  const directCalls = callsEnabled && selectedThread?.threadType === "direct";
+  const groupThread = groupsEnabled && selectedThread?.threadType === "group";
+  const threadCallsEnabled = callsEnabled && (selectedThread?.threadType === "direct" || groupThread);
+  const groupCallMode = groupThread && selectedThread ? groupModeByThread[selectedThread.id] : null;
   const messageDraft = threadId ? drafts[threadId] ?? "" : "";
   const history = useChatHistory(supabase, threadId);
   const activity = useChatActivity(supabase, threadId);
@@ -399,6 +411,8 @@ export default function FamilyChatShell({
   const timeline = [
     ...selectedMessages.map((message) => ({ message, at: Date.parse(message.created_at) })),
     ...callTimeline.map((missed) => ({ missed, at: Date.parse(missed.createdAt) })),
+    ...Object.values(departures).filter((entry) => entry.threadId === threadId)
+      .map((departure) => ({ departure, at: Date.parse(departure.createdAt) })),
   ].sort((a, b) => a.at - b.at);
   const selectedById = new Map(selectedMessages.map((message) => [message.id, message]));
   const removed = (message: ChatMessage) => message.removed_for_everyone || removedIds.has(message.id);
@@ -981,16 +995,27 @@ export default function FamilyChatShell({
                 </div>
 
                 <div className="flex shrink-0 items-center lg:gap-2">
-                  <IconButton label="Phone call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
-                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "audio" })}>
+                  <IconButton label="Phone call" callControl disabled={!threadCallsEnabled || !callReady || callBusy || Boolean(callRequest)}
+                    comingSoon={!threadCallsEnabled} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "audio" })}>
                     <PhoneIcon />
                   </IconButton>
-                  <IconButton label="Video call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
-                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "video" })}>
+                  <IconButton label="Video call" callControl disabled={!threadCallsEnabled || !callReady || callBusy || Boolean(callRequest)}
+                    comingSoon={!threadCallsEnabled} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "video" })}>
                     <VideoIcon />
                   </IconButton>
                 </div>
               </header>
+
+              {groupCallMode && (
+                <div className="flex shrink-0 items-center justify-between border-b border-sky/20 bg-sky/10 px-4 py-2 text-sm text-night-sky">
+                  <span>Group {groupCallMode} call in progress</span>
+                  <button type="button" disabled={!callReady || callBusy || Boolean(callRequest)}
+                    className="min-h-10 rounded-full bg-night-sky px-4 font-bold text-white disabled:opacity-50"
+                    onClick={() => setCallRequest({ threadId: selectedThread.id, mode: groupCallMode })}>
+                    Join call
+                  </button>
+                </div>
+              )}
 
               <div ref={scrollPanelRef} onScroll={(event) => {
                 const panel = event.currentTarget;
@@ -1020,15 +1045,17 @@ export default function FamilyChatShell({
                   />
                 ) : (
                   timeline.map((entry) => {
-                    if ("missed" in entry) {
-                      const missed = entry.missed;
-                      const caller = selectedThread.members.find((member) => member.userId === missed.callerId);
+                    if ("missed" in entry || "departure" in entry) {
+                      const callEvent = "missed" in entry ? entry.missed : entry.departure;
+                      const text = "callerId" in callEvent
+                        ? `Missed call from ${selectedThread.members.find((member) => member.userId === callEvent.callerId)?.displayName || callEvent.callerName}`
+                        : `${callEvent.name} left the call`;
                       return (
-                        <p key={`missed-call-${missed.id}`}
+                        <p key={`call-event-${callEvent.id}`}
                           className={`text-center text-sm leading-5 ${themed
                             ? "text-white/85 [text-shadow:0_1px_2px_#101c32,0_0_4px_#101c32]"
                             : "text-night-sky/60"}`}>
-                          Missed call from {caller?.nickname || caller?.displayName || missed.callerName}
+                          {text}
                         </p>
                       );
                     }
@@ -1181,7 +1208,8 @@ export default function FamilyChatShell({
       </div>
 
       {callsEnabled && <FamilyChatCalls key={currentUserId} userId={currentUserId} request={callRequest}
-        threadId={directCalls ? threadId : null} onMissed={mergeMissedCalls} onActivity={mergeCallActivity} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
+        threadId={threadCallsEnabled ? threadId : null} groupThread={Boolean(groupThread)} onMissed={mergeMissedCalls} onActivity={mergeCallActivity}
+        onDeparted={noteDeparture} onGroupStatus={updateGroupStatus} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
       {menuMessage && !removed(menuMessage) && (
         <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}

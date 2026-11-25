@@ -6,7 +6,7 @@ export function getFamilyCallConfig() {
   const secret = process.env.STREAM_API_SECRET?.trim();
   if (
     process.env.VERCEL_ENV !== "preview" ||
-    process.env.VERCEL_GIT_COMMIT_REF !== "feature/stream-calling" ||
+    !["feature/stream-calling", "feature/family-group-calling"].includes(process.env.VERCEL_GIT_COMMIT_REF ?? "") ||
     process.env.STREAM_CALLS_ENABLED !== "1" ||
     !supabaseUrl ||
     !apiKey ||
@@ -21,4 +21,8 @@ export function getFamilyCallConfig() {
   } catch {
     return null;
   }
+}
+
+export function groupCallsEnabled() {
+  return process.env.STREAM_GROUP_CALLS_ENABLED === "1" && Boolean(getFamilyCallConfig());
 }

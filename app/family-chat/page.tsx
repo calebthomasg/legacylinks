@@ -1,4 +1,4 @@
-import { getFamilyCallConfig } from "@/lib/family-calls/config";
+import { getFamilyCallConfig, groupCallsEnabled } from "@/lib/family-calls/config";
 import { redirect } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import FamilyChatShell, {
@@ -527,6 +527,7 @@ export default async function FamilyChatPage() {
         initialThreads={initialThreads}
         recipients={recipients}
         callsEnabled={Boolean(getFamilyCallConfig())}
+        groupsEnabled={groupCallsEnabled()}
       />
     </AppShell>
   );

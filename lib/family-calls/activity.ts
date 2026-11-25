@@ -1,3 +1,12 @@
+export const groupCallType = "family_group";
+export const familyCallTypes = ["family_audio", "family_video", groupCallType] as const;
+
+export function isFamilyCall(type: string): type is (typeof familyCallTypes)[number] {
+  return familyCallTypes.some((candidate) => candidate === type);
+}
+
+export type GroupCallDeparture = { id: string; threadId: string; name: string; createdAt: string };
+
 export type MissedCall = {
   id: string;
   threadId: string;
@@ -8,7 +17,7 @@ export type MissedCall = {
 
 export type IncomingCall = {
   id: string;
-  type: "family_audio" | "family_video";
+  type: (typeof familyCallTypes)[number];
   expiresAt: number;
 };
 
@@ -24,7 +33,7 @@ export function conversationCallActivity(call: {
   type: string;
   custom?: Record<string, unknown>;
 }, at: string | Date): ConversationCallActivity | null {
-  if (call.type !== "family_audio" && call.type !== "family_video") return null;
+  if (!isFamilyCall(call.type)) return null;
   const threadId = call.custom?.family_chat_thread_id;
   const date = new Date(at);
   if (typeof threadId !== "string" || !Number.isFinite(date.getTime())) return null;
