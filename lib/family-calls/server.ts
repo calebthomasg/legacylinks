@@ -43,9 +43,10 @@ export async function authorizeFamilyCall(request: Request) {
 export async function callUsers(supabase: Awaited<ReturnType<typeof createClient>>, userIds: string[]) {
   const { data } = await supabase.rpc("read_chat_names", { user_ids: userIds });
   const profiles: { id: string; first_name: string | null; last_name: string | null }[] = data ?? [];
+  const role = process.env.VERCEL_ENV === "production" ? "family-chat-user" : "user";
   return userIds.map((id) => {
     const profile = profiles.find((person) => person.id === id);
     const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ");
-    return { id, role: "user", ...(name ? { name } : {}) };
+    return { id, role, ...(name ? { name } : {}) };
   });
 }
