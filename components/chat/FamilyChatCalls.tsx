@@ -231,8 +231,8 @@ function CallPanel({ call, recovered, dismissRecovered, photoUrls }: {
       ) : (
         <div className="flex h-full flex-col items-center overflow-y-auto bg-linear-to-br from-night-sky via-[#162c42] to-[#26334c] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-center sm:px-8">
           <div className="mb-4 mt-[min(8dvh,3rem)] relative grid size-16 shrink-0 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
-            {name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-            <ChatAvatarPhoto url={photoUrl} />
+            <ChatAvatarPhoto url={photoUrl}
+              initials={name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()} />
           </div>
           <h2 id="family-call-title" className="max-w-full wrap-break-word text-2xl font-black sm:text-3xl">{name}</h2>
           <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-sky sm:text-base">
