@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useChatActivity } from "./useChatActivity";
@@ -37,7 +38,6 @@ export type ChatThreadSummary = {
   threadType: "direct" | "group";
   name: string;
   lastActivityAt: string | null;
-  lastActivityLabel: string;
   preview: string | null;
   avatars: ChatAvatar[];
   members: ChatThreadMemberSummary[];
@@ -45,6 +45,10 @@ export type ChatThreadSummary = {
   memberCount: number;
   canAddMembers: boolean;
 };
+
+const subscribeToBrowserTime = () => () => {};
+const readBrowserTime = () => true;
+const readServerTime = () => false;
 
 const fallbackAvatar: ChatAvatar = {
   initials: "LL",
@@ -295,6 +299,7 @@ export default function FamilyChatShell({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const canFormatLocalTime = useSyncExternalStore(subscribeToBrowserTime, readBrowserTime, readServerTime);
   const shellRef = useRef<HTMLElement | null>(null);
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
@@ -322,14 +327,12 @@ export default function FamilyChatShell({
   const threads = initialThreads.filter((thread) => !leftThreadIds.includes(thread.id))
     .map((thread) => {
       const latest = latestByThread[thread.id];
-      if (!latest || new Date(latest.created_at).getTime() < new Date(thread.lastActivityAt ?? 0).getTime()) {
-        return thread;
-      }
+      const updated = latest && new Date(latest.created_at).getTime() >= new Date(thread.lastActivityAt ?? 0).getTime()
+        ? { ...thread, lastActivityAt: latest.created_at, preview: latest.body }
+        : thread;
       return {
-        ...thread,
-        lastActivityAt: latest.created_at,
-        lastActivityLabel: formatActivityLabel(latest.created_at),
-        preview: latest.body,
+        ...updated,
+        lastActivityLabel: canFormatLocalTime ? formatActivityLabel(updated.lastActivityAt) : "",
       };
     })
     .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());

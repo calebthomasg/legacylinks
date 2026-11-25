@@ -107,44 +107,6 @@ function getPersonName(person: LinkedPersonRow | undefined) {
   );
 }
 
-function formatActivityLabel(value: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const now = new Date();
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-
-  if (sameDay) {
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  }
-
-  const ageInDays = Math.floor(
-    (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  if (ageInDays >= 0 && ageInDays < 7) {
-    return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
 async function createPhotoUrlMap(
   supabase: Awaited<ReturnType<typeof createClient>>,
   photoPaths: string[]
@@ -462,7 +424,6 @@ async function loadInitialThreads({
           members: threadMembers,
         }),
         lastActivityAt,
-        lastActivityLabel: formatActivityLabel(lastActivityAt),
         preview: preview?.body ?? null,
         avatars,
         members: threadMembers,
