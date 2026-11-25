@@ -62,11 +62,12 @@ function AvatarCircle({
   className = "",
 }: {
   avatar: ChatAvatar;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   showOnline?: boolean;
   className?: string;
 }) {
   const sizeClasses = {
+    xs: "h-7 w-7 text-xs",
     sm: "h-9 w-9 text-xs",
     md: "h-11 w-11 text-sm",
     lg: "h-14 w-14 text-base",
@@ -76,14 +77,13 @@ function AvatarCircle({
     <span
       className={`relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full ${avatar.color} font-black text-white ring-2 ring-white ${sizeClasses[size]} ${className}`}
     >
-      {avatar.photoUrl ? (
+      {avatar.initials}
+      {avatar.photoUrl && (
         <span
           aria-hidden="true"
-          className="h-full w-full rounded-full bg-cover bg-center"
+          className="absolute inset-0 rounded-full bg-cover bg-center"
           style={{ backgroundImage: `url("${avatar.photoUrl}")` }}
         />
-      ) : (
-        avatar.initials
       )}
       {showOnline && (
         <span role="img" aria-label="Online" className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky" />
@@ -92,16 +92,23 @@ function AvatarCircle({
   );
 }
 
-function AvatarStack({ avatars, online }: { avatars: ChatAvatar[]; online: Set<string> }) {
+function AvatarStack({
+  avatars, online, compact = false,
+}: {
+  avatars: ChatAvatar[];
+  online: Set<string>;
+  compact?: boolean;
+}) {
   const visibleAvatars = avatars.length > 0 ? avatars : [fallbackAvatar];
 
   return (
-    <div className="flex -space-x-3">
-      {visibleAvatars.slice(0, 4).map((avatar, index) => (
+    <div className={compact ? "isolate flex shrink-0 -space-x-2" : "flex shrink-0 -space-x-3"}>
+      {visibleAvatars.slice(0, compact ? 3 : 4).map((avatar, index) => (
         <AvatarCircle
           key={`${avatar.userId ?? avatar.initials}-${index}`}
           avatar={avatar}
-          size="md"
+          size={compact ? "xs" : "md"}
+          className={compact && index === 2 ? "max-[360px]:hidden" : ""}
           showOnline={Boolean(avatar.userId && online.has(avatar.userId))}
         />
       ))}
@@ -567,7 +574,7 @@ export default function FamilyChatShell({
   }
 
   return (
-    <section className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
+    <section data-open-mobile-thread={activePanel === "thread" && selectedThread ? true : undefined} className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
       <div className="grid min-h-0 flex-1 w-full min-w-0 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
         <aside
           className={`min-h-0 min-w-0 overflow-y-auto bg-white ${
@@ -669,28 +676,33 @@ export default function FamilyChatShell({
         >
           {selectedThread ? (
             <>
-              <header className="flex flex-col gap-4 border-b border-night-sky/10 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
+              <header className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-1 border-b border-night-sky/10 bg-white px-2 py-1.5 lg:gap-4 lg:p-5">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:gap-4">
                   <button
                     type="button"
                     onClick={() => { activity.signal("stop"); setActivePanel("messages"); }}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-night-sky/10 bg-white text-night-sky/75 shadow-sm hover:bg-sand lg:hidden"
+                    className="flex h-10 w-9 shrink-0 items-center justify-center rounded-lg text-night-sky/75 hover:bg-sand lg:hidden"
                     aria-label="Back to messages"
                   >
                     <BackIcon />
                   </button>
 
-                  <AvatarStack avatars={selectedThread.avatars} online={activity.online} />
-                  <div>
-                    <h2 className="text-2xl font-black text-night-sky">
+                  <div className="shrink-0 lg:hidden">
+                    <AvatarStack avatars={selectedThread.avatars} online={activity.online} compact />
+                  </div>
+                  <div className="hidden shrink-0 lg:block">
+                    <AvatarStack avatars={selectedThread.avatars} online={activity.online} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-black leading-tight text-night-sky lg:text-2xl" title={selectedThread.name}>
                       {selectedThread.name}
                     </h2>
                     {selectedThread.threadType === "group" ? (
-                      <details key={selectedThread.id} className="relative mt-1">
-                        <summary className="cursor-pointer text-sm text-night-sky/65">
+                      <details key={selectedThread.id} className="mt-0.5 lg:relative lg:mt-1">
+                        <summary className="cursor-pointer truncate text-xs leading-tight text-night-sky/65 lg:text-sm">
                           {selectedThread.memberCount} members · <span className="font-semibold text-sky-depth">{groupOnline} online</span>
                         </summary>
-                        <ul aria-label="Group members" className="absolute z-20 mt-2 max-h-64 w-56 overflow-y-auto rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg">
+                        <ul aria-label="Group members" className="absolute left-3 top-full z-20 mt-1 max-h-[min(16rem,50dvh)] w-56 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg lg:left-0 lg:max-h-64">
                           {selectedThread.members.map((member) => {
                             const online = member.userId === currentUserId || activity.online.has(member.userId);
                             return (
@@ -708,14 +720,14 @@ export default function FamilyChatShell({
                         </ul>
                       </details>
                     ) : (
-                      <p className="mt-1 text-sm text-night-sky/55">
+                      <p className="mt-0.5 truncate text-xs leading-tight text-night-sky/55 lg:mt-1 lg:text-sm">
                         {groupOnline > 0 ? "Online" : selectedThread.lastActivityLabel || "No recent activity"}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex shrink-0 items-center gap-0.5 max-lg:[&>button]:w-9 max-lg:[&>button]:rounded-lg max-lg:[&>button]:border-transparent max-lg:[&>button]:shadow-none lg:gap-2">
                   <IconButton label="Phone call" disabled comingSoon>
                     <PhoneIcon />
                   </IconButton>
@@ -724,7 +736,7 @@ export default function FamilyChatShell({
                   </IconButton>
                   {selectedThread.threadType === "group" && (
                     <details key={selectedThread.id} className="relative">
-                      <summary aria-label="Group options" className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-night-sky/10">
+                      <summary aria-label="Group options" className="flex h-10 w-9 cursor-pointer list-none items-center justify-center rounded-lg hover:bg-sand lg:w-10 lg:rounded-full lg:border lg:border-night-sky/10">
                         <EllipsisIcon />
                       </summary>
                       <div className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg">
@@ -747,7 +759,7 @@ export default function FamilyChatShell({
                 if (scrollAnchor.current) return;
                 pinnedToBottom.current = panel.scrollHeight - panel.clientHeight - panel.scrollTop < 80;
                 if (panel.scrollTop < 48 && history.hasOlder && !history.loadingOlder && !history.error) void loadOlder();
-              }} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain bg-sand/55 p-5">
+              }} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-sand/55 px-3 py-2.5 lg:space-y-5 lg:p-5">
                 {history.error && (
                   <p role="alert" className="text-sm text-red-700">
                     {history.error}{" "}
@@ -776,7 +788,7 @@ export default function FamilyChatShell({
                     return (
                       <div
                         key={message.id}
-                        className={`flex gap-3 ${
+                        className={`flex gap-2 lg:gap-3 ${
                           isCurrentUser ? "sm:flex-row-reverse" : ""
                         }`}
                       >
@@ -803,7 +815,7 @@ export default function FamilyChatShell({
                           </div>
 
                           <div
-                            className={`mt-1 whitespace-pre-wrap wrap-anywhere rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                            className={`mt-0.5 whitespace-pre-wrap wrap-anywhere rounded-2xl px-3 py-2 text-sm leading-5 shadow-sm lg:mt-1 lg:px-4 lg:py-3 lg:leading-6 ${
                               isCurrentUser
                                 ? "bg-sky text-white"
                                 : "border border-night-sky/10 bg-white text-night-sky/75"
@@ -818,15 +830,15 @@ export default function FamilyChatShell({
                 )}
               </div>
 
-              <div className="shrink-0 border-t border-night-sky/10 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                <div role="status" className="min-h-5 text-xs text-night-sky/60">
+              <div className="shrink-0 border-t border-night-sky/10 bg-white px-2.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:px-4 lg:pt-4 lg:pb-4">
+                <div role="status" className="text-xs leading-4 text-night-sky/60 lg:min-h-5">
                   {typingNames.length === 1 && `${typingNames[0]} is typing…`}
                   {typingNames.length === 2 && `${typingNames.join(" and ")} are typing…`}
                   {typingNames.length > 2 && "Several family members are typing…"}
                 </div>
                 {groupError && <p role="alert" className="text-sm text-red-700">{groupError}</p>}
                 <form onSubmit={sendMessage} className="space-y-2">
-                  <div className="flex items-end gap-3 rounded-2xl border border-night-sky/10 bg-sand p-2 shadow-inner">
+                  <div className="flex items-end gap-1.5 rounded-2xl border border-night-sky/10 bg-sand p-1 shadow-inner lg:gap-3 lg:p-2">
                     <textarea
                       value={messageDraft}
                       onChange={(event) => {
@@ -841,7 +853,7 @@ export default function FamilyChatShell({
                       placeholder="Write a message..."
                       aria-label="Write a message"
                       rows={1}
-                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-base leading-5 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 lg:text-sm"
+                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-base leading-5 lg:py-3 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 lg:text-sm"
                     />
                     <button
                       type="submit"

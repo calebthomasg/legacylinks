@@ -296,6 +296,10 @@ input:-webkit-autofill:focus {
 
 /* The chat viewport moves with the keyboard. Only its inner panes scroll. */
 @media (width < 64rem) {
+  [data-family-chat-viewport]:has([data-open-mobile-thread]) [data-family-chat-navigation] {
+    display: none;
+  }
+
   html:has([data-family-chat-viewport]),
   body:has([data-family-chat-viewport]) {
     overflow: hidden;
