@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         if (activity) result.latestCalls.push(activity);
         if (call.created_by.id === auth.userId) continue;
         if (!result.incoming) result.incoming = getIncoming(call, auth.userId, now);
-        if (activity?.threadId !== threadId || !call.session || call.session.accepted_by?.[auth.userId]) continue;
+        if (!activity || activity.threadId !== threadId || !call.session || call.session.accepted_by?.[auth.userId]) continue;
         const missedAt = call.session.missed_by?.[auth.userId]
           ?? call.session.rejected_by?.[auth.userId]
           ?? call.session.rejected_by?.[call.created_by.id]
