@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
+import { bubbleStyle, getChatTheme, isChatMuted, playDefaultChatTone, toneUrl, wallpaperStyle } from "./chatAppearance";
 import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
 import { useChatActivity } from "./useChatActivity";
 import { type ChatMessage, useChatHistory } from "./useChatHistory";
@@ -50,8 +51,11 @@ export type ChatThreadSummary = {
   createdByUserId: string;
   groupImagePath: string | null;
   groupImageUrl: string | null;
-  muted: boolean;
-  playSounds: boolean;
+  themeId: string | null;
+  mutedAt: string | null;
+  mutedUntil: string | null;
+  messageAlerts: boolean;
+  notificationTone: string;
 };
 
 const subscribeToBrowserTime = () => () => {};
@@ -308,6 +312,7 @@ export default function FamilyChatShell({
   const pendingSend = useRef(new Map<string, { id: string; body: string; file?: File; path?: string }>());
   const sending = useRef(false);
   const audio = useRef<AudioContext | null>(null);
+  const decodedTones = useRef(new Map<string, Promise<AudioBuffer>>());
   const notified = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
   const rosterRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -350,6 +355,8 @@ export default function FamilyChatShell({
     })
     .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const theme = getChatTheme(selectedThread?.themeId ?? null);
+  const themed = theme.id !== "default";
   const threadId = selectedThread?.id ?? null;
   const messageDraft = threadId ? drafts[threadId] ?? "" : "";
   const history = useChatHistory(supabase, threadId);
@@ -392,7 +399,7 @@ export default function FamilyChatShell({
   }
 
   function unlockSound() {
-    if (!threads.some((thread) => thread.playSounds) && !showingDetails) return;
+    if (!threads.some((thread) => thread.notificationTone !== "silent") && !showingDetails) return;
     try {
       const context = audio.current ?? new AudioContext();
       audio.current = context;
@@ -411,27 +418,42 @@ export default function FamilyChatShell({
   const onNewMessage = useEffectEvent((message: ChatMessage) => {
     noteMessage(message);
     const thread = threads.find((item) => item.id === message.thread_id);
-    if (!thread || thread.muted || document.hidden || message.sender_user_id === currentUserId || notified.current.has(message.id)) return;
+    if (!thread || !thread.messageAlerts || isChatMuted(thread.mutedAt, thread.mutedUntil) || document.hidden || message.sender_user_id === currentUserId || notified.current.has(message.id)) return;
     notified.current.add(message.id);
     if (notified.current.size > 100) notified.current.delete(notified.current.values().next().value!);
     if (thread.id !== threadId || (!openThread && window.matchMedia("(width < 64rem)").matches)) {
       setInAppAlert({ id: thread.id, name: thread.name });
     }
     const context = audio.current;
-    if (thread.playSounds && context?.state === "running") {
-      const oscillator = context.createOscillator();
-      const volume = context.createGain();
-      oscillator.frequency.value = 660;
-      volume.gain.setValueAtTime(0.08, context.currentTime);
-      volume.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
-      oscillator.connect(volume).connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.16);
+    if (thread.notificationTone === "silent" || context?.state !== "running") return;
+    const url = toneUrl(thread.notificationTone);
+    if (!url) {
+      playDefaultChatTone(context);
+      return;
     }
+    let tone = decodedTones.current.get(url);
+    if (!tone) {
+      tone = fetch(url).then(async (response) => {
+        if (!response.ok) throw new Error("Tone unavailable");
+        return context.decodeAudioData(await response.arrayBuffer());
+      });
+      decodedTones.current.set(url, tone);
+    }
+    void tone.then((buffer) => {
+      if (document.hidden || context.state !== "running") return;
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      source.start();
+    }).catch(() => {
+      decodedTones.current.delete(url);
+      if (!document.hidden && context.state === "running") playDefaultChatTone(context);
+    });
   });
   const onThreadUpdate = useEffectEvent((row: Record<string, unknown>, refreshRoster: () => void) => {
     const thread = threads.find((item) => item.id === row.id);
-    if (thread?.threadType === "group" && ((row.title && row.title !== thread.name) || row.group_image_path !== thread.groupImagePath)) {
+    if (thread && (row.theme_id !== thread.themeId || (thread.threadType === "group" &&
+        ((row.title && row.title !== thread.name) || row.group_image_path !== thread.groupImagePath)))) {
       refreshRoster();
     }
   });
@@ -862,7 +884,7 @@ export default function FamilyChatShell({
                 if (scrollAnchor.current) return;
                 pinnedToBottom.current = panel.scrollHeight - panel.clientHeight - panel.scrollTop < 80;
                 if (panel.scrollTop < 48 && history.hasOlder && !history.loadingOlder && !history.error) void loadOlder();
-              }} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-sand/55 px-3 py-2.5 lg:space-y-5 lg:p-5">
+              }} style={wallpaperStyle(theme)} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-sand/55 bg-cover bg-center px-3 py-2.5 lg:space-y-5 lg:p-5">
                 {history.error && (
                   <p role="alert" className="text-sm text-red-700">
                     {history.error}{" "}
@@ -870,7 +892,7 @@ export default function FamilyChatShell({
                   </p>
                 )}
                 {history.hasOlder && (
-                  <button type="button" disabled={history.loadingOlder} onClick={() => void loadOlder()} className="mx-auto block rounded-lg px-3 py-2 text-sm font-semibold text-sky-depth">
+                  <button type="button" disabled={history.loadingOlder} onClick={() => void loadOlder()} className={`mx-auto block rounded-lg px-3 py-2 text-sm font-semibold text-sky-depth ${themed ? "bg-white/95" : ""}`}>
                     {history.loadingOlder ? "Loading older messages…" : "Load older messages"}
                   </button>
                 )}
@@ -909,9 +931,9 @@ export default function FamilyChatShell({
                           }`}
                         >
                           <div
-                            className={`flex items-center gap-2 text-xs text-night-sky/45 ${
-                              isCurrentUser ? "flex-row-reverse" : ""
-                            }`}
+                            className={`flex items-center gap-2 text-xs text-night-sky/60 ${
+                              isCurrentUser ? "ml-auto flex-row-reverse" : ""
+                            } ${themed ? "w-fit rounded-lg bg-white/95 px-2" : ""}`}
                           >
                             <span className="font-semibold text-night-sky/65">
                               {member?.nickname || member?.displayName || "Family member"}
@@ -923,6 +945,7 @@ export default function FamilyChatShell({
                           </div>
 
                           <div
+                            style={bubbleStyle(theme, isCurrentUser)}
                             className={`mt-0.5 whitespace-pre-wrap wrap-anywhere rounded-2xl px-3 py-2 text-sm leading-5 shadow-sm lg:mt-1 lg:px-4 lg:py-3 lg:leading-6 ${
                               isCurrentUser
                                 ? "bg-sky text-white"
@@ -933,7 +956,7 @@ export default function FamilyChatShell({
                             {(!attachedFile || message.body !== `Shared ${attachedFile.file_name}`) && message.body}
                           </div>
                           {message.id === lastOwnMessage?.id && readers.length > 0 && (
-                            <p className="mt-1 text-xs text-night-sky/65">Seen by {readers.slice(0,3).map((member) => member.nickname || member.displayName).join(", ")}{readers.length > 3 ? ` and ${readers.length - 3} others` : ""}</p>
+                            <p className={`mt-1 text-xs text-night-sky/65 ${themed ? "ml-auto w-fit rounded-md bg-white/95 px-2 py-0.5" : ""}`}>Seen by {readers.slice(0,3).map((member) => member.nickname || member.displayName).join(", ")}{readers.length > 3 ? ` and ${readers.length - 3} others` : ""}</p>
                           )}
                         </div>
                       </div>

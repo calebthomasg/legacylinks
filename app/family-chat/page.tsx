@@ -13,6 +13,7 @@ type ChatThreadRow = {
   thread_type: "direct" | "group";
   title: string | null;
   group_image_path: string | null;
+  theme_id: string | null;
   created_by_user_id: string;
   last_message_at: string | null;
   created_at: string;
@@ -33,6 +34,9 @@ type ChatMemberRow = {
   left_at: string | null;
   nickname: string | null;
   muted_at: string | null;
+  muted_until: string | null;
+  message_alerts: boolean;
+  notification_tone: string;
   play_sounds: boolean;
 };
 
@@ -305,6 +309,7 @@ async function loadInitialThreads({
           thread_type,
           title,
           group_image_path,
+          theme_id,
           created_by_user_id,
           last_message_at,
           created_at,
@@ -335,7 +340,7 @@ async function loadInitialThreads({
   const [membersResult, previewsResult, groupImagesResult] = await Promise.all([
     supabase
       .from("chat_thread_members")
-      .select("thread_id, user_id, person_id, role, left_at, nickname, muted_at, play_sounds")
+      .select("thread_id, user_id, person_id, role, left_at, nickname, muted_at, muted_until, message_alerts, notification_tone, play_sounds")
       .in("thread_id", threadIds),
     supabase.rpc("read_chat_previews", { thread_ids: threadIds }),
     groupImages.length
@@ -395,12 +400,14 @@ async function loadInitialThreads({
       }),
       active: !member.left_at,
       nickname: member.nickname,
-      muted: Boolean(member.muted_at),
-      playSounds: member.play_sounds,
+      mutedAt: member.muted_at,
+      mutedUntil: member.muted_until,
+      messageAlerts: member.message_alerts,
+      notificationTone: member.play_sounds ? member.notification_tone : "silent",
     });
     map.set(member.thread_id, group);
     return map;
-  }, new Map<string, (ChatThreadMemberSummary & { active: boolean; muted: boolean; playSounds: boolean })[]>());
+  }, new Map<string, (ChatThreadMemberSummary & { active: boolean; mutedAt: string | null; mutedUntil: string | null; messageAlerts: boolean; notificationTone: string })[]>());
   const previewByThreadId = new Map<string, MessagePreviewRow>();
 
   for (const preview of (previewsResult.data ?? []) as MessagePreviewRow[]) {
@@ -434,8 +441,11 @@ async function loadInitialThreads({
         createdByUserId: thread.created_by_user_id,
         groupImagePath: thread.group_image_path,
         groupImageUrl: groupImageUrls.get(thread.group_image_path ?? "") ?? null,
-        muted: Boolean(ownMembership?.muted),
-        playSounds: Boolean(ownMembership?.playSounds),
+        themeId: thread.theme_id,
+        mutedAt: ownMembership?.mutedAt ?? null,
+        mutedUntil: ownMembership?.mutedUntil ?? null,
+        messageAlerts: ownMembership?.messageAlerts ?? true,
+        notificationTone: ownMembership?.notificationTone ?? "silent",
         threadType: thread.thread_type,
         name: buildThreadName({
           thread,

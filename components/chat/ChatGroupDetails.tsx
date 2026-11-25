@@ -7,8 +7,11 @@ import type { ChatThreadSummary } from "./FamilyChatShell";
 import type { ChatMessage } from "./useChatHistory";
 import { ChatFile, chatFilesBucket, photoTypes, signChatFiles, uploadChatFile, videoTypes } from "./chatFiles";
 import type { SharedFile } from "./chatFiles";
+import { bubbleStyle, getChatTheme, isChatMuted, muteOptions, playDefaultChatTone, themes, tones, toneUrl, wallpaperStyle, wallpaperUrl } from "./chatAppearance";
 
-type Page = "details" | "edit" | "members" | "nicknames" | "search" | "gallery" | "notifications" | "pins" | "receipts" | "typing" | "report" | "context";
+type NotificationSetting = "mute" | "messages" | "tone";
+
+type Page = "details" | "edit" | "members" | "nicknames" | "search" | "gallery" | "notifications" | "pins" | "receipts" | "typing" | "report" | "context" | "tones" | "themes" | "theme-preview";
 type Privacy = { show_typing: boolean; show_read_receipts: boolean };
 type GalleryTab = "Media" | "Links" | "Files";
 type LinkItem = { message_id: string; url: string };
@@ -16,7 +19,7 @@ type LinkItem = { message_id: string; url: string };
 const titles: Record<Page, string> = {
   details: "Group details", edit: "Group name and image", members: "Group members",
   nicknames: "Nicknames", search: "Search conversation", gallery: "Media, links, and files",
-  notifications: "Notifications & sounds", pins: "Pinned messages", receipts: "Read receipts",
+  notifications: "Notifications & sounds", tones: "Text tone", themes: "Themes", "theme-preview": "Theme preview", pins: "Pinned messages", receipts: "Read receipts",
   typing: "Typing indicator", report: "Report a Family Chat issue", context: "Message in conversation",
 };
 const galleryPageSize = 30;
@@ -34,6 +37,20 @@ function Row({ label, value, onClick, danger = false, disabled = false }: {
       <span>{label}</span>
       {value && <span className="shrink-0 text-xs font-medium text-night-sky/60">{value}</span>}
       {!value && !danger && <span aria-hidden="true" className="text-lg text-sky-depth">›</span>}
+    </button>
+  );
+}
+
+function SettingsSwitch({ label, checked, disabled, onChange }: {
+  label: string; checked: boolean; disabled: boolean; onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}
+      className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-2 text-left text-base font-bold hover:bg-sand/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-depth disabled:opacity-60">
+      {label}
+      <span aria-hidden="true" className={`relative h-8 w-[3.75rem] shrink-0 rounded-full transition-colors motion-reduce:transition-none ${checked ? "bg-sky-depth" : "bg-night-sky/35"}`}>
+        <span className={`absolute left-0.5 top-0.5 h-7 w-7 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none ${checked ? "translate-x-7" : ""}`} />
+      </span>
     </button>
   );
 }
@@ -61,6 +78,16 @@ export default function ChatGroupDetails({
   const [page, setPage] = useState<Page>("details");
   const [previous, setPrevious] = useState<Page>("details");
   const [busy, setBusy] = useState(false);
+  const [muteDialog, setMuteDialog] = useState(false);
+  const [expiredMute, setExpiredMute] = useState<string | null>(null);
+  const [previewTheme, setPreviewTheme] = useState("default");
+  const [previewingTone, setPreviewingTone] = useState<string | null>(null);
+  const soundPreview = useRef<HTMLAudioElement | null>(null);
+  const previewContext = useRef<AudioContext | null>(null);
+  const muteCancel = useRef<HTMLButtonElement>(null);
+  const muteTrigger = useRef<HTMLElement | null>(null);
+  const themeGalleryScroll = useRef(0);
+  const themeGalleryTrigger = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [groupName, setGroupName] = useState(thread.name);
@@ -81,6 +108,8 @@ export default function ChatGroupDetails({
   const scrollArea = useRef<HTMLDivElement>(null);
   const threadId = thread.id;
   const latestFilesRevision = filesRevision;
+  const muted = Boolean(thread.mutedAt && (!thread.mutedUntil || thread.mutedUntil !== expiredMute));
+  const activeTone = tones.find((tone) => tone.id === thread.notificationTone) ?? tones[0];
 
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -88,9 +117,36 @@ export default function ChatGroupDetails({
   }, []);
 
   useEffect(() => {
+    const area = scrollArea.current;
+    if (page === "themes" && area && themeGalleryTrigger.current) {
+      area.scrollTop = themeGalleryScroll.current;
+      area.querySelector<HTMLButtonElement>(`[data-theme-id="${themeGalleryTrigger.current}"]`)?.focus({ preventScroll: true });
+      themeGalleryTrigger.current = null;
+      return;
+    }
     back.current?.focus({ preventScroll: true });
-    if (scrollArea.current) scrollArea.current.scrollTop = 0;
+    if (area) area.scrollTop = 0;
   }, [page]);
+
+  useEffect(() => {
+    const until = thread.mutedUntil;
+    if (!until) return;
+    const timer = window.setTimeout(() => setExpiredMute(until), Math.max(0, Date.parse(until) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [thread.mutedUntil]);
+
+  useEffect(() => {
+    if (muteDialog) muteCancel.current?.focus({ preventScroll: true });
+    else if (muteTrigger.current) {
+      muteTrigger.current.focus({ preventScroll: true });
+      muteTrigger.current = null;
+    }
+  }, [muteDialog]);
+
+  useEffect(() => () => {
+    soundPreview.current?.pause();
+    if (previewContext.current) void previewContext.current.close().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -109,11 +165,16 @@ export default function ChatGroupDetails({
   function go(next: Page) {
     setError("");
     setConfirmation("");
+    soundPreview.current?.pause();
+    setPreviewingTone(null);
     setPage(next);
   }
 
   function goBack() {
-    if (page === "details") onClose();
+    if (muteDialog) setMuteDialog(false);
+    else if (page === "details") onClose();
+    else if (page === "tones") go("notifications");
+    else if (page === "theme-preview") go("themes");
     else go(page === "context" ? previous : "details");
   }
 
@@ -122,7 +183,7 @@ export default function ChatGroupDetails({
     if (event.key !== "Tab") return;
     const elements = [...(panel.current?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled])'
-    ) ?? [])].filter((element) => element.getClientRects().length);
+    ) ?? [])].filter((element) => element.getClientRects().length && !element.closest("[inert]"));
     const first = elements[0];
     const last = elements.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -173,11 +234,62 @@ export default function ChatGroupDetails({
     });
   }
 
-  function saveNotifications(mute: boolean, sounds: boolean) {
+  function saveNotifications(setting: NotificationSetting, preference: string) {
     void run(async () => {
-      const { error: problem } = await client.rpc("save_chat_notification_settings", { thread_uuid: threadId, mute_chat: mute, sounds });
+      const { error: problem } = await client.rpc("set_chat_notification_preference", { thread_uuid: threadId, setting, preference });
+      if (problem) throw problem;
+      if (setting === "mute") setMuteDialog(false);
+      onRefresh();
+    });
+  }
+
+  function openThemePreview(id: string) {
+    themeGalleryScroll.current = scrollArea.current?.scrollTop ?? 0;
+    themeGalleryTrigger.current = id;
+    setPreviewTheme(id);
+    go("theme-preview");
+  }
+
+  function toggleMute() {
+    if (isChatMuted(thread.mutedAt, thread.mutedUntil)) saveNotifications("mute", "0");
+    else {
+      muteTrigger.current = document.activeElement as HTMLElement | null;
+      setError("");
+      setMuteDialog(true);
+    }
+  }
+
+  function playTone(id: string) {
+    soundPreview.current?.pause();
+    setPreviewingTone(null);
+    setError("");
+    if (previewingTone === id) return;
+    const url = toneUrl(id);
+    if (!url) {
+      try {
+        const audio = previewContext.current ?? new AudioContext();
+        previewContext.current = audio;
+        void audio.resume().then(() => playDefaultChatTone(audio)).catch(() => setError("We couldn’t play this sound."));
+      } catch { setError("We couldn’t play this sound."); }
+      return;
+    }
+    const sample = new Audio(url);
+    soundPreview.current = sample;
+    sample.onended = () => { if (soundPreview.current === sample) setPreviewingTone(null); };
+    setPreviewingTone(id);
+    void sample.play().catch(() => {
+      if (soundPreview.current !== sample) return;
+      setPreviewingTone(null);
+      setError("We couldn’t play this sound.");
+    });
+  }
+
+  function applyTheme() {
+    void run(async () => {
+      const { error: problem } = await client.rpc("save_chat_appearance", { thread_uuid: threadId, theme: previewTheme });
       if (problem) throw problem;
       onRefresh();
+      onClose();
     });
   }
 
@@ -284,12 +396,12 @@ export default function ChatGroupDetails({
     <div className="absolute inset-0 z-50 lg:fixed">
       <button type="button" aria-label="Close group details" className="absolute inset-0 hidden bg-night-sky/25 lg:block" onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-labelledby="chat-group-panel-title" ref={panel} onKeyDown={handleKeys} className="chat-details-slide absolute inset-y-0 right-0 flex w-full flex-col bg-sand/100 shadow-xl lg:w-[min(100%,27rem)]">
-        <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-night-sky/10 bg-white px-3">
-          <button ref={back} type="button" onClick={goBack} className="grid h-10 w-10 place-items-center rounded-lg text-2xl hover:bg-sand" aria-label={page === "details" ? "Back to conversation" : "Back to group details"}>‹</button>
+        <div inert={muteDialog} className="flex min-h-14 shrink-0 items-center gap-2 border-b border-night-sky/10 bg-white px-3">
+          <button ref={back} type="button" onClick={goBack} className="grid h-10 w-10 place-items-center rounded-lg text-2xl hover:bg-sand" aria-label={page === "details" ? "Back to conversation" : page === "tones" ? "Back to notifications" : page === "theme-preview" ? "Back to themes" : "Back to chat details"}>‹</button>
           <h2 id="chat-group-panel-title" className="min-w-0 truncate text-base font-black">{page === "details" && thread.threadType === "direct" ? "Chat details" : titles[page]}</h2>
         </div>
-        <div key={page} ref={scrollArea} className="chat-details-slide min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4">
-          {error && <p role="alert" className="rounded-lg bg-coral/10 p-2 text-sm text-red-800">{error}</p>}
+        <div key={page} inert={muteDialog} ref={scrollArea} className="chat-details-slide min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4">
+          {error && !muteDialog && <p role="alert" className="rounded-lg bg-coral/10 p-2 text-sm text-red-800">{error}</p>}
           {confirmation && <p role="status" className="rounded-lg bg-sky/10 p-2 text-sm">{confirmation}</p>}
           {page === "details" && <>
             <div className="flex flex-col items-center gap-2 text-center">
@@ -306,7 +418,7 @@ export default function ChatGroupDetails({
               {thread.canAddMembers && <button type="button" className={buttonClass} onClick={onAdd}>Add members</button>}
               <button type="button" className={buttonClass} onClick={() => go("nicknames")}>Nicknames</button>
               <button type="button" className={buttonClass} onClick={() => go("search")}>Search</button>
-              <button type="button" className={buttonClass} disabled>Customize · Soon</button>
+              <button type="button" className={buttonClass} onClick={() => go("themes")}>Customize</button>
             </div>
             <section>
               <div className="flex items-center justify-between"><h3 className={sectionClass}>{thread.memberCount} members</h3>
@@ -328,7 +440,7 @@ export default function ChatGroupDetails({
               </div>
             </section>
             <section><h3 className={sectionClass}>Actions</h3><div className={cardClass}>
-              <Row label={thread.muted ? "Unmute chat" : "Mute chat"} disabled={busy} onClick={() => saveNotifications(!thread.muted, thread.playSounds)} />
+              <Row label={muted ? "Unmute chat" : "Mute chat"} disabled={busy} onClick={toggleMute} />
               <Row label="Notifications & sounds" onClick={() => go("notifications")} />
               <Row label="Pinned messages" onClick={showPins} />
             </div></section>
@@ -387,20 +499,86 @@ export default function ChatGroupDetails({
             {!busy && !(tab === "Links" ? links.length : gallery.length) && <p className="text-sm">Nothing has been shared here yet.</p>}
             {moreGallery && <button type="button" className={buttonClass} disabled={busy} onClick={() => void loadGallery(tab, true)}>Load more</button>}
           </section>}
-          {page === "notifications" && <div className="space-y-3">
-            <label className="flex gap-2 text-sm"><input type="checkbox" checked={thread.muted} disabled={busy} onChange={(event) => saveNotifications(event.target.checked, thread.playSounds)} />Mute chat alerts</label>
-            <label className="flex gap-2 text-sm"><input type="checkbox" checked={thread.playSounds} disabled={busy || thread.muted} onChange={(event) => saveNotifications(thread.muted, event.target.checked)} />Play a sound for new messages</label>
-            <p className="text-sm text-night-sky/65">Alerts and sounds work while Family Chat is open.</p>
+          {page === "notifications" && <>
+            <section>
+              <div className={cardClass}><SettingsSwitch label="Mute notifications" checked={muted} disabled={busy} onChange={toggleMute} /></div>
+              <p className="mt-2 px-2 text-sm text-night-sky/70">{muted && thread.mutedUntil
+                ? `Muted until ${new Date(thread.mutedUntil).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`
+                : "Mute alerts and sounds for this chat."}</p>
+            </section>
+            <section>
+              <h3 className={sectionClass}>Message notifications</h3>
+              <div role="group" aria-label="Message notifications" className={cardClass}>
+                {[{ label: "All", enabled: true }, { label: "None", enabled: false }].map((option) =>
+                  <button type="button" key={option.label} aria-pressed={thread.messageAlerts === option.enabled} disabled={busy}
+                    className="flex min-h-12 w-full items-center justify-between border-b border-night-sky/10 px-4 py-2 text-left font-semibold last:border-0 hover:bg-sand/40 disabled:opacity-60"
+                    onClick={() => saveNotifications("messages", option.enabled ? "all" : "none")}>
+                    {option.label}{thread.messageAlerts === option.enabled && <span aria-hidden="true" className="text-sky-depth">✓</span>}
+                  </button>)}
+              </div>
+            </section>
+            <section>
+              <h3 className={sectionClass}>Notification sounds</h3>
+              <div className={cardClass}><Row label="Text tone" value={activeTone.name} onClick={() => go("tones")} /></div>
+              <p className="mt-2 px-2 text-sm text-night-sky/70">Alerts and sounds work while Family Chat is open.</p>
+            </section>
+          </>}
+          {page === "tones" && <div className={cardClass} role="group" aria-label="Text tone">
+            {tones.map((tone) => <div key={tone.id} className="flex items-center gap-2 border-b border-night-sky/10 px-2 last:border-0">
+              <button type="button" aria-pressed={activeTone.id === tone.id} disabled={busy} onClick={() => saveNotifications("tone", tone.id)}
+                className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm font-bold hover:bg-sand/40 disabled:opacity-60">
+                {tone.name}{activeTone.id === tone.id && <span aria-hidden="true" className="text-sky-depth">✓</span>}
+              </button>
+              {tone.id !== "silent" && <button type="button" onClick={() => playTone(tone.id)} aria-label={`${previewingTone === tone.id ? "Stop" : "Play"} ${tone.name}`}
+                className="grid size-11 shrink-0 place-items-center rounded-xl text-sky-depth hover:bg-sand">
+                <span aria-hidden="true">{previewingTone === tone.id ? "■" : "▶"}</span>
+              </button>}
+            </div>)}
           </div>}
+          {page === "themes" && <section>
+            <p className="mb-4 text-sm text-night-sky/70">Everyone in this conversation sees the selected theme.</p>
+            <div className="grid grid-cols-3 gap-x-2.5 gap-y-4">
+              {themes.map((theme) => {
+                const active = getChatTheme(thread.themeId).id === theme.id;
+                const thumbnail = wallpaperUrl(theme, true);
+                return <button type="button" key={theme.id} data-theme-id={theme.id} onClick={() => openThemePreview(theme.id)}
+                  aria-label={active ? `${theme.name}, current theme` : theme.name}
+                  className="group min-w-0 rounded-2xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-depth">
+                  <span className={`relative block aspect-[2/3] overflow-hidden rounded-2xl bg-white shadow-sm ring-offset-2 transition group-hover:ring-2 group-hover:ring-sky-depth/50 ${active ? "ring-2 ring-sky-depth" : ""}`}>
+                    {thumbnail ?
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumbnail} loading="lazy" decoding="async" alt="" width={200} height={290} className="size-full object-cover" />
+                      : <span aria-hidden="true" className="flex size-full flex-col justify-center gap-2 bg-sand px-2"><span className="mr-4 h-5 rounded-full bg-white" /><span className="ml-4 h-5 rounded-full bg-sky" /></span>}
+                    {active && <span aria-hidden="true" className="absolute end-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-white text-xs font-black text-sky-depth">✓</span>}
+                  </span>
+                  <span className="mt-2 block text-xs leading-tight font-bold">{theme.name}</span>
+                </button>;
+              })}
+            </div>
+          </section>}
+          {page === "theme-preview" && (() => {
+            const selected = getChatTheme(previewTheme);
+            return <section className="flex min-h-full flex-col gap-4">
+              <h3 className="text-lg font-black">{selected.name}</h3>
+              <div style={wallpaperStyle(selected)} className="flex min-h-64 flex-1 flex-col justify-end gap-3 rounded-2xl border border-night-sky/10 bg-sand bg-cover bg-center p-4 shadow-sm">
+                <p style={bubbleStyle(selected, false)} className="max-w-[80%] self-start rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">Anyone up for a family picnic?</p>
+                <p style={bubbleStyle(selected, true)} className="max-w-[80%] self-end rounded-2xl bg-sky px-4 py-2 text-sm text-white shadow-sm">Count me in! I’ll bring lemonade.</p>
+                <p style={bubbleStyle(selected, false)} className="max-w-[80%] self-start rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">See you there!</p>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" disabled={busy} className="min-h-12 flex-1 rounded-xl border border-night-sky/15 bg-white px-3 text-sm font-bold" onClick={() => go("themes")}>Cancel</button>
+                <button type="button" disabled={busy} className={`${buttonClass} min-h-12 flex-1`} onClick={applyTheme}>Apply theme</button>
+              </div>
+            </section>;
+          })()}
           {page === "pins" && <div className={cardClass}>
             {!busy && !pins.length && <p className="p-3 text-sm">No pinned messages yet. Use the pin button next to a message to save it here.</p>}
             {pins.map((message) => messageRow(message))}
           </div>}
           {(page === "receipts" || page === "typing") && <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input type="checkbox" role="switch" disabled={busy} checked={page === "receipts" ? privacy.show_read_receipts : privacy.show_typing} onChange={(event) => savePrivacy(page, event.target.checked)} />
-              {page === "receipts" ? "Show read receipts" : "Show typing indicator"}
-            </label>
+            <div className={cardClass}><SettingsSwitch label={page === "receipts" ? "Show read receipts" : "Show typing indicator"}
+              checked={page === "receipts" ? privacy.show_read_receipts : privacy.show_typing}
+              disabled={busy} onChange={(enabled) => savePrivacy(page, enabled)} /></div>
             <p className="text-sm text-night-sky/65">{page === "receipts" ? "Chat members can see when you’ve read their messages." : "Chat members can see when you’re typing."} This applies to your Family Chats.</p>
           </div>}
           {page === "report" && <form className="space-y-3" onSubmit={reportIssue}>
@@ -410,6 +588,17 @@ export default function ChatGroupDetails({
           </form>}
           {busy && <p role="status" className="text-sm text-night-sky/60">Working…</p>}
         </div>
+        {muteDialog && <div className="absolute inset-0 z-10 grid place-items-center overflow-y-auto bg-night-sky/45 p-5">
+          <section role="dialog" aria-modal="true" aria-labelledby="chat-mute-title"
+            className="w-full max-w-sm space-y-2.5 rounded-3xl border border-white/60 bg-white p-4 text-center shadow-xl">
+            <h3 id="chat-mute-title" className="mb-3 text-lg font-black">Mute this chat?</h3>
+            {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+            {muteOptions.map((option) => <button key={option.minutes} type="button" disabled={busy} onClick={() => saveNotifications("mute", String(option.minutes))}
+              className="block min-h-12 w-full rounded-full bg-sky/15 px-4 py-2 text-base font-bold hover:bg-sky/25 focus-visible:outline-2 focus-visible:outline-sky-depth disabled:opacity-60">{option.label}</button>)}
+            <button type="button" ref={muteCancel} disabled={busy} onClick={() => setMuteDialog(false)}
+              className="block min-h-12 w-full rounded-full bg-sand px-4 py-2 text-base font-bold hover:bg-night-sky/10 focus-visible:outline-2 focus-visible:outline-sky-depth disabled:opacity-60">Cancel</button>
+          </section>
+        </div>}
       </div>
     </div>
   );
