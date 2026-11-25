@@ -10,6 +10,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@stream-io/node-sdk": "0.8.14",
+    "@stream-io/video-react-sdk": "1.46.4",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.108.2",
     "next": "16.2.4",
