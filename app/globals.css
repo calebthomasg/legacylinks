@@ -293,3 +293,12 @@ input:-webkit-autofill:focus {
 @media (min-width: 768px) and (orientation: landscape), (min-width: 1200px) {
   .trailhead-preview { left: 50%; right: auto; width: calc(100% - 32px); max-width: 640px; transform: translateX(-50%); }
 }
+
+/* The chat viewport moves with the keyboard. Only its inner panes scroll. */
+@media (width < 64rem) {
+  html:has([data-family-chat-viewport]),
+  body:has([data-family-chat-viewport]) {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}

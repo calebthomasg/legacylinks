@@ -300,7 +300,6 @@ export default function FamilyChatShell({
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const canFormatLocalTime = useSyncExternalStore(subscribeToBrowserTime, readBrowserTime, readServerTime);
-  const shellRef = useRef<HTMLElement | null>(null);
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
   const pinnedToBottom = useRef(true);
@@ -424,14 +423,16 @@ export default function FamilyChatShell({
   }, [activePanel, history.loading, history.loadingOlder, selectedMessages.length, threadId]);
 
   useEffect(() => {
-    const viewport = window.visualViewport;
-    const shell = shellRef.current;
-    if (!viewport || !shell) return;
-    const resize = () => shell.style.setProperty("--chat-viewport", `${viewport.height}px`);
-    resize();
-    viewport.addEventListener("resize", resize);
-    return () => viewport.removeEventListener("resize", resize);
-  }, []);
+    const panel = scrollPanelRef.current;
+    if (!panel) return;
+    const observer = new ResizeObserver(() => {
+      if (pinnedToBottom.current && !scrollAnchor.current) {
+        panel.scrollTop = panel.scrollHeight;
+      }
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [threadId]);
 
   function selectThread(id: string) {
     activity.signal("stop");
@@ -547,7 +548,9 @@ export default function FamilyChatShell({
       if (error || !data) throw error ?? new Error("Missing message");
       noteMessage(data as ChatMessage);
       pendingSend.current.delete(threadId);
-      setDrafts((previous) => ({ ...previous, [threadId]: "" }));
+      setDrafts((previous) => previous[threadId] === messageDraft
+        ? { ...previous, [threadId]: "" }
+        : previous);
     } catch {
       setSendError("We couldn’t confirm this message was sent. Try sending again.");
     } finally {
@@ -564,7 +567,7 @@ export default function FamilyChatShell({
   }
 
   return (
-    <section ref={shellRef} className="flex h-[calc(var(--chat-viewport,100dvh)-77px)] min-h-0 w-full flex-col overflow-hidden lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
+    <section className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
       <div className="grid min-h-0 flex-1 w-full min-w-0 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
         <aside
           className={`min-h-0 min-w-0 overflow-y-auto bg-white ${
@@ -838,8 +841,7 @@ export default function FamilyChatShell({
                       placeholder="Write a message..."
                       aria-label="Write a message"
                       rows={1}
-                      disabled={isSendingMessage}
-                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="max-h-32 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-base leading-5 text-night-sky shadow-none outline-none placeholder:text-night-sky/40 focus:ring-0 lg:text-sm"
                     />
                     <button
                       type="submit"
@@ -876,8 +878,8 @@ export default function FamilyChatShell({
       </div>
 
       {compose && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-night-sky/35 p-0 sm:items-center sm:p-6">
-          <div className="max-h-[90svh] w-full overflow-hidden rounded-t-3xl border border-night-sky/10 bg-white shadow-xl sm:max-w-xl sm:rounded-3xl">
+        <div className="absolute inset-0 z-[65] flex items-end lg:fixed justify-center bg-night-sky/35 p-0 sm:items-center sm:p-6">
+          <div className="max-h-full w-full overflow-y-auto lg:max-h-[90svh] rounded-t-3xl border border-night-sky/10 bg-white shadow-xl sm:max-w-xl sm:rounded-3xl">
             <div className="border-b border-night-sky/10 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
