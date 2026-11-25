@@ -195,8 +195,10 @@ function CallPanel({ call, recovered, dismissRecovered }: {
                     disabled={!connected || pending}
                     onClick={() => void act(() => call.speaker.select(speakerOn ? earpiece.deviceId : speaker.deviceId), "Could not change the audio output.")} />
                 )}
-                <CallControl label={cameraMuted === false ? "Stop video" : "Video"} icon="video" pressed={cameraMuted === false}
-                  disabled={!connected || pending} onClick={() => void act(() => call.camera.toggle(), "Could not turn on video. Check camera permissions.")} />
+                {call.type !== "family_audio" && (
+                  <CallControl label={cameraMuted === false ? "Stop video" : "Video"} icon="video" pressed={cameraMuted === false}
+                    disabled={!connected || pending} onClick={() => void act(() => call.camera.toggle(), "Could not turn on video. Check camera permissions.")} />
+                )}
               </div>
               <div className="flex justify-center">
                 <CallControl label="Hang up" icon="hangup" style="coral" onClick={hangUp} disabled={pending} />

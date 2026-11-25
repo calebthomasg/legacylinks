@@ -26,23 +26,52 @@ export async function POST(request: Request) {
     return callResponse({ error: "This conversation is unavailable for calls." }, 404);
   }
 
-  const type = "family_video";
+  const mode = body.mode;
   const id = crypto.randomUUID();
+  const data = {
+    created_by_id: auth.userId,
+    custom: { family_chat_thread_id: thread.id, family_chat_mode: mode },
+    members: userIds.map((user_id) => ({ user_id, role: "call_member" })),
+  };
+
   try {
     await auth.stream.upsertUsers(await callUsers(auth.supabase, userIds));
-    await auth.stream.video.call(type, id).getOrCreate({
-      data: {
-        created_by_id: auth.userId,
-        custom: { family_chat_thread_id: thread.id, family_chat_mode: body.mode },
-        settings_override: {
-          video: { camera_default_on: body.mode === "video" },
-          ring: { auto_cancel_timeout_ms: 30_000, incoming_call_timeout_ms: 30_000, missed_call_timeout_ms: 30_000 },
+    if (mode === "video") {
+      await auth.stream.video.call("family_video", id).getOrCreate({ data });
+      return callResponse({ id, type: "family_video" });
+    }
+
+    try {
+      await auth.stream.video.call("family_video", id).getOrCreate({
+        data: {
+          ...data,
+          settings_override: {
+            video: {
+              enabled: true,
+              camera_default_on: false,
+              camera_facing: "front",
+              target_resolution: { width: 1280, height: 720, bitrate: 1_500_000 },
+            },
+          },
         },
-        members: userIds.map((user_id) => ({ user_id, role: "call_member" })),
-      },
-    });
-    return callResponse({ id, type });
-  } catch {
+      });
+      return callResponse({ id, type: "family_video" });
+    } catch (failure) {
+      // If Stream rejects the customization, preserve a working audio call
+      // with the dedicated camera-disabled type.
+      const code = streamCode(failure);
+      console.warn("[family-calls] Upgradeable audio preparation rejected", { code });
+      if (code !== 4) throw failure;
+      await auth.stream.video.call("family_audio", id).getOrCreate({ data });
+      return callResponse({ id, type: "family_audio" });
+    }
+  } catch (failure) {
+    console.warn("[family-calls] Call preparation failed", { mode, code: streamCode(failure) });
     return callResponse({ error: "Could not prepare the call. Please try again." }, 502);
   }
+}
+
+function streamCode(failure: unknown) {
+  if (typeof failure !== "object" || failure === null || !("code" in failure)) return undefined;
+  return typeof failure.code === "number" ? failure.code : undefined;
 }
