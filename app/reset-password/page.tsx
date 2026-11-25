@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
 
   return (
     <RecoveryCard title="Choose a new password">
-      <p id="password-requirements" className="mt-3 text-sm leading-6 text-night-sky/75">Use at least {MIN_RECOVERY_PASSWORD_LENGTH} characters.</p>
+      <p id="password-requirements" className="mt-3 text-sm leading-6 text-night-sky/75">Use at least {MIN_RECOVERY_PASSWORD_LENGTH} characters. Numbers and symbols are optional.</p>
       <form key={tokenHash} method="post" onSubmit={handleSubmit} className="mt-8 space-y-5">
         <div>
           <label htmlFor="new-password" className="block text-sm font-medium text-night-sky">New password</label>
