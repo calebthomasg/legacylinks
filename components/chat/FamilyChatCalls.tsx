@@ -1,5 +1,7 @@
 "use client";
 
+import ChatAvatarPhoto from "./ChatAvatarPhoto";
+
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CallingState, ParticipantsAudio, StreamCall, StreamVideo, StreamVideoClient,
@@ -204,7 +206,7 @@ function CallPanel({ call, recovered, dismissRecovered, photoUrls }: {
       {connected && <ParticipantsAudio participants={remoteParticipants} />}
       {videoStage ? (
         <div className="relative isolate h-full overflow-hidden">
-          <FamilyChatVideoStage name={name} mirrorSelf={direction !== "back"} />
+          <FamilyChatVideoStage name={name} mirrorSelf={direction !== "back"} photoUrl={photoUrl} />
           <header className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-night-sky/90 to-transparent px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <h2 id="family-call-title" className="truncate text-lg font-black text-white">{name}</h2>
             <p className="mt-0.5 text-xs font-semibold text-sky">
@@ -230,11 +232,7 @@ function CallPanel({ call, recovered, dismissRecovered, photoUrls }: {
         <div className="flex h-full flex-col items-center overflow-y-auto bg-linear-to-br from-night-sky via-[#162c42] to-[#26334c] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-center sm:px-8">
           <div className="mb-4 mt-[min(8dvh,3rem)] relative grid size-16 shrink-0 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
             {name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-            {photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrl} alt="" className="absolute inset-0 size-full rounded-2xl object-cover"
-                onError={(event) => { event.currentTarget.style.display = "none"; }} />
-            )}
+            <ChatAvatarPhoto url={photoUrl} />
           </div>
           <h2 id="family-call-title" className="max-w-full wrap-break-word text-2xl font-black sm:text-3xl">{name}</h2>
           <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-sky sm:text-base">
