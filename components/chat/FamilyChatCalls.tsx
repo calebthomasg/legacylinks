@@ -10,7 +10,7 @@ import "@stream-io/video-react-sdk/dist/css/styles.css";
 
 import FamilyChatVideoStage from "./FamilyChatVideoStage";
 import { useCallTone, useCallToneUnlock } from "./useCallTone";
-import type { CallActivity, MissedCall } from "@/lib/family-calls/activity";
+import { conversationCallActivity, type CallActivity, type ConversationCallActivity, type MissedCall } from "@/lib/family-calls/activity";
 
 export type CallRequest = { threadId: string; mode: "audio" | "video" };
 
@@ -261,11 +261,12 @@ function CallPanel({ call, recovered, dismissRecovered }: {
 
 type Notice = { text: string; error?: boolean };
 
-function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }: {
+function CallSession({ client, request, threadId, onMissed, onActivity, onHandled, onBusy }: {
   client: StreamVideoClient;
   request: CallRequest | null;
   threadId: string | null;
   onMissed: (items: MissedCall[]) => void;
+  onActivity: (items: ConversationCallActivity[]) => void;
   onHandled: () => void;
   onBusy: (busy: boolean) => void;
 }) {
@@ -284,9 +285,10 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
 
   const recoverCall = useEffectEvent(async (active: () => boolean) => {
     if (document.hidden) return;
-    const { incoming, missed } = await post<CallActivity>("/api/family-chat/calls/activity", { threadId });
+    const { incoming, missed, latestCalls } = await post<CallActivity>("/api/family-chat/calls/activity", { threadId });
     if (!active()) return;
     onMissed(missed);
+    onActivity(latestCalls);
     if (current || !incoming || sending.current || incoming.expiresAt <= Date.now()) return;
     const call = client.call(incoming.type, incoming.id, { reuseInstance: true });
     const { call: snapshot } = await call.get();
@@ -313,6 +315,11 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
     window.addEventListener("focus", sync);
     window.addEventListener("pageshow", sync);
     document.addEventListener("visibilitychange", sync);
+    const noteCall = (call: Parameters<typeof conversationCallActivity>[0], at: string) => {
+      const activity = conversationCallActivity(call, at);
+      if (activity) onActivity([activity]);
+    };
+    const unsubscribeRinging = client.on("call.ring", (event) => noteCall(event.call, event.created_at));
     const unsubscribeMissed = client.on("call.missed", (event) => {
       const key = event.call.custom.family_chat_thread_id;
       if (typeof key === "string" && (event.call.type === "family_audio" || event.call.type === "family_video")) {
@@ -324,7 +331,8 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
       sync();
       retryAfterEnd();
     });
-    const unsubscribeEnded = client.on("call.ended", () => {
+    const unsubscribeEnded = client.on("call.ended", (event) => {
+      noteCall(event.call, event.created_at);
       sync();
       retryAfterEnd();
     });
@@ -334,10 +342,11 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
       window.removeEventListener("focus", sync);
       window.removeEventListener("pageshow", sync);
       document.removeEventListener("visibilitychange", sync);
+      unsubscribeRinging();
       unsubscribeMissed();
       unsubscribeEnded();
     };
-  }, [client, threadId, onMissed]);
+  }, [client, threadId, onMissed, onActivity]);
 
   useEffect(() => {
     if (!recovered) return;
@@ -384,7 +393,9 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
         const outgoing = client.call(type, id);
         // The initiating browser must register the ringing call so the SDK
         // can show it locally and join when the recipient accepts.
-        await outgoing.get({ ring: true, video: request.mode === "video" });
+        const { call } = await outgoing.get({ ring: true, video: request.mode === "video" });
+        const activity = conversationCallActivity(call, call.session?.started_at ?? call.created_at);
+        if (activity) onActivity([activity]);
       } catch (error) {
         setNotice({ error: true, text: error instanceof Error ? error.message : "Could not start the call." });
       } finally {
@@ -393,7 +404,7 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
         onHandled();
       }
     });
-  }, [request, client, current, onHandled]);
+  }, [request, client, current, onHandled, onActivity]);
 
   return (
     <>
@@ -410,11 +421,12 @@ function CallSession({ client, request, threadId, onMissed, onHandled, onBusy }:
   );
 }
 
-export default function FamilyChatCalls({ userId, request, threadId, onMissed, onHandled, onReady, onBusy }: {
+export default function FamilyChatCalls({ userId, request, threadId, onMissed, onActivity, onHandled, onReady, onBusy }: {
   userId: string;
   request: CallRequest | null;
   threadId: string | null;
   onMissed: (items: MissedCall[]) => void;
+  onActivity: (items: ConversationCallActivity[]) => void;
   onHandled: () => void;
   onReady: (ready: boolean) => void;
   onBusy: (busy: boolean) => void;
@@ -470,7 +482,7 @@ export default function FamilyChatCalls({ userId, request, threadId, onMissed, o
   if (!client) return null;
   return (
     <StreamVideo client={client}>
-      <CallSession client={client} request={request} threadId={threadId} onMissed={onMissed} onHandled={onHandled} onBusy={onBusy} />
+      <CallSession client={client} request={request} threadId={threadId} onMissed={onMissed} onActivity={onActivity} onHandled={onHandled} onBusy={onBusy} />
     </StreamVideo>
   );
 }

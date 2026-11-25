@@ -14,7 +14,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import type { CallRequest } from "./FamilyChatCalls";
-import type { MissedCall } from "@/lib/family-calls/activity";
+import { latestCallByConversation, type ConversationCallActivity, type MissedCall } from "@/lib/family-calls/activity";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
@@ -314,6 +314,10 @@ export default function FamilyChatShell({
   const [callRequest, setCallRequest] = useState<CallRequest | null>(null);
   const [callReady, setCallReady] = useState(false);
   const [callBusy, setCallBusy] = useState(false);
+  const [callActivity, setCallActivity] = useState<Record<string, ConversationCallActivity>>({});
+  const mergeCallActivity = useCallback((items: ConversationCallActivity[]) => {
+    if (items.length > 0) setCallActivity((previous) => latestCallByConversation([...Object.values(previous), ...items]));
+  }, []);
   const [missedCalls, setMissedCalls] = useState<Record<string, MissedCall>>({});
   const mergeMissedCalls = useCallback((items: MissedCall[]) => {
     if (items.length === 0) return;
@@ -368,9 +372,13 @@ export default function FamilyChatShell({
       const updated = latest && new Date(latest.created_at).getTime() >= new Date(thread.lastActivityAt ?? 0).getTime()
         ? { ...thread, lastActivityAt: latest.created_at, preview: latest.body }
         : thread;
+      const call = callActivity[thread.id];
+      const mostRecent = call && Date.parse(call.at) > new Date(updated.lastActivityAt ?? 0).getTime()
+        ? { ...updated, lastActivityAt: call.at, preview: call.mode === "video" ? "Video call" : "Audio call" }
+        : updated;
       return {
-        ...updated,
-        lastActivityLabel: canFormatLocalTime ? formatActivityLabel(updated.lastActivityAt) : "",
+        ...mostRecent,
+        lastActivityLabel: canFormatLocalTime ? formatActivityLabel(mostRecent.lastActivityAt) : "",
       };
     })
     .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());
@@ -1173,7 +1181,7 @@ export default function FamilyChatShell({
       </div>
 
       {callsEnabled && <FamilyChatCalls key={currentUserId} userId={currentUserId} request={callRequest}
-        threadId={directCalls ? threadId : null} onMissed={mergeMissedCalls} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
+        threadId={directCalls ? threadId : null} onMissed={mergeMissedCalls} onActivity={mergeCallActivity} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
       {menuMessage && !removed(menuMessage) && (
         <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
