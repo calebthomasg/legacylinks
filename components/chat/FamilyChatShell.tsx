@@ -12,6 +12,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useRouter } from "next/navigation";
+import ChatGroupDetails from "./ChatGroupDetails";
+import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./chatFiles";
 import { useChatActivity } from "./useChatActivity";
 import { type ChatMessage, useChatHistory } from "./useChatHistory";
 import { createClient } from "@/utils/supabase/client";
@@ -26,6 +28,7 @@ export type ChatAvatar = {
 export type ChatThreadMemberSummary = {
   userId: string;
   displayName: string;
+  nickname?: string | null;
   avatar: ChatAvatar;
 };
 
@@ -44,6 +47,11 @@ export type ChatThreadSummary = {
   pastMembers: ChatThreadMemberSummary[];
   memberCount: number;
   canAddMembers: boolean;
+  createdByUserId: string;
+  groupImagePath: string | null;
+  groupImageUrl: string | null;
+  muted: boolean;
+  playSounds: boolean;
 };
 
 const subscribeToBrowserTime = () => () => {};
@@ -62,12 +70,11 @@ function AvatarCircle({
   className = "",
 }: {
   avatar: ChatAvatar;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg";
   showOnline?: boolean;
   className?: string;
 }) {
   const sizeClasses = {
-    xs: "h-7 w-7 text-xs",
     sm: "h-9 w-9 text-xs",
     md: "h-11 w-11 text-sm",
     lg: "h-14 w-14 text-base",
@@ -92,23 +99,16 @@ function AvatarCircle({
   );
 }
 
-function AvatarStack({
-  avatars, online, compact = false,
-}: {
-  avatars: ChatAvatar[];
-  online: Set<string>;
-  compact?: boolean;
-}) {
+function AvatarStack({ avatars, online }: { avatars: ChatAvatar[]; online: Set<string> }) {
   const visibleAvatars = avatars.length > 0 ? avatars : [fallbackAvatar];
 
   return (
-    <div className={compact ? "isolate flex shrink-0 -space-x-2" : "flex shrink-0 -space-x-3"}>
-      {visibleAvatars.slice(0, compact ? 3 : 4).map((avatar, index) => (
+    <div className="isolate flex shrink-0 -space-x-3">
+      {visibleAvatars.slice(0, 4).map((avatar, index) => (
         <AvatarCircle
           key={`${avatar.userId ?? avatar.initials}-${index}`}
           avatar={avatar}
-          size={compact ? "xs" : "md"}
-          className={compact && index === 2 ? "max-[360px]:hidden" : ""}
+          size="md"
           showOnline={Boolean(avatar.userId && online.has(avatar.userId))}
         />
       ))}
@@ -122,12 +122,14 @@ function IconButton({
   disabled = false,
   onClick,
   comingSoon = false,
+  callControl = false,
 }: {
   label: string;
   children: React.ReactNode;
   disabled?: boolean;
   onClick?: () => void;
   comingSoon?: boolean;
+  callControl?: boolean;
 }) {
   return (
     <button
@@ -136,7 +138,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       title={comingSoon ? `${label} coming soon` : label}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-night-sky/10 bg-white text-night-sky/70 shadow-sm transition hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
+      className={`flex shrink-0 items-center justify-center text-night-sky/75 transition hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60 ${callControl ? "h-11 w-11 rounded-xl [&>svg]:h-6 [&>svg]:w-6" : "h-10 w-10 rounded-full border border-night-sky/10 bg-white shadow-sm"}`}
     >
       {children}
     </button>
@@ -184,19 +186,12 @@ function VideoIcon() {
   );
 }
 
-function EllipsisIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-    >
-      <circle cx="5" cy="12" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="19" cy="12" r="1.8" />
-    </svg>
-  );
+function PinIcon() {
+  return <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 3 6 6-3 2-2 5-3 3-8-8 3-3 5-2 2-3ZM10 14l-7 7" /></svg>;
+}
+
+function AttachmentIcon() {
+  return <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8.5-8.5" /></svg>;
 }
 
 function BackIcon() {
@@ -310,9 +305,21 @@ export default function FamilyChatShell({
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
   const pinnedToBottom = useRef(true);
-  const pendingSend = useRef(new Map<string, { id: string; body: string }>());
+  const pendingSend = useRef(new Map<string, { id: string; body: string; file?: File; path?: string }>());
   const sending = useRef(false);
+  const audio = useRef<AudioContext | null>(null);
+  const notified = useRef(new Set<string>());
+  const fileInput = useRef<HTMLInputElement>(null);
   const rosterRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [detailsFor, setDetailsFor] = useState<string | null>(null);
+  const [draftFiles, setDraftFiles] = useState<Record<string, File>>({});
+  const [filesRevision, setFilesRevision] = useState(0);
+  const [pinsRevision, setPinsRevision] = useState(0);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [pinError, setPinError] = useState("");
+  const [inAppAlert, setInAppAlert] = useState<{ id: string; name: string } | null>(null);
+  const [privacy, setPrivacy] = useState({ show_typing: true, show_read_receipts: false });
+  const [readPositions, setReadPositions] = useState<{ threadId: string; rows: {user_id: string; read_through: string}[] } | null>(null);
   const [latestByThread, setLatestByThread] = useState<Record<string, ChatMessage>>({});
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreads[0]?.id ?? null);
   const [awaitingThreadId, setAwaitingThreadId] = useState<string | null>(null);
@@ -348,12 +355,22 @@ export default function FamilyChatShell({
   const history = useChatHistory(supabase, threadId);
   const activity = useChatActivity(supabase, threadId);
   const selectedMessages = history.messages;
+  const draftFile = threadId ? draftFiles[threadId] : undefined;
+  const showingDetails = Boolean(threadId && detailsFor === threadId);
+  const openThread = activePanel === "thread" && Boolean(selectedThread);
+  const fileRows = useMessageFiles(supabase, threadId, selectedMessages.map((message) => message.id).join(","), filesRevision);
+  const newestMessageId = selectedMessages.at(-1)?.id;
+  const lastOwnMessage = selectedMessages.findLast((message) => message.sender_user_id === currentUserId);
+  const readers = readPositions?.threadId === threadId && lastOwnMessage
+    ? (selectedThread?.members ?? []).filter((member) => readPositions.rows.some((row) =>
+      row.user_id === member.userId && Date.parse(row.read_through) >= Date.parse(lastOwnMessage.created_at)))
+    : [];
   const onlineMembers = new Map(threads.flatMap((thread) => thread.members)
     .filter((member) => activity.online.has(member.userId))
     .map((member) => [member.userId, member]));
   const typingNames = selectedThread?.members
     .filter((member) => activity.typing.has(member.userId))
-    .map((member) => member.displayName) ?? [];
+    .map((member) => member.nickname || member.displayName) ?? [];
   const groupOnline = selectedThread?.members.filter((member) => activity.online.has(member.userId)).length ?? 0;
   const eligibleRecipients = compose === "add"
     ? recipients.filter((recipient) => !selectedThread?.members.some((member) => member.userId === recipient.userId))
@@ -362,7 +379,7 @@ export default function FamilyChatShell({
   const filteredRecipients = eligibleRecipients.filter((recipient) =>
     recipient.displayName.toLowerCase().includes(recipientFilter.trim().toLowerCase())
   );
-  const canSendMessage = Boolean(threadId && messageDraft.trim() && !isSendingMessage);
+  const canSendMessage = Boolean(threadId && (messageDraft.trim() || draftFile) && !isSendingMessage);
 
   function noteMessage(message: ChatMessage) {
     history.append(message);
@@ -374,7 +391,90 @@ export default function FamilyChatShell({
     });
   }
 
-  const onNewMessage = useEffectEvent((message: ChatMessage) => noteMessage(message));
+  function unlockSound() {
+    if (!threads.some((thread) => thread.playSounds) && !showingDetails) return;
+    try {
+      const context = audio.current ?? new AudioContext();
+      audio.current = context;
+      if (context.state === "suspended") void context.resume().catch(() => undefined);
+    } catch { /* Audio is optional on this device. */ }
+  }
+
+  useEffect(() => () => { if (audio.current) void audio.current.close().catch(() => undefined); }, []);
+
+  useEffect(() => {
+    if (!inAppAlert) return;
+    const timer = window.setTimeout(() => setInAppAlert(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [inAppAlert]);
+
+  const onNewMessage = useEffectEvent((message: ChatMessage) => {
+    noteMessage(message);
+    const thread = threads.find((item) => item.id === message.thread_id);
+    if (!thread || thread.muted || document.hidden || message.sender_user_id === currentUserId || notified.current.has(message.id)) return;
+    notified.current.add(message.id);
+    if (notified.current.size > 100) notified.current.delete(notified.current.values().next().value!);
+    if (thread.id !== threadId || (!openThread && window.matchMedia("(width < 64rem)").matches)) {
+      setInAppAlert({ id: thread.id, name: thread.name });
+    }
+    const context = audio.current;
+    if (thread.playSounds && context?.state === "running") {
+      const oscillator = context.createOscillator();
+      const volume = context.createGain();
+      oscillator.frequency.value = 660;
+      volume.gain.setValueAtTime(0.08, context.currentTime);
+      volume.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
+      oscillator.connect(volume).connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.16);
+    }
+  });
+  const onThreadUpdate = useEffectEvent((row: Record<string, unknown>, refreshRoster: () => void) => {
+    const thread = threads.find((item) => item.id === row.id);
+    if (thread?.threadType === "group" && ((row.title && row.title !== thread.name) || row.group_image_path !== thread.groupImagePath)) {
+      refreshRoster();
+    }
+  });
+
+  useEffect(() => {
+    let active = true;
+    async function loadPrivacy() {
+      const { data } = await supabase.from("chat_privacy").select("show_typing,show_read_receipts").eq("user_id", currentUserId).maybeSingle();
+      if (active && data) setPrivacy(data);
+    }
+    const onFocus = () => { if (!document.hidden) void loadPrivacy(); };
+    void loadPrivacy();
+    document.addEventListener("visibilitychange", onFocus);
+    return () => { active = false; document.removeEventListener("visibilitychange", onFocus); };
+  }, [currentUserId, supabase]);
+
+  useEffect(() => {
+    if (!threadId) return;
+    let active = true;
+    async function refreshPins() {
+      const { data } = await supabase.from("chat_pins").select("message_id").eq("thread_id", threadId).is("unpinned_at", null).limit(500);
+      if (active && data) setPinnedIds(data.map((row) => row.message_id));
+    }
+    void refreshPins();
+    return () => { active = false; };
+  }, [pinsRevision, supabase, threadId]);
+
+  useEffect(() => {
+    if (!threadId || showingDetails || compose) return;
+    let active = true;
+    async function updateReceipts() {
+      if (document.hidden || (!openThread && window.matchMedia("(width < 64rem)").matches)) return;
+      if (newestMessageId && privacy.show_read_receipts && pinnedToBottom.current) {
+        await supabase.rpc("mark_chat_read", { thread_uuid: threadId, message_uuid: newestMessageId });
+      }
+      const { data } = await supabase.rpc("read_chat_receipts", { thread_uuid: threadId });
+      if (active && data && threadId) setReadPositions({ threadId, rows: data });
+    }
+    void updateReceipts();
+    const timer = window.setInterval(() => void updateReceipts(), 5000);
+    document.addEventListener("visibilitychange", updateReceipts);
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", updateReceipts); };
+  }, [compose, newestMessageId, openThread, privacy.show_read_receipts, showingDetails, supabase, threadId]);
   const catchUp = useEffectEvent(() => {
     if (document.hidden || !navigator.onLine) return;
     router.refresh();
@@ -394,6 +494,14 @@ export default function FamilyChatShell({
     const channel = supabase.channel("family-chat:" + currentUserId)
       .on("postgres_changes", { schema: "public", table: "chat_messages", event: "INSERT" },
         ({ new: row }) => onNewMessage(row as ChatMessage))
+      .on("postgres_changes", { schema: "public", table: "chat_shared_files", event: "INSERT" },
+        () => setFilesRevision((revision) => revision + 1))
+      .on("postgres_changes", { schema: "public", table: "chat_pins", event: "INSERT" },
+        () => setPinsRevision((revision) => revision + 1))
+      .on("postgres_changes", { schema: "public", table: "chat_pins", event: "UPDATE" },
+        () => setPinsRevision((revision) => revision + 1))
+      .on("postgres_changes", { schema: "public", table: "chat_threads", event: "UPDATE" },
+        ({ new: row }) => onThreadUpdate(row, scheduleRosterRefresh))
       .on("postgres_changes", { schema: "public", table: "chat_thread_members", event: "INSERT" },
         scheduleRosterRefresh)
       .on("postgres_changes", { schema: "public", table: "chat_thread_members", event: "UPDATE" },
@@ -443,6 +551,9 @@ export default function FamilyChatShell({
 
   function selectThread(id: string) {
     activity.signal("stop");
+    setDetailsFor(null);
+    setInAppAlert(null);
+    setPinError("");
     pinnedToBottom.current = true;
     scrollAnchor.current = null;
     setAwaitingThreadId(null);
@@ -461,9 +572,9 @@ export default function FamilyChatShell({
   }
 
   function getMemberForMessage(message: ChatMessage) {
-    if (message.sender_user_id === currentUserId) return currentUser;
     return selectedThread?.members.find((member) => member.userId === message.sender_user_id)
-      ?? selectedThread?.pastMembers.find((member) => member.userId === message.sender_user_id);
+      ?? selectedThread?.pastMembers.find((member) => member.userId === message.sender_user_id)
+      ?? (message.sender_user_id === currentUserId ? currentUser : undefined);
   }
 
   function toggleRecipient(userId: string) {
@@ -525,6 +636,7 @@ export default function FamilyChatShell({
       const { error } = await supabase.rpc("leave_chat_group", { thread_uuid: threadId });
       if (error) throw error;
       activity.signal("stop");
+      setDetailsFor(null);
       setLeftThreadIds((ids) => [...ids, threadId]);
       setSelectedThreadId(null);
       setAwaitingThreadId(null);
@@ -540,30 +652,55 @@ export default function FamilyChatShell({
   async function sendMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const body = messageDraft.trim();
-    if (!threadId || !body || sending.current) return;
+    if (!threadId || (!body && !draftFile) || sending.current) return;
     const existing = pendingSend.current.get(threadId);
-    const id = existing?.body === body ? existing.id : crypto.randomUUID();
-    pendingSend.current.set(threadId, { id, body });
+    const pending = existing && existing.body === body && existing.file === draftFile
+      ? existing : { id: crypto.randomUUID(), body, file: draftFile };
+    pendingSend.current.set(threadId, pending);
     sending.current = true;
     setIsSendingMessage(true);
     setSendError(null);
     activity.signal("stop");
     try {
-      const { data, error } = await supabase.rpc("send_chat_message", {
-        thread_uuid: threadId, message_body: body, client_message_id: id,
+      if (draftFile && !pending.path) {
+        pending.path = await uploadChatFile(supabase, threadId, currentUserId, "file", draftFile, pending.id);
+      }
+      const { data, error } = draftFile ? await supabase.rpc("send_chat_file", {
+        thread_uuid: threadId, client_message_id: pending.id, file_path: pending.path,
+        display_name: draftFile.name.slice(0,240), caption: body || null,
+      }) : await supabase.rpc("send_chat_message", {
+        thread_uuid: threadId, message_body: body, client_message_id: pending.id,
       });
       if (error || !data) throw error ?? new Error("Missing message");
       noteMessage(data as ChatMessage);
       pendingSend.current.delete(threadId);
+      if (draftFile) {
+        setDraftFiles((previous) => {
+          const next = { ...previous };
+          delete next[threadId];
+          return next;
+        });
+        setFilesRevision((revision) => revision + 1);
+      }
       setDrafts((previous) => previous[threadId] === messageDraft
         ? { ...previous, [threadId]: "" }
         : previous);
-    } catch {
-      setSendError("We couldn’t confirm this message was sent. Try sending again.");
+    } catch (problem) {
+      setSendError(problem instanceof Error && /^Choose |^We couldn’t upload/.test(problem.message)
+        ? problem.message : "We couldn’t confirm this message was sent. Try sending again.");
     } finally {
       sending.current = false;
       setIsSendingMessage(false);
     }
+  }
+
+  async function pinMessage(id: string, pin: boolean) {
+    if (!threadId) return false;
+    const { error } = await supabase.rpc("save_chat_pin", { thread_uuid: threadId, message_uuid: id, pinned: pin });
+    if (error) { setPinError("We couldn’t change that pin. Try again."); return false; }
+    setPinError("");
+    setPinnedIds((previous) => pin ? [...new Set([...previous, id])] : previous.filter((item) => item !== id));
+    return true;
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -574,8 +711,12 @@ export default function FamilyChatShell({
   }
 
   return (
-    <section data-open-mobile-thread={activePanel === "thread" && selectedThread ? true : undefined} className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
-      <div className="grid min-h-0 flex-1 w-full min-w-0 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
+    <section onPointerDown={unlockSound} data-open-mobile-thread={openThread ? true : undefined} className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
+      {inAppAlert && !showingDetails && <div className="absolute inset-x-0 top-14 z-40 mx-auto flex max-w-sm items-center gap-4 rounded-xl bg-night-sky px-3 py-2 text-sm text-white shadow-lg">
+        <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => selectThread(inAppAlert.id)}>New message in {inAppAlert.name}</button>
+        <button type="button" aria-label="Dismiss message alert" onClick={() => setInAppAlert(null)}>×</button>
+      </div>}
+      <div inert={showingDetails || Boolean(compose)} className="grid min-h-0 flex-1 w-full min-w-0 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-5">
         <aside
           className={`min-h-0 min-w-0 overflow-y-auto bg-white ${
             activePanel === "messages" ? "block" : "hidden"
@@ -687,70 +828,32 @@ export default function FamilyChatShell({
                     <BackIcon />
                   </button>
 
-                  <div className="shrink-0 lg:hidden">
-                    <AvatarStack avatars={selectedThread.avatars} online={activity.online} compact />
-                  </div>
                   <div className="hidden shrink-0 lg:block">
                     <AvatarStack avatars={selectedThread.avatars} online={activity.online} />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="truncate text-base font-black leading-tight text-night-sky lg:text-2xl" title={selectedThread.name}>
-                      {selectedThread.name}
+                    <h2 className="truncate text-lg font-black leading-tight text-night-sky lg:text-2xl">
+                      <button type="button" className="block max-w-full truncate rounded-sm text-left hover:underline focus-visible:outline-sky-depth" onClick={() => setDetailsFor(selectedThread.id)} aria-haspopup="dialog">
+                        {selectedThread.name}
+                      </button>
                     </h2>
-                    {selectedThread.threadType === "group" ? (
-                      <details key={selectedThread.id} className="mt-0.5 lg:relative lg:mt-1">
-                        <summary className="cursor-pointer truncate text-xs leading-tight text-night-sky/65 lg:text-sm">
+                    <p className="mt-1 hidden truncate text-sm leading-tight text-night-sky/65 lg:block">
+                      {selectedThread.threadType === "group" ? (
+                        <button type="button" onClick={() => setDetailsFor(selectedThread.id)} className="hover:underline">
                           {selectedThread.memberCount} members · <span className="font-semibold text-sky-depth">{groupOnline} online</span>
-                        </summary>
-                        <ul aria-label="Group members" className="absolute left-3 top-full z-20 mt-1 max-h-[min(16rem,50dvh)] w-56 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg lg:left-0 lg:max-h-64">
-                          {selectedThread.members.map((member) => {
-                            const online = member.userId === currentUserId || activity.online.has(member.userId);
-                            return (
-                              <li key={member.userId} className="flex items-center gap-3 p-2">
-                                <AvatarCircle avatar={member.avatar} size="sm" showOnline={online} />
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold">{member.displayName}</p>
-                                  <p className="text-xs text-night-sky/55">
-                                    {member.userId === currentUserId ? "You" : online ? "Online" : "Offline"}
-                                  </p>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </details>
-                    ) : (
-                      <p className="mt-0.5 truncate text-xs leading-tight text-night-sky/55 lg:mt-1 lg:text-sm">
-                        {groupOnline > 0 ? "Online" : selectedThread.lastActivityLabel || "No recent activity"}
-                      </p>
-                    )}
+                        </button>
+                      ) : (groupOnline > 0 ? "Online" : selectedThread.lastActivityLabel || "No recent activity")}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-0.5 max-lg:[&>button]:w-9 max-lg:[&>button]:rounded-lg max-lg:[&>button]:border-transparent max-lg:[&>button]:shadow-none lg:gap-2">
-                  <IconButton label="Phone call" disabled comingSoon>
+                <div className="flex shrink-0 items-center lg:gap-2">
+                  <IconButton label="Phone call" callControl disabled comingSoon>
                     <PhoneIcon />
                   </IconButton>
-                  <IconButton label="Video call" disabled comingSoon>
+                  <IconButton label="Video call" callControl disabled comingSoon>
                     <VideoIcon />
                   </IconButton>
-                  {selectedThread.threadType === "group" && (
-                    <details key={selectedThread.id} className="relative">
-                      <summary aria-label="Group options" className="flex h-10 w-9 cursor-pointer list-none items-center justify-center rounded-lg hover:bg-sand lg:w-10 lg:rounded-full lg:border lg:border-night-sky/10">
-                        <EllipsisIcon />
-                      </summary>
-                      <div className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-night-sky/10 bg-white p-2 shadow-lg">
-                        {selectedThread.canAddMembers && (
-                          <button type="button" onClick={() => setCompose("add")} className="block w-full rounded-lg p-2 text-left text-sm hover:bg-sand">
-                            Add members
-                          </button>
-                        )}
-                        <button type="button" disabled={leaving} onClick={leaveGroup} className="block w-full rounded-lg p-2 text-left text-sm hover:bg-sand">
-                          Leave group
-                        </button>
-                      </div>
-                    </details>
-                  )}
                 </div>
               </header>
 
@@ -784,12 +887,14 @@ export default function FamilyChatShell({
                   selectedMessages.map((message) => {
                     const member = getMemberForMessage(message);
                     const isCurrentUser = message.sender_user_id === currentUserId;
+                    const attachedFile = fileRows[message.id];
+                    const pinned = pinnedIds.includes(message.id);
 
                     return (
                       <div
                         key={message.id}
                         className={`flex gap-2 lg:gap-3 ${
-                          isCurrentUser ? "sm:flex-row-reverse" : ""
+                          isCurrentUser ? "flex-row-reverse" : ""
                         }`}
                       >
                         <AvatarCircle
@@ -799,19 +904,22 @@ export default function FamilyChatShell({
                         />
 
                         <div
-                          className={`max-w-[min(100%,560px)] ${
-                            isCurrentUser ? "sm:text-right" : ""
+                          className={`min-w-0 max-w-[min(calc(100%_-_3.25rem),560px)] ${
+                            isCurrentUser ? "text-right" : ""
                           }`}
                         >
                           <div
                             className={`flex items-center gap-2 text-xs text-night-sky/45 ${
-                              isCurrentUser ? "sm:flex-row-reverse" : ""
+                              isCurrentUser ? "flex-row-reverse" : ""
                             }`}
                           >
                             <span className="font-semibold text-night-sky/65">
-                              {member?.displayName ?? "Family member"}
+                              {member?.nickname || member?.displayName || "Family member"}
                             </span>
                             <span>{formatMessageTime(message.created_at)}</span>
+                            <button type="button" aria-label={pinned ? "Unpin message" : "Pin message"} title={pinned ? "Unpin message" : "Pin message"} aria-pressed={pinned} className={`grid h-6 w-6 shrink-0 place-items-center rounded-md hover:bg-white ${pinned ? "text-sky-depth" : "text-night-sky/45"}`} onClick={() => void pinMessage(message.id,!pinned)}>
+                              <PinIcon />
+                            </button>
                           </div>
 
                           <div
@@ -821,8 +929,12 @@ export default function FamilyChatShell({
                                 : "border border-night-sky/10 bg-white text-night-sky/75"
                             }`}
                           >
-                            {message.body}
+                            {attachedFile && <ChatFile file={attachedFile} />}
+                            {(!attachedFile || message.body !== `Shared ${attachedFile.file_name}`) && message.body}
                           </div>
+                          {message.id === lastOwnMessage?.id && readers.length > 0 && (
+                            <p className="mt-1 text-xs text-night-sky/65">Seen by {readers.slice(0,3).map((member) => member.nickname || member.displayName).join(", ")}{readers.length > 3 ? ` and ${readers.length - 3} others` : ""}</p>
+                          )}
                         </div>
                       </div>
                     );
@@ -836,15 +948,27 @@ export default function FamilyChatShell({
                   {typingNames.length === 2 && `${typingNames.join(" and ")} are typing…`}
                   {typingNames.length > 2 && "Several family members are typing…"}
                 </div>
-                {groupError && <p role="alert" className="text-sm text-red-700">{groupError}</p>}
+                {pinError && <p role="alert" className="text-sm text-red-700">{pinError}</p>}
                 <form onSubmit={sendMessage} className="space-y-2">
+                  {draftFile && <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate">{draftFile.name}</span>
+                    <button type="button" disabled={isSendingMessage} onClick={() => setDraftFiles((previous) => {
+                      const next = { ...previous }; delete next[selectedThread.id]; return next;
+                    })}>Remove attachment</button>
+                  </div>}
+                  <input ref={fileInput} type="file" accept={chatFileAccept} className="hidden" onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    if (file) { setDraftFiles((previous) => ({ ...previous, [selectedThread.id]: file })); setSendError(null); }
+                    event.currentTarget.value = "";
+                  }} />
                   <div className="flex items-end gap-1.5 rounded-2xl border border-night-sky/10 bg-sand p-1 shadow-inner lg:gap-3 lg:p-2">
+                    <button type="button" aria-label="Attach a file" disabled={isSendingMessage} className="grid h-11 w-9 shrink-0 place-items-center rounded-xl text-sky-depth hover:bg-white" onClick={() => fileInput.current?.click()}><AttachmentIcon /></button>
                     <textarea
                       value={messageDraft}
                       onChange={(event) => {
                         const value = event.target.value;
                         setDrafts((previous) => ({ ...previous, [selectedThread.id]: value }));
-                        activity.signal(value.trim() ? "typing" : "stop");
+                        if (privacy.show_typing) activity.signal(value.trim() ? "typing" : "stop");
                         setSendError(null);
                       }}
                       onBlur={() => activity.signal("stop")}
@@ -889,6 +1013,20 @@ export default function FamilyChatShell({
         </article>
       </div>
 
+      {showingDetails && selectedThread && (
+        <div inert={Boolean(compose)} className="contents">
+          <ChatGroupDetails key={selectedThread.id} client={supabase} thread={selectedThread}
+            currentUserId={currentUserId} privacy={privacy} online={activity.online} filesRevision={filesRevision}
+            onClose={() => setDetailsFor(null)} onAdd={() => setCompose("add")}
+            onLeave={() => void leaveGroup()} leaving={leaving} leaveError={groupError}
+            onRefresh={() => router.refresh()} onPrivacyChange={(next) => {
+              if (!next.show_typing) activity.signal("stop");
+              setPrivacy(next);
+            }} onPin={pinMessage}
+            avatar={(member, online) => <AvatarCircle avatar={member.avatar} showOnline={online} />}
+          />
+        </div>
+      )}
       {compose && (
         <div className="absolute inset-0 z-[65] flex items-end lg:fixed justify-center bg-night-sky/35 p-0 sm:items-center sm:p-6">
           <div className="max-h-full w-full overflow-y-auto lg:max-h-[90svh] rounded-t-3xl border border-night-sky/10 bg-white shadow-xl sm:max-w-xl sm:rounded-3xl">

@@ -306,3 +306,11 @@ input:-webkit-autofill:focus {
     overscroll-behavior: none;
   }
 }
+
+@keyframes chat-details-enter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chat-details-slide { animation: chat-details-enter 180ms ease-out both; }
+}

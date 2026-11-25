@@ -12,6 +12,7 @@ type ChatThreadRow = {
   id: string;
   thread_type: "direct" | "group";
   title: string | null;
+  group_image_path: string | null;
   created_by_user_id: string;
   last_message_at: string | null;
   created_at: string;
@@ -30,6 +31,9 @@ type ChatMemberRow = {
   person_id: string | null;
   role: "owner" | "member";
   left_at: string | null;
+  nickname: string | null;
+  muted_at: string | null;
+  play_sounds: boolean;
 };
 
 type ProfileRow = {
@@ -300,6 +304,7 @@ async function loadInitialThreads({
           id,
           thread_type,
           title,
+          group_image_path,
           created_by_user_id,
           last_message_at,
           created_at,
@@ -326,13 +331,18 @@ async function loadInitialThreads({
     return [];
   }
 
-  const [membersResult, previewsResult] = await Promise.all([
+  const groupImages = threads.flatMap((thread) => thread.group_image_path ? [thread.group_image_path] : []);
+  const [membersResult, previewsResult, groupImagesResult] = await Promise.all([
     supabase
       .from("chat_thread_members")
-      .select("thread_id, user_id, person_id, role, left_at")
+      .select("thread_id, user_id, person_id, role, left_at, nickname, muted_at, play_sounds")
       .in("thread_id", threadIds),
     supabase.rpc("read_chat_previews", { thread_ids: threadIds }),
+    groupImages.length
+      ? supabase.storage.from("family-chat-private").createSignedUrls(groupImages, 600)
+      : Promise.resolve({ data: [] }),
   ]);
+  const groupImageUrls = new Map((groupImagesResult.data ?? []).map((entry) => [entry.path, entry.signedUrl]));
 
   if (membersResult.error || previewsResult.error) {
     throw new Error("Could not load conversation details", { cause: membersResult.error ?? previewsResult.error });
@@ -384,10 +394,13 @@ async function loadInitialThreads({
           : null,
       }),
       active: !member.left_at,
+      nickname: member.nickname,
+      muted: Boolean(member.muted_at),
+      playSounds: member.play_sounds,
     });
     map.set(member.thread_id, group);
     return map;
-  }, new Map<string, (ChatThreadMemberSummary & { active: boolean })[]>());
+  }, new Map<string, (ChatThreadMemberSummary & { active: boolean; muted: boolean; playSounds: boolean })[]>());
   const previewByThreadId = new Map<string, MessagePreviewRow>();
 
   for (const preview of (previewsResult.data ?? []) as MessagePreviewRow[]) {
@@ -415,8 +428,14 @@ async function loadInitialThreads({
             ]
           : threadMembers.slice(0, 4).map((member) => member.avatar);
 
+      const ownMembership = threadMembers.find((member) => member.userId === currentUserId);
       return {
         id: thread.id,
+        createdByUserId: thread.created_by_user_id,
+        groupImagePath: thread.group_image_path,
+        groupImageUrl: groupImageUrls.get(thread.group_image_path ?? "") ?? null,
+        muted: Boolean(ownMembership?.muted),
+        playSounds: Boolean(ownMembership?.playSounds),
         threadType: thread.thread_type,
         name: buildThreadName({
           thread,
