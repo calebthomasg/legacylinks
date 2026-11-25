@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const now = Date.now();
   const filters = { members: { $in: [auth.userId] } };
   try {
-    const result: CallActivity = { incoming: null, missed: [], latestCalls: [] };
+    const result: CallActivity = { incoming: null, entries: [], missed: [], latestCalls: [] };
     let next: string | undefined;
     do {
       const page = await stream.video.queryCalls({
@@ -31,9 +31,20 @@ export async function POST(request: Request) {
         if (!isCallType(call.type) || (!call.session && !call.ended_at)) continue;
         const activity = conversationCallActivity(call, call.ended_at ?? call.session?.started_at ?? call.created_at);
         if (activity) result.latestCalls.push(activity);
-        if (call.created_by.id === auth.userId) continue;
-        if (!result.incoming) result.incoming = getIncoming(call, auth.userId, now);
-        if (!activity || activity.threadId !== threadId || !call.session || call.session.accepted_by?.[auth.userId]) continue;
+        const isCaller = call.created_by.id === auth.userId;
+        if (!isCaller && !result.incoming) result.incoming = getIncoming(call, auth.userId, now);
+        if (!activity || activity.threadId !== threadId || !call.session) continue;
+        const endedAt = call.ended_at ?? call.session.ended_at;
+        const accepted = Object.keys(call.session.accepted_by ?? {}).some((id) => id !== call.created_by.id);
+        if (accepted && endedAt && Number.isFinite(timestamp(endedAt))) {
+          result.entries.push({
+            kind: "completed", id: call.id, threadId: activity.threadId,
+            callerId: call.created_by.id, callerName: call.created_by.name || "a family member",
+            createdAt: new Date(timestamp(endedAt)).toISOString(),
+          });
+          continue;
+        }
+        if (isCaller || accepted) continue;
         const missedAt = call.session.missed_by?.[auth.userId]
           ?? call.session.rejected_by?.[auth.userId]
           ?? call.session.rejected_by?.[call.created_by.id]
@@ -41,7 +52,8 @@ export async function POST(request: Request) {
         if (!missedAt) continue;
         const createdAt = timestamp(missedAt);
         if (!Number.isFinite(createdAt)) continue;
-        result.missed.push({
+        result.entries.push({
+          kind: "missed",
           id: call.id,
           threadId: activity.threadId,
           callerId: call.created_by.id,
@@ -51,6 +63,7 @@ export async function POST(request: Request) {
       }
       next = page.next;
     } while (next);
+    result.missed = result.entries.filter((entry) => entry.kind === "missed");
     result.latestCalls = Object.values(latestCallByConversation(result.latestCalls));
     return callResponse(result);
   } catch (error) {

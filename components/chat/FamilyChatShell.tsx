@@ -14,7 +14,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import type { CallRequest } from "./FamilyChatCalls";
-import { latestCallByConversation, type ConversationCallActivity, type MissedCall } from "@/lib/family-calls/activity";
+import { latestCallByConversation, type ConversationCallActivity, type CallLogEntry } from "@/lib/family-calls/activity";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
@@ -319,10 +319,16 @@ export default function FamilyChatShell({
   const mergeCallActivity = useCallback((items: ConversationCallActivity[]) => {
     if (items.length > 0) setCallActivity((previous) => latestCallByConversation([...Object.values(previous), ...items]));
   }, []);
-  const [missedCalls, setMissedCalls] = useState<Record<string, MissedCall>>({});
-  const mergeMissedCalls = useCallback((items: MissedCall[]) => {
+  const [callLog, setCallLog] = useState<Record<string, CallLogEntry>>({});
+  const mergeCallLog = useCallback((items: CallLogEntry[]) => {
     if (items.length === 0) return;
-    setMissedCalls((previous) => ({ ...previous, ...Object.fromEntries(items.map((item) => [item.id, item])) }));
+    setCallLog((previous) => {
+      const next = { ...previous };
+      for (const item of items) {
+        if (next[item.id]?.kind !== "completed") next[item.id] = item;
+      }
+      return next;
+    });
   }, []);
   const clearCallRequest = useCallback(() => setCallRequest(null), []);
   const canFormatLocalTime = useSyncExternalStore(subscribeToBrowserTime, readBrowserTime, readServerTime);
@@ -350,6 +356,7 @@ export default function FamilyChatShell({
   const [inAppAlert, setInAppAlert] = useState<{ id: string; name: string } | null>(null);
   const [privacy, setPrivacy] = useState({ show_typing: true, show_read_receipts: false });
   const [readPositions, setReadPositions] = useState<{ threadId: string; rows: {user_id: string; read_through: string}[] } | null>(null);
+  const [toneByThread, setToneByThread] = useState<Record<string, string>>({});
   const [latestByThread, setLatestByThread] = useState<Record<string, ChatMessage>>({});
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreads[0]?.id ?? null);
   const [awaitingThreadId, setAwaitingThreadId] = useState<string | null>(null);
@@ -379,10 +386,13 @@ export default function FamilyChatShell({
         : updated;
       return {
         ...mostRecent,
+        notificationTone: toneByThread[thread.id] ?? mostRecent.notificationTone,
         lastActivityLabel: canFormatLocalTime ? formatActivityLabel(mostRecent.lastActivityAt) : "",
       };
     })
     .sort((a, b) => new Date(b.lastActivityAt ?? 0).getTime() - new Date(a.lastActivityAt ?? 0).getTime());
+  const callPhotoUrls = Object.fromEntries(threads.flatMap((thread) => thread.members.flatMap((member) =>
+    member.avatar.photoUrl ? [[member.userId, member.avatar.photoUrl]] : [])));
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const theme = getChatTheme(selectedThread?.themeId ?? null);
   const themed = theme.id !== "default";
@@ -395,11 +405,11 @@ export default function FamilyChatShell({
   const draftFile = threadId ? draftFiles[threadId] : undefined;
   const showingDetails = Boolean(threadId && detailsFor === threadId);
   const openThread = activePanel === "thread" && Boolean(selectedThread);
-  const callTimeline = Object.values(missedCalls).filter((entry) => entry.threadId === threadId
+  const callTimeline = Object.values(callLog).filter((entry) => entry.threadId === threadId
     && (!history.hasOlder || !selectedMessages[0] || Date.parse(entry.createdAt) >= Date.parse(selectedMessages[0].created_at)));
   const timeline = [
     ...selectedMessages.map((message) => ({ message, at: Date.parse(message.created_at) })),
-    ...callTimeline.map((missed) => ({ missed, at: Date.parse(missed.createdAt) })),
+    ...callTimeline.map((call) => ({ call, at: Date.parse(call.createdAt) })),
   ].sort((a, b) => a.at - b.at);
   const selectedById = new Map(selectedMessages.map((message) => [message.id, message]));
   const removed = (message: ChatMessage) => message.removed_for_everyone || removedIds.has(message.id);
@@ -544,7 +554,7 @@ export default function FamilyChatShell({
     let active = true;
     async function updateReceipts() {
       if (document.hidden || (!openThread && window.matchMedia("(width < 64rem)").matches)) return;
-      if (newestMessageId && privacy.show_read_receipts && pinnedToBottom.current) {
+      if (newestMessageId && pinnedToBottom.current) {
         await supabase.rpc("mark_chat_read", { thread_uuid: threadId, message_uuid: newestMessageId });
       }
       const { data } = await supabase.rpc("read_chat_receipts", { thread_uuid: threadId });
@@ -554,7 +564,7 @@ export default function FamilyChatShell({
     const timer = window.setInterval(() => void updateReceipts(), 5000);
     document.addEventListener("visibilitychange", updateReceipts);
     return () => { active = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", updateReceipts); };
-  }, [compose, newestMessageId, openThread, privacy.show_read_receipts, showingDetails, supabase, threadId]);
+  }, [compose, newestMessageId, openThread, showingDetails, supabase, threadId]);
   const catchUp = useEffectEvent(() => {
     if (document.hidden || !navigator.onLine) return;
     router.refresh();
@@ -842,7 +852,7 @@ export default function FamilyChatShell({
   }
 
   return (
-    <section onPointerDown={unlockSound} data-open-mobile-thread={openThread ? true : undefined} className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
+    <section onClickCapture={unlockSound} data-open-mobile-thread={openThread ? true : undefined} className="flex min-h-0 w-full flex-col overflow-hidden max-lg:flex-1 lg:mx-auto lg:h-dvh lg:max-w-7xl lg:gap-5 lg:px-8 lg:py-8">
       {inAppAlert && !showingDetails && <div className="absolute inset-x-0 top-14 z-40 mx-auto flex max-w-sm items-center gap-4 rounded-xl bg-night-sky px-3 py-2 text-sm text-white shadow-lg">
         <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => selectThread(inAppAlert.id)}>New message in {inAppAlert.name}</button>
         <button type="button" aria-label="Dismiss message alert" onClick={() => setInAppAlert(null)}>×</button>
@@ -1023,15 +1033,21 @@ export default function FamilyChatShell({
                   />
                 ) : (
                   timeline.map((entry) => {
-                    if ("missed" in entry) {
-                      const missed = entry.missed;
-                      const caller = selectedThread.members.find((member) => member.userId === missed.callerId);
+                    if ("call" in entry) {
+                      const call = entry.call;
+                      const other = selectedThread.members.find((member) => member.userId ===
+                        (call.kind === "completed" && call.callerId === currentUserId
+                          ? selectedThread.members.find((candidate) => candidate.userId !== currentUserId)?.userId
+                          : call.callerId));
+                      const name = other?.nickname || other?.displayName ||
+                        (call.callerId === currentUserId ? selectedThread.name : call.callerName);
                       return (
-                        <p key={`missed-call-${missed.id}`}
+                        <p key={`call-${call.id}`}
                           className={`text-center text-sm leading-5 ${themed
                             ? "text-white/85 [text-shadow:0_1px_2px_#101c32,0_0_4px_#101c32]"
                             : "text-night-sky/60"}`}>
-                          Missed call from {caller?.nickname || caller?.displayName || missed.callerName}
+                          {call.kind === "completed" ? "Call with" : "Missed call from"} {name}
+                          {canFormatLocalTime && <time dateTime={call.createdAt} className="ml-2 text-xs opacity-80">{formatMessageTime(call.createdAt)}</time>}
                         </p>
                       );
                     }
@@ -1184,7 +1200,7 @@ export default function FamilyChatShell({
       </div>
 
       {callsEnabled && <FamilyChatCalls key={currentUserId} userId={currentUserId} request={callRequest}
-        threadId={directCalls ? threadId : null} onMissed={mergeMissedCalls} onActivity={mergeCallActivity} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
+        threadId={directCalls ? threadId : null} photoUrls={callPhotoUrls} onCallLog={mergeCallLog} onActivity={mergeCallActivity} onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
       {menuMessage && !removed(menuMessage) && (
         <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
@@ -1205,7 +1221,10 @@ export default function FamilyChatShell({
             currentUserId={currentUserId} privacy={privacy} online={activity.online} filesRevision={filesRevision} removedIds={removedIds}
             onClose={() => setDetailsFor(null)} onAdd={() => setCompose("add")}
             onLeave={() => void leaveGroup()} leaving={leaving} leaveError={groupError}
-            onRefresh={() => router.refresh()} onPrivacyChange={(next) => {
+            onRefresh={() => router.refresh()} onToneChange={(tone) => {
+              unlockSound();
+              setToneByThread((previous) => ({ ...previous, [selectedThread.id]: tone }));
+            }} onPrivacyChange={(next) => {
               if (!next.show_typing) activity.signal("stop");
               setPrivacy(next);
             }} onPin={pinMessage}

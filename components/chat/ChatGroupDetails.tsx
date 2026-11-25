@@ -91,7 +91,7 @@ function SettingsSwitch({ label, checked, disabled, onChange }: {
 
 export default function ChatGroupDetails({
   client, thread, currentUserId, privacy, online, filesRevision, removedIds, onClose, onAdd, onLeave,
-  leaving, leaveError, onRefresh, onPrivacyChange, onPin, avatar,
+  leaving, leaveError, onRefresh, onToneChange, onPrivacyChange, onPin, avatar,
 }: {
   client: ReturnType<typeof createClient>;
   thread: ChatThreadSummary;
@@ -106,6 +106,7 @@ export default function ChatGroupDetails({
   leaving: boolean;
   leaveError: string | null;
   onRefresh: () => void;
+  onToneChange: (tone: string) => void;
   onPrivacyChange: (privacy: Privacy) => void;
   onPin: (id: string, pin: boolean) => Promise<boolean>;
   avatar: (member: ChatThreadSummary["members"][number], online: boolean) => ReactNode;
@@ -288,6 +289,7 @@ export default function ChatGroupDetails({
       const { error: problem } = await client.rpc("set_chat_notification_preference", { thread_uuid: threadId, setting, preference });
       if (problem) throw problem;
       if (setting === "mute") setMuteDialog(false);
+      if (setting === "tone") onToneChange(preference);
       onRefresh();
     });
   }

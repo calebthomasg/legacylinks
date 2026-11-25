@@ -10,7 +10,7 @@ import "@stream-io/video-react-sdk/dist/css/styles.css";
 
 import FamilyChatVideoStage from "./FamilyChatVideoStage";
 import { useCallTone, useCallToneUnlock } from "./useCallTone";
-import { conversationCallActivity, type CallActivity, type ConversationCallActivity, type MissedCall } from "@/lib/family-calls/activity";
+import { conversationCallActivity, type CallActivity, type ConversationCallActivity, type CallLogEntry } from "@/lib/family-calls/activity";
 
 export type CallRequest = { threadId: string; mode: "audio" | "video" };
 
@@ -73,8 +73,9 @@ function formatDuration(milliseconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function CallPanel({ call, recovered, dismissRecovered }: {
+function CallPanel({ call, recovered, dismissRecovered, photoUrls }: {
   call: Call;
+  photoUrls: Record<string, string>;
   recovered: boolean;
   dismissRecovered: () => void;
 }) {
@@ -101,7 +102,7 @@ function CallPanel({ call, recovered, dismissRecovered }: {
   const incoming = ringing && !call.isCreatedByMe;
   const connected = state === CallingState.JOINED || state === CallingState.RECONNECTING;
   const liveMedia = connected && remoteParticipants.length > 0;
-  const upgraded = connected && (cameraMuted === false || remoteParticipants.some((participant) => hasVideo(participant)));
+  const upgraded = connected && remoteParticipants.some((participant) => hasVideo(participant));
   if (upgraded && !usedVideo) setUsedVideo(true);
   const video = !initiallyAudio || usedVideo || upgraded;
   const videoStage = connected && video;
@@ -109,6 +110,7 @@ function CallPanel({ call, recovered, dismissRecovered }: {
     ? members.find((member) => member.user_id !== creator?.id)?.user
     : creator;
   const name = other?.name || "Family member";
+  const photoUrl = other?.id ? photoUrls[other.id] : undefined;
   const speaker = devices.find((device) => /speaker/i.test(device.label) && !/earpiece/i.test(device.label));
   const earpiece = devices.find((device) => /earpiece|receiver/i.test(device.label));
   const speakerOn = Boolean(speaker && selectedDevice === speaker.deviceId);
@@ -142,6 +144,7 @@ function CallPanel({ call, recovered, dismissRecovered }: {
 
   function accept() {
     void act(async () => {
+      if (initiallyAudio) await call.camera.disable();
       if (recovered && !call.ringing) await call.accept();
       await call.join();
     }, "Could not connect. The call may have ended or your browser may need media permissions.");
@@ -173,7 +176,11 @@ function CallPanel({ call, recovered, dismissRecovered }: {
     <CallControl label={cameraMuted === false ? "Stop video" : "Video"}
       icon={cameraMuted === false ? "video" : "videoOff"} pressed={cameraMuted === false}
       compact={videoStage} disabled={!connected || pending}
-      onClick={() => void act(() => call.camera.toggle(), "Could not change your camera. Check camera permissions.")} />
+      onClick={() => void act(async () => {
+        const turningOn = cameraMuted !== false;
+        await call.camera.toggle();
+        if (turningOn) setUsedVideo(true);
+      }, "Could not change your camera. Check camera permissions.")} />
   );
   const microphoneControl = (
     <CallControl label={microphoneMuted ? "Unmute" : "Mute"}
@@ -221,8 +228,13 @@ function CallPanel({ call, recovered, dismissRecovered }: {
         </div>
       ) : (
         <div className="flex h-full flex-col items-center overflow-y-auto bg-linear-to-br from-night-sky via-[#162c42] to-[#26334c] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-center sm:px-8">
-          <div className="mb-4 mt-[min(8dvh,3rem)] grid size-16 shrink-0 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
+          <div className="mb-4 mt-[min(8dvh,3rem)] relative grid size-16 shrink-0 place-items-center rounded-2xl border border-sky/40 bg-sky/15 text-xl font-black text-sky">
             {name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+            {photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt="" className="absolute inset-0 size-full rounded-2xl object-cover"
+                onError={(event) => { event.currentTarget.style.display = "none"; }} />
+            )}
           </div>
           <h2 id="family-call-title" className="max-w-full wrap-break-word text-2xl font-black sm:text-3xl">{name}</h2>
           <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-sky sm:text-base">
@@ -261,11 +273,12 @@ function CallPanel({ call, recovered, dismissRecovered }: {
 
 type Notice = { text: string; error?: boolean };
 
-function CallSession({ client, request, threadId, onMissed, onActivity, onHandled, onBusy }: {
+function CallSession({ client, request, threadId, photoUrls, onCallLog, onActivity, onHandled, onBusy }: {
   client: StreamVideoClient;
+  photoUrls: Record<string, string>;
   request: CallRequest | null;
   threadId: string | null;
-  onMissed: (items: MissedCall[]) => void;
+  onCallLog: (items: CallLogEntry[]) => void;
   onActivity: (items: ConversationCallActivity[]) => void;
   onHandled: () => void;
   onBusy: (busy: boolean) => void;
@@ -285,9 +298,9 @@ function CallSession({ client, request, threadId, onMissed, onActivity, onHandle
 
   const recoverCall = useEffectEvent(async (active: () => boolean) => {
     if (document.hidden) return;
-    const { incoming, missed, latestCalls } = await post<CallActivity>("/api/family-chat/calls/activity", { threadId });
+    const { incoming, entries, missed, latestCalls } = await post<CallActivity>("/api/family-chat/calls/activity", { threadId });
     if (!active()) return;
-    onMissed(missed);
+    onCallLog(entries ?? missed.map((entry) => ({ ...entry, kind: "missed" })));
     onActivity(latestCalls);
     if (current || !incoming || sending.current || incoming.expiresAt <= Date.now()) return;
     const call = client.call(incoming.type, incoming.id, { reuseInstance: true });
@@ -323,8 +336,8 @@ function CallSession({ client, request, threadId, onMissed, onActivity, onHandle
     const unsubscribeMissed = client.on("call.missed", (event) => {
       const key = event.call.custom.family_chat_thread_id;
       if (typeof key === "string" && (event.call.type === "family_audio" || event.call.type === "family_video")) {
-        onMissed([{
-          id: event.call.id, threadId: key, callerId: event.call.created_by.id,
+        onCallLog([{
+          kind: "missed", id: event.call.id, threadId: key, callerId: event.call.created_by.id,
           callerName: event.call.created_by.name || "a family member", createdAt: event.created_at,
         }]);
       }
@@ -346,7 +359,7 @@ function CallSession({ client, request, threadId, onMissed, onActivity, onHandle
       unsubscribeMissed();
       unsubscribeEnded();
     };
-  }, [client, threadId, onMissed, onActivity]);
+  }, [client, threadId, onCallLog, onActivity]);
 
   useEffect(() => {
     if (!recovered) return;
@@ -391,6 +404,7 @@ function CallSession({ client, request, threadId, onMissed, onActivity, onHandle
       try {
         const { id, type } = await post<{ id: string; type: string }>("/api/family-chat/calls", request);
         const outgoing = client.call(type, id);
+        if (request.mode === "audio") await outgoing.camera.disable();
         // The initiating browser must register the ringing call so the SDK
         // can show it locally and join when the recipient accepts.
         const { call } = await outgoing.get({ ring: true, video: request.mode === "video" });
@@ -416,16 +430,17 @@ function CallSession({ client, request, threadId, onMissed, onActivity, onHandle
             onClick={() => setNotice(null)}>×</button>}
         </div>
       )}
-      {current && <StreamCall call={current}><CallPanel key={current.cid} call={current} recovered={current === recovered?.call} dismissRecovered={() => setRecovered(null)} /></StreamCall>}
+      {current && <StreamCall call={current}><CallPanel key={current.cid} call={current} photoUrls={photoUrls} recovered={current === recovered?.call} dismissRecovered={() => setRecovered(null)} /></StreamCall>}
     </>
   );
 }
 
-export default function FamilyChatCalls({ userId, request, threadId, onMissed, onActivity, onHandled, onReady, onBusy }: {
+export default function FamilyChatCalls({ userId, request, threadId, photoUrls, onCallLog, onActivity, onHandled, onReady, onBusy }: {
   userId: string;
+  photoUrls: Record<string, string>;
   request: CallRequest | null;
   threadId: string | null;
-  onMissed: (items: MissedCall[]) => void;
+  onCallLog: (items: CallLogEntry[]) => void;
   onActivity: (items: ConversationCallActivity[]) => void;
   onHandled: () => void;
   onReady: (ready: boolean) => void;
@@ -482,7 +497,7 @@ export default function FamilyChatCalls({ userId, request, threadId, onMissed, o
   if (!client) return null;
   return (
     <StreamVideo client={client}>
-      <CallSession client={client} request={request} threadId={threadId} onMissed={onMissed} onActivity={onActivity} onHandled={onHandled} onBusy={onBusy} />
+      <CallSession client={client} request={request} photoUrls={photoUrls} threadId={threadId} onCallLog={onCallLog} onActivity={onActivity} onHandled={onHandled} onBusy={onBusy} />
     </StreamVideo>
   );
 }

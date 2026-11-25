@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 import { ChatPresenceHeartbeat } from "@/components/chat/useChatActivity";
 import LogoutButton from "@/components/auth/LogoutButton";
 
@@ -17,6 +18,7 @@ export default function AppShell({active,userEmail,userName="LegacyLinks",profil
   const shellRef = useRef<HTMLElement>(null);
   const isFamilyChat = active === "family-chat";
   const primaryLinks = getPrimaryLinks(profileHref);
+  const unreadChatCount = useUnreadChatCount(userEmail);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -91,6 +93,56 @@ const accountFooter = (
     <div className="mt-4"><LogoutButton/></div>
   </>
 );
-const nav=(mobile=false)=><div className="space-y-1">{primaryLinks.map(link=><SidebarLink key={link.href} href={link.href} active={active===link.active} onClick={mobile?()=>setIsMobileNavOpen(false):undefined}>{link.label}</SidebarLink>)}{isAdmin&&<div className="pt-4"><div className="mb-2 h-0.5 rounded-full bg-teal"/><SidebarLink href="/admin" onClick={mobile?()=>setIsMobileNavOpen(false):undefined}>Admin</SidebarLink></div>}<div className="pt-6"><p className="px-4 text-xs font-semibold uppercase tracking-[0.2em] text-night-sky/40">Coming later</p></div>{comingLaterLinks.map(label=><SidebarLink key={label} href="#" disabled>{label}</SidebarLink>)}</div>;
+const nav=(mobile=false)=><div className="space-y-1">{primaryLinks.map(link=><SidebarLink key={link.href} href={link.href} active={active===link.active} onClick={mobile?()=>setIsMobileNavOpen(false):undefined}>{link.label}{link.active === "family-chat" && unreadChatCount > 0 && (
+  <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-coral px-1.5 py-0.5 text-xs font-bold text-night-sky" aria-label={`${unreadChatCount} unread messages`}>
+    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+  </span>
+)}</SidebarLink>)}{isAdmin&&<div className="pt-4"><div className="mb-2 h-0.5 rounded-full bg-teal"/><SidebarLink href="/admin" onClick={mobile?()=>setIsMobileNavOpen(false):undefined}>Admin</SidebarLink></div>}<div className="pt-6"><p className="px-4 text-xs font-semibold uppercase tracking-[0.2em] text-night-sky/40">Coming later</p></div>{comingLaterLinks.map(label=><SidebarLink key={label} href="#" disabled>{label}</SidebarLink>)}</div>;
 return <main ref={shellRef} data-family-chat-viewport={isFamilyChat || undefined} className={`min-h-screen bg-white text-night-sky ${isFamilyChat ? "max-lg:absolute max-lg:inset-x-0 max-lg:top-[var(--chat-viewport-top,0px)] max-lg:h-[var(--chat-viewport-height,100dvh)] max-lg:min-h-0 max-lg:overflow-hidden" : ""}`}>{userEmail && <ChatPresenceHeartbeat />}<div className={`flex min-h-screen ${isFamilyChat ? "max-lg:h-full max-lg:min-h-0" : ""}`}><aside className="hidden w-[280px] shrink-0 border-r border-night-sky/10 bg-white lg:flex lg:flex-col"><div className="border-b border-night-sky/10 px-8 py-8"><Link href="/dashboard" className="block"><Image src="/images/ll-logo.svg" alt="LegacyLinks" width={192} height={44} className="h-auto w-48" priority/></Link></div><nav className="flex-1 px-4 py-6" aria-label="Main navigation">{nav()}</nav><div className="border-t border-night-sky/10 px-6 py-5">{accountFooter}</div></aside><section className={`min-w-0 flex-1 ${contentClassName} ${isFamilyChat ? "max-lg:relative max-lg:flex max-lg:h-full max-lg:flex-col max-lg:overflow-hidden" : ""}`}><header data-family-chat-navigation={isFamilyChat || undefined} className={`z-[60] border-b border-night-sky/10 bg-white px-4 py-4 shadow-sm lg:hidden ${isFamilyChat ? "relative shrink-0" : "fixed inset-x-0 top-0"}`}><div className="grid grid-cols-[44px_1fr_44px] items-center gap-3"><button type="button" onClick={()=>setIsMobileNavOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-xl border border-night-sky/15 bg-white text-night-sky shadow-sm" aria-label="Open navigation" aria-expanded={isMobileNavOpen}><span className="flex w-5 flex-col gap-1.5"><span className="h-0.5 rounded-full bg-current"/><span className="h-0.5 rounded-full bg-current"/><span className="h-0.5 rounded-full bg-current"/></span></button><Link href="/dashboard" className="block"><Image src="/images/ll-logo.svg" alt="LegacyLinks" width={160} height={37} className="mx-auto h-auto w-40" priority/></Link><div aria-hidden="true"/></div></header>{!isFamilyChat && <div className="h-[77px] lg:hidden" aria-hidden="true"/>}<div className={`${isFamilyChat ? "absolute" : "fixed"} inset-0 z-[70] lg:hidden ${isMobileNavOpen?"pointer-events-auto":"pointer-events-none"}`} aria-hidden={!isMobileNavOpen}><button type="button" onClick={()=>setIsMobileNavOpen(false)} className={`absolute inset-0 bg-night-sky/40 transition-opacity ${isMobileNavOpen?"opacity-100":"opacity-0"}`} aria-label="Close navigation"/><aside className={`relative flex ${isFamilyChat ? "h-full" : "h-dvh"} w-[min(82vw,320px)] flex-col overflow-hidden border-r border-night-sky/10 bg-white shadow-2xl transition-transform duration-300 ${isMobileNavOpen?"translate-x-0":"-translate-x-full"}`}><div className="shrink-0 border-b border-night-sky/10 px-6 py-6"><div className="flex items-center justify-between gap-4"><Link href="/dashboard" className="block" onClick={()=>setIsMobileNavOpen(false)}><Image src="/images/ll-logo.svg" alt="LegacyLinks" width={176} height={40} className="h-auto w-44" priority/></Link><button type="button" onClick={()=>setIsMobileNavOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full border border-night-sky/15 text-xl leading-none text-night-sky" aria-label="Close navigation">×</button></div></div><nav className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 py-6" aria-label="Main navigation">{nav(true)}</nav><div className="shrink-0 border-t border-night-sky/10 bg-white px-6 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">{accountFooter}</div></aside></div>{children}</section></div></main>}
-function SidebarLink({href,children,active=false,disabled=false,onClick}:{href:string;children:React.ReactNode;active?:boolean;disabled?:boolean;onClick?:()=>void}){if(disabled)return <div className="flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium text-night-sky/40"><span>{children}</span></div>;return <Link href={href} onClick={onClick} className={`flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium transition ${active?"bg-night-sky text-white":"text-night-sky/75 hover:bg-sand hover:text-night-sky"}`}><span>{children}</span></Link>}
+function SidebarLink({href,children,active=false,disabled=false,onClick}:{href:string;children:React.ReactNode;active?:boolean;disabled?:boolean;onClick?:()=>void}){if(disabled)return <div className="flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium text-night-sky/40"><span>{children}</span></div>;return <Link href={href} onClick={onClick} className={`flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] font-medium transition ${active?"bg-night-sky text-white":"text-night-sky/75 hover:bg-sand hover:text-night-sky"}`}><span className="flex w-full items-center gap-2">{children}</span></Link>}
+
+function useUnreadChatCount(userEmail?: string | null) {
+  const [result, setResult] = useState<{ account: string; count: number } | null>(null);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    const supabase = createClient();
+    let active = true;
+    let version = 0;
+    let timer: number | undefined;
+
+    async function refresh() {
+      if (document.hidden) return;
+      const request = ++version;
+      const { data, error } = await supabase.rpc("count_unread_chat_messages");
+      if (active && request === version && !error && typeof data === "number") {
+        setResult({ account: userEmail!, count: data });
+      }
+    }
+
+    function scheduleRefresh() {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refresh(), 150);
+    }
+
+    const channel = supabase.channel("family-chat-navigation-unread")
+      .on("postgres_changes", { schema: "public", table: "chat_messages", event: "*" }, scheduleRefresh)
+      .on("postgres_changes", { schema: "public", table: "chat_thread_members", event: "*" }, scheduleRefresh)
+      .subscribe((status) => { if (status === "SUBSCRIBED") scheduleRefresh(); });
+
+    void refresh();
+    document.addEventListener("visibilitychange", scheduleRefresh);
+    window.addEventListener("focus", scheduleRefresh);
+    const fallback = window.setInterval(refresh, 30000);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      window.clearInterval(fallback);
+      document.removeEventListener("visibilitychange", scheduleRefresh);
+      window.removeEventListener("focus", scheduleRefresh);
+      void supabase.removeChannel(channel);
+    };
+  }, [userEmail]);
+
+  return result && result.account === userEmail ? result.count : 0;
+}
