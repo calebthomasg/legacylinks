@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 
 const tones = {
-  outgoing: "/family-chat/tones/analog-fx-8.mp3",
-  incoming: "/family-chat/tones/digital-alert-triple-bell-bosnow-2-2-00-00.mp3",
+  outgoing: "/family-chat/tones/calling_tone.mp3",
+  incoming: "/family-chat/tones/receiving_tone.mp3",
 };
 
 let context: AudioContext | undefined;
@@ -52,9 +52,9 @@ export function useCallTone(tone: keyof typeof tones | null) {
       }
       source = player.createBufferSource();
       source.buffer = decoded;
+      source.loop = true;
       source.connect(player.destination);
       source.start();
-      timer = window.setTimeout(() => play(decoded), Math.max(3000, decoded.duration * 1000 + 500));
     }
 
     void buffer.then(play).catch(() => buffers.delete(url));

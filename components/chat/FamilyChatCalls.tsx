@@ -117,7 +117,7 @@ function CallPanel({ call, recovered, dismissRecovered }: {
     return () => window.clearInterval(timer);
   }, [liveMedia]);
 
-  async function act(action: () => Promise<unknown>, failure: string) {
+  async function act(action: () => unknown, failure: string) {
     setPending(true);
     setError("");
     try {
