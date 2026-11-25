@@ -3,6 +3,7 @@
 import {
   FormEvent,
   KeyboardEvent,
+  useCallback,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -11,6 +12,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import dynamic from "next/dynamic";
+import type { CallRequest } from "./FamilyChatCalls";
 import { useRouter } from "next/navigation";
 import ChatGroupDetails from "./ChatGroupDetails";
 import MessageActions, { MessageActionIcon, MessagePress, MessageQuote } from "./MessageActions";
@@ -20,6 +23,8 @@ import { ChatFile, chatFileAccept, uploadChatFile, useMessageFiles } from "./cha
 import { useChatActivity } from "./useChatActivity";
 import { type ChatMessage, useChatHistory } from "./useChatHistory";
 import { createClient } from "@/utils/supabase/client";
+
+const FamilyChatCalls = dynamic(() => import("./FamilyChatCalls"), { ssr: false });
 
 export type ChatAvatar = {
   userId?: string | null;
@@ -295,14 +300,20 @@ export default function FamilyChatShell({
   currentUser,
   initialThreads,
   recipients,
+  callsEnabled,
 }: {
   currentUserId: string;
   currentUser: ChatThreadMemberSummary;
   initialThreads: ChatThreadSummary[];
   recipients: ChatRecipientOption[];
+  callsEnabled: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const [callRequest, setCallRequest] = useState<CallRequest | null>(null);
+  const [callReady, setCallReady] = useState(false);
+  const [callBusy, setCallBusy] = useState(false);
+  const clearCallRequest = useCallback(() => setCallRequest(null), []);
   const canFormatLocalTime = useSyncExternalStore(subscribeToBrowserTime, readBrowserTime, readServerTime);
   const scrollPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchor = useRef<{ threadId: string; height: number; top: number } | null>(null);
@@ -361,6 +372,7 @@ export default function FamilyChatShell({
   const theme = getChatTheme(selectedThread?.themeId ?? null);
   const themed = theme.id !== "default";
   const threadId = selectedThread?.id ?? null;
+  const directCalls = callsEnabled && selectedThread?.threadType === "direct";
   const messageDraft = threadId ? drafts[threadId] ?? "" : "";
   const history = useChatHistory(supabase, threadId);
   const activity = useChatActivity(supabase, threadId);
@@ -949,10 +961,12 @@ export default function FamilyChatShell({
                 </div>
 
                 <div className="flex shrink-0 items-center lg:gap-2">
-                  <IconButton label="Phone call" callControl disabled comingSoon>
+                  <IconButton label="Phone call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
+                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "audio" })}>
                     <PhoneIcon />
                   </IconButton>
-                  <IconButton label="Video call" callControl disabled comingSoon>
+                  <IconButton label="Video call" callControl disabled={!directCalls || !callReady || callBusy || Boolean(callRequest)}
+                    comingSoon={!directCalls} onClick={() => setCallRequest({ threadId: selectedThread.id, mode: "video" })}>
                     <VideoIcon />
                   </IconButton>
                 </div>
@@ -1133,6 +1147,8 @@ export default function FamilyChatShell({
         </article>
       </div>
 
+      {callsEnabled && <FamilyChatCalls key={currentUserId} userId={currentUserId} request={callRequest}
+        onHandled={clearCallRequest} onReady={setCallReady} onBusy={setCallBusy} />}
       {menuMessage && !removed(menuMessage) && (
         <MessageActions key={menuMessage.id} message={menuMessage} file={fileRows[menuMessage.id]} style={bubbleStyle(theme, menuMessage.sender_user_id === currentUserId)}
           ownMessage={menuMessage.sender_user_id === currentUserId} pinned={pinnedIds.includes(menuMessage.id)}
