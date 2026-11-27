@@ -154,6 +154,7 @@ static void showSettings(){
     },(void*)(uintptr_t)i);
     if(i==1 && cloudAvailable)updateDot(row,310,23);
   }
+  navMenuRow(list,"GPS Diagnostic",[](lv_event_t*){showGpsDiagnostic();});
   positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
