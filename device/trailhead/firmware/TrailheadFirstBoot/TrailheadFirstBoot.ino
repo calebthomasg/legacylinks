@@ -21,6 +21,7 @@ static SilentLog diagnosticLog;
 #include "SignalQuality.h"
 #include "Display_ST7701.h"
 #include "I2C_Driver.h"
+#include <Adafruit_GPS.h>
 #include "TCA9554PWR.h"
 #if CONFIG_ESP32S3_DATA_CACHE_LINE_SIZE != 64
 #error "Use the matching esp32-3.0.2-h SDK: 64-byte cache is required."
@@ -31,7 +32,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -97,6 +98,7 @@ namespace petopia {
  static void checkArtworkNow();
 }
 static void showConnectionStatus();static void showPetopia();
+static void showGpsDiagnostic();
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -127,6 +129,69 @@ static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=FRAME_BYTES;artwork.data=artPixels;lv_img_cache_invalidate_src(&artwork);image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "PetopiaTestAssets.h"
 #include "DialUI.h"
+
+static Adafruit_GPS gpsDiagnostic(&Wire);
+static constexpr uint8_t gpsAddress = 0x10;
+static bool gpsDetected = false;
+static bool gpsReceivedPositionSentence = false;
+static uint32_t gpsProbeAt = 0;
+static uint32_t gpsLastSentenceAt = 0;
+static uint32_t gpsRenderAt = 0;
+
+static void showGpsDiagnostic() {
+  clearPage(GPS_DIAGNOSTIC);
+  navBackground();
+  navTitle(6, "GPS Diagnostic");
+  statusLabel = navLabel("Checking GPS...", 135, 340, &nav_text);
+  navLabel("I2C address 0x10", 272, 280, &lv_font_montserrat_16);
+  navLabel("For a fix, face the antenna up outside.", 302, 325, &lv_font_montserrat_16);
+  backArrow([](lv_event_t*) { showSettings(); }, navSand());
+  gpsDetected = false;
+  gpsReceivedPositionSentence = false;
+  gpsProbeAt = millis() - 1000;
+}
+
+static void serviceGpsDiagnostic(uint32_t now) {
+  if (page != GPS_DIAGNOSTIC) return;
+
+  if (!gpsDetected && now - gpsProbeAt >= 1000) {
+    gpsProbeAt = now;
+    gpsDetected = gpsDiagnostic.begin(gpsAddress);
+  }
+
+  if (gpsDetected) {
+    const uint32_t started = millis();
+    for (unsigned i = 0; i < 64 && millis() - started < 8; ++i) {
+      gpsDiagnostic.read();
+      if (!gpsDiagnostic.newNMEAreceived()) continue;
+      char *sentence = gpsDiagnostic.lastNMEA();
+      if (strlen(sentence) < 6) continue;
+      const bool positionSentence = strncmp(sentence + 3, "RMC", 3) == 0 ||
+                                    strncmp(sentence + 3, "GGA", 3) == 0;
+      if (!positionSentence || !gpsDiagnostic.parse(sentence)) continue;
+      gpsReceivedPositionSentence = true;
+      gpsLastSentenceAt = millis();
+    }
+  }
+
+  const uint32_t current = millis();
+  if (current - gpsRenderAt < 250) return;
+  gpsRenderAt = current;
+  if (!gpsDetected) {
+    updateLabel(statusLabel, "GPS not detected\nCheck the I2C cable");
+  } else if (!gpsReceivedPositionSentence) {
+    updateLabel(statusLabel, "GPS detected\nWaiting for GPS data");
+  } else if (current - gpsLastSentenceAt > 3500) {
+    updateLabel(statusLabel, "GPS data interrupted");
+  } else if (!gpsDiagnostic.fix) {
+    updateLabel(statusLabel, "GPS data received\nWaiting for satellite fix");
+  } else {
+    char position[100];
+    snprintf(position, sizeof(position), "Position received\nLat %.5f\nLon %.5f",
+             double(gpsDiagnostic.latitudeDegrees), double(gpsDiagnostic.longitudeDegrees));
+    updateLabel(statusLabel, position);
+  }
+}
 // Wi-Fi names can contain arbitrary bytes. Keep the original for credentials
 // and substitute unsupported glyphs only in the displayed name.
 static void networkLabel(const String &ssid,const lv_font_t *font,char (&text)[33]){
@@ -493,6 +558,7 @@ void loop(){
  }
  if(!cloudBusy)serviceNetwork(now);
  serviceHomeClock(now);
+ serviceGpsDiagnostic(now);
  serviceCloudUpdates(now);
  petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
  if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
