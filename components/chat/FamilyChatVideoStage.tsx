@@ -58,8 +58,7 @@ export default function FamilyChatVideoStage({ name, mirrorSelf, photoUrl }: { n
         ) : (
           <div className="flex flex-col items-center gap-3 text-sky">
             <div className="relative grid size-20 place-items-center rounded-3xl border border-sky/35 bg-white/10 text-2xl font-black">
-              {initials}
-              <ChatAvatarPhoto url={photoUrl} />
+              <ChatAvatarPhoto url={photoUrl} initials={initials} />
             </div>
             <span className="text-sm text-white/75">{remote ? "Camera off" : "Waiting for video…"}</span>
           </div>

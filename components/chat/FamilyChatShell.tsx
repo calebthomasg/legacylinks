@@ -97,8 +97,7 @@ function AvatarCircle({
     <span
       className={`relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full ${avatar.color} font-black text-white ring-2 ring-white ${sizeClasses[size]} ${className}`}
     >
-      {avatar.initials}
-      <ChatAvatarPhoto url={avatar.photoUrl} />
+      <ChatAvatarPhoto url={avatar.photoUrl} initials={avatar.initials} />
       {showOnline && (
         <span role="img" aria-label="Online" className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky" />
       )}
