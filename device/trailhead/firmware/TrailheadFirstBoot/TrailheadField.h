@@ -424,7 +424,7 @@ static void refreshMap(uint32_t now){
   }else lv_obj_add_flag(targetNeedle,LV_OBJ_FLAG_HIDDEN);
   updateLabel(distanceReadout,distance);
   updateLabel(cardinalReadout,direction);
-  updateLabel(caption,!fix?"Waiting for GPS":!onMap?"Outside downloaded area":bearingOnly?"Bearing only · no mapped route":"");
+  updateLabel(caption,!fix?"Waiting for GPS":!onMap?"Outside downloaded area":bearingOnly?"Bearing only - no mapped route":"");
   if(scanLabel)updateLabel(scanLabel,message);
 }
 static void marker(lv_obj_t *obj,lv_color_t color,int diameter){
@@ -528,7 +528,7 @@ static void drawMap(){
     active=-1;selected=-1;message[0]=0;
     showDashboard();
   },lv_color_hex(0x0f1d3a));
-  darkLabel("© OpenStreetMap contributors",active>=0||selected>=0?344:404,270,&lv_font_montserrat_14);
+  darkLabel("Map data: OpenStreetMap contributors",active>=0||selected>=0?344:404,270,&lv_font_montserrat_14);
   caption=darkLabel("",active>=0?96:71,280,&lv_font_montserrat_14);
   if(active>=0){
     auto *pin=icon(lv_scr_act(),&fieldDistance);
