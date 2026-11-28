@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.32",
+    "version": "0.1.33",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.32/trailhead-0.1.32-app.bin",
-    "size": 2240496,
-    "sha256": "d0223d8e635e40d95c497ab35f84c643b8a289319db72059bc3b20f7af8fb044",
-    "notes": "Trailhead UI, supplied icons, compass direction, list gestures and offline route guidance."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.33/trailhead-0.1.33-app.bin",
+    "size": 2249184,
+    "sha256": "e655f297367efecf1c1ad04ac2a0d73384fb2d4f3888735d5f64214452c92a50",
+    "notes": "Sharper Treasure Box icons, shorter list titles, and automatic NFC during hunts."
   }
 }
