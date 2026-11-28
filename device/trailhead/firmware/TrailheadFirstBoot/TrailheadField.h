@@ -598,6 +598,14 @@ static void gesture(lv_event_t*){
     lv_indev_wait_release(input);
   }
 }
+static void fadeListIcons(lv_obj_t *list){
+  for(unsigned i=0;i<lv_obj_get_child_cnt(list);i++){
+    auto *row=lv_obj_get_child(list,i);
+    auto *label=lv_obj_get_child(row,0);
+    auto *disc=lv_obj_get_child(row,1);
+    lv_obj_set_style_opa(disc,lv_obj_get_style_text_opa(label,0),0);
+  }
+}
 static void draw(View next){
   view=next;
   clearPage(FIELD_TRAILHEAD);
@@ -626,7 +634,9 @@ static void draw(View next){
       lv_img_set_zoom(glyph,158);
       lv_obj_center(glyph);
     }
+    lv_obj_add_event_cb(list,[](lv_event_t *event){fadeListIcons(lv_event_get_target(event));},LV_EVENT_SCROLL,nullptr);
     positionMenu(list,listOffset);
+    fadeListIcons(list);
     backArrow([](lv_event_t*){draw(View::Map);},navSand());
     return;
   }
