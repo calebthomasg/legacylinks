@@ -33,7 +33,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC,NFC_I2C_CHECK};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -101,6 +101,7 @@ namespace petopia {
 static void showConnectionStatus();static void showPetopia();
 static void showGpsDiagnostic();
 static void showCompassDiagnostic();
+namespace nfcI2cCheck { static void show(); }
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -131,6 +132,7 @@ static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=FRAME_BYTES;artwork.data=artPixels;lv_img_cache_invalidate_src(&artwork);image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "PetopiaTestAssets.h"
 #include "DialUI.h"
+#include "NfcI2cCheck.h"
 
 static Adafruit_GPS gpsDiagnostic(&Wire);
 static constexpr uint8_t gpsAddress = 0x10;
@@ -622,6 +624,7 @@ void loop(){
  serviceHomeClock(now);
  serviceGpsDiagnostic(now);
  serviceCompassDiagnostic(millis());
+ nfcI2cCheck::service(millis());
  serviceCloudUpdates(now);
  petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
  if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
