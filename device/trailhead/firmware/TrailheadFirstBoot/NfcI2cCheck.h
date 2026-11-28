@@ -19,6 +19,7 @@ static Command command = Command::Version;
 static uint32_t phaseStarted = 0;
 static uint32_t lastPoll = 0;
 static uint32_t scanStarted = 0;
+static uint32_t scanDuration = scanWindowMs;
 static uint8_t target = 0;
 static char uid[30]{};
 using ScanResult = void (*)(const char *value, const char *status);
@@ -26,13 +27,14 @@ static ScanResult scanResult = nullptr;
 static uint8_t tagData[(256 - 4) * 4]{};
 static size_t tagSize = 0;
 static size_t tagCapacity = 0;
-static bool beginScan(ScanResult callback = nullptr) {
+static bool beginScan(ScanResult callback = nullptr, uint32_t duration = scanWindowMs) {
   if (phase != Phase::Idle) return false;
   command = Command::Sam;
   phase = Phase::Probe;
   tagSize = tagCapacity = 0;
   uid[0] = '\0';
   scanResult = callback;
+  scanDuration = duration;
   return true;
 }
 
@@ -230,7 +232,7 @@ static void handleReply(const uint8_t *payload, size_t size, uint32_t now) {
       return;
     case Command::Poll: {
       if (size == 1 && payload[0] == 0) {
-        if (now - scanStarted >= scanWindowMs) finish("No tag detected");
+        if (now - scanStarted >= scanDuration) finish("No tag detected");
         else next(Command::Poll);
         return;
       }

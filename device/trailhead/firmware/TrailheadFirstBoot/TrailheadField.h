@@ -14,7 +14,7 @@ constexpr char mapPath[]="/trailhead/field-map-1.rgb565";
 constexpr char tempPath[]="/trailhead/field-map-1.part";
 constexpr char mapUrl[]="https://www.legacylinks.io/firmware/trailhead/maps/field-map-1.rgb565";
 constexpr char mapHash[]="d41f03490d74413a8e09b8d7107703d1092953540096e31880404d663d41dae3";
-enum class View { Map, List, Details, Story, Hint, Found, Compass };
+enum class View { Map, List, Details, Story, Hint, Found, Compass, NFCIntro, Credits };
 static View view=View::Map;
 static int selected=-1, active=-1;
 static int offsetX=0,offsetY=0,scale=160;
@@ -129,10 +129,20 @@ static double boxBearing(const Box &box){
   return fmod(atan2(x,y)*180.0/PI+360.0,360.0);
 }
 static uint8_t foundFlags(){return prefs.getUChar("fieldFinds",0);}
-static bool readingTag=false;
+constexpr uint32_t autoScanGapMs=240, autoScanWindowMs=650;
+static int scanningBox=-1;
+static uint32_t lastAutoScanAt=0, scanNoticeAt=0;
+
+static void scanNotice(const char *text){
+  snprintf(message,sizeof(message),"%s",text);
+  scanNoticeAt=millis();
+  refreshMap(scanNoticeAt);
+}
 static void scanned(const char *value,const char *status){
-  readingTag=false;
-  if(active<0||page!=FIELD_TRAILHEAD)return;
+  const int resultBox=scanningBox;
+  scanningBox=-1;
+  if(resultBox<0||resultBox!=active||page!=FIELD_TRAILHEAD||view!=View::Map)return;
+  if(!value && strcmp(status,"No tag detected")==0)return;
   constexpr char prefix[]="https://";
   const char *token=nullptr;
   if(value&&strncmp(value,prefix,sizeof(prefix)-1)==0){
@@ -156,15 +166,16 @@ static void scanned(const char *value,const char *status){
   char hash[65]{};
   if(canonical[0])hexHash(canonical,36,hash);
   if(strcmp(hash,boxes[active].tagDigest)!=0){
-    snprintf(message,sizeof(message),"%s",canonical[0]?"This tag belongs to another box":value?"This tag has no Trailhead box URL":status);
-    refreshMap(millis());
+    const bool tagWasDetected=strncmp(status,"Tag detected",12)==0;
+    scanNotice(canonical[0]?"This tag belongs to another box":
+               value?"This tag has no Trailhead box URL":
+               tagWasDetected?"Couldn't read the tag. Tap again.":"NFC reader unavailable");
     return;
   }
   const auto flags=foundFlags();
   const uint8_t updated=flags|(1u<<active);
   if(updated!=flags&&prefs.putUChar("fieldFinds",updated)!=1){
-    snprintf(message,sizeof(message),"Find could not be saved. Scan again.");
-    refreshMap(millis());
+    scanNotice("Find could not be saved. Tap again.");
     return;
   }
   selected=active;
@@ -172,12 +183,13 @@ static void scanned(const char *value,const char *status){
   message[0]=0;
   draw(View::Found);
 }
-static void scan(){
-  if(active<0||readingTag)return;
-  if(nfcI2cCheck::beginScan(scanned)){
-    readingTag=true;
-    snprintf(message,sizeof(message),"Hold the reader by the box tag");
-    refreshMap(millis());
+static void serviceAutoScan(uint32_t now){
+  if(view!=View::Map||active<0)return;
+  if(message[0]&&now-scanNoticeAt>=3200)message[0]=0;
+  if(scanningBox>=0||now-lastAutoScanAt<autoScanGapMs)return;
+  if(nfcI2cCheck::beginScan(scanned,autoScanWindowMs)){
+    scanningBox=active;
+    lastAutoScanAt=now;
   }
 }
 
@@ -217,7 +229,7 @@ static lv_obj_t *surface(lv_obj_t *parent,int x,int y,int w,int h,lv_color_t col
 }
 static void detailsHeader(){
   auto *glyph=icon(lv_scr_act(),&fieldBox);
-  lv_obj_align(glyph,LV_ALIGN_TOP_MID,-75,60);
+  lv_obj_align(glyph,LV_ALIGN_TOP_MID,-82,56);
   auto *title=copy(lv_scr_act(),"Box Details",&nav_text,navSand());
   lv_obj_align(title,LV_ALIGN_TOP_MID,20,65);
 }
@@ -524,11 +536,11 @@ static void drawMap(){
   }
   userMarker();
   backArrow([](lv_event_t*){
-    if(readingTag)return;
     active=-1;selected=-1;message[0]=0;
     showDashboard();
   },lv_color_hex(0x0f1d3a));
-  darkLabel("Map data: OpenStreetMap contributors",active>=0||selected>=0?344:404,270,&lv_font_montserrat_14);
+  auto *credit=target(lv_scr_act(),161,active>=0||selected>=0?337:393,158,30,[](lv_event_t*){draw(View::Credits);});
+  lv_obj_center(copy(credit,"OpenStreetMap",&lv_font_montserrat_14,lv_color_hex(0x0f1d3a)));
   caption=darkLabel("",active>=0?96:71,280,&lv_font_montserrat_14);
   if(active>=0){
     auto *pin=icon(lv_scr_act(),&fieldDistance);
@@ -542,19 +554,13 @@ static void drawMap(){
     cardinalReadout=copy(lv_scr_act(),"",&nav_text,lv_color_hex(0x0f1d3a));
     lv_obj_set_pos(cardinalReadout,290,60);
     scanLabel=darkLabel("",126,270,&lv_font_montserrat_14);
-    auto *scanHit=target(lv_scr_act(),157,296,166,39,[](lv_event_t*){scan();});
-    lv_obj_set_style_bg_color(scanHit,lv_color_hex(0x0f1d3a),0);
-    lv_obj_set_style_bg_opa(scanHit,LV_OPA_80,0);
-    lv_obj_set_style_radius(scanHit,4,0);
-    lv_obj_center(copy(scanHit,"Scan tag",&nav_text,navSand()));
     if(!hasNorth){
-      auto *cal=target(lv_scr_act(),303,164,110,38,[](lv_event_t*){if(!readingTag){compassFromSettings=false;draw(View::Compass);}});
+      auto *cal=target(lv_scr_act(),303,164,110,38,[](lv_event_t*){compassFromSettings=false;draw(View::Compass);});
       lv_obj_center(copy(cal,"Calibrate",&lv_font_montserrat_14,lv_color_hex(0x0f1d3a)));
     }
     auto *actions=surface(lv_scr_act(),0,369,480,112,lv_color_hex(0x0f1d3a),LV_OPA_80);
     panelAction(actions,"Recenter",130,5,220,[](lv_event_t*){follow=true;recenter();},navSand());
     panelAction(actions,"Exit Adventure",130,40,220,[](lv_event_t*){
-      if(readingTag)return;
       active=-1;selected=-1;message[0]=0;draw(View::Map);
     },lv_color_hex(0xf28e80));
     if(animateBottom)slideIn(actions,0,110);
@@ -580,7 +586,7 @@ static void metric(const lv_img_dsc_t *image,const char *text,int x,int width){
   lv_obj_align(copy(group,text,&nav_text,navSand()),LV_ALIGN_LEFT_MID,29,0);
 }
 static void gesture(lv_event_t*){
-  if(page!=FIELD_TRAILHEAD||readingTag)return;
+  if(page!=FIELD_TRAILHEAD)return;
   auto *input=lv_indev_get_act();
   if(!input)return;
   const auto direction=lv_indev_get_gesture_dir(input);
@@ -602,12 +608,26 @@ static void fadeListIcons(lv_obj_t *list){
   for(unsigned i=0;i<lv_obj_get_child_cnt(list);i++){
     auto *row=lv_obj_get_child(list,i);
     auto *label=lv_obj_get_child(row,0);
-    auto *disc=lv_obj_get_child(row,1);
-    lv_obj_set_style_opa(disc,lv_obj_get_style_text_opa(label,0),0);
+    auto *badge=lv_obj_get_child(row,1);
+    lv_obj_set_style_img_opa(badge,lv_obj_get_style_text_opa(label,0),0);
   }
+}
+static void listTitle(const char *title,char (&label)[57]){
+  const char *prefixEnd=nullptr;
+  unsigned length=0;
+  for(const char *p=title;*p;){
+    ++p;
+    while((static_cast<unsigned char>(*p)&0xc0)==0x80)++p;
+    if(++length==11)prefixEnd=p;
+    if(length>14)break;
+  }
+  if(length<=14){snprintf(label,sizeof(label),"%s",title);return;}
+  while(prefixEnd>title&&prefixEnd[-1]==' ')--prefixEnd;
+  snprintf(label,sizeof(label),"%.*s...",int(prefixEnd-title),title);
 }
 static void draw(View next){
   view=next;
+  if(next!=View::Map||active<0)scanningBox=-1;
   clearPage(FIELD_TRAILHEAD);
   lv_obj_remove_event_cb(lv_scr_act(),gesture);
   lv_obj_add_event_cb(lv_scr_act(),gesture,LV_EVENT_GESTURE,nullptr);
@@ -620,24 +640,44 @@ static void draw(View next){
     navLabel("Choose an Adventure",70,320,&nav_text);
     auto *list=navMenu(&listOffset);
     for(unsigned i=0;i<count;i++){
-      auto *row=navMenuRow(list,boxes[i].title,[](lv_event_t *e){
+      char title[57];
+      listTitle(boxes[i].title,title);
+      auto *row=navMenuRow(list,title,[](lv_event_t *e){
         selected=int(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
         slideScreen(View::Details,105);
       },reinterpret_cast<void*>(uintptr_t(i)));
       auto *text=lv_obj_get_child(row,0);
       lv_obj_set_width(text,249);
+      lv_label_set_long_mode(text,LV_LABEL_LONG_CLIP);
+      lv_obj_set_height(text,lv_font_get_line_height(&nav_row));
       lv_obj_set_style_text_align(text,LV_TEXT_ALIGN_LEFT,0);
       lv_obj_align(text,LV_ALIGN_LEFT_MID,66,0);
-      auto *disc=surface(row,24,9,38,38,lv_color_hex(0x16425e),LV_OPA_70);
-      lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);
-      auto *glyph=icon(disc,&fieldBox);
-      lv_img_set_zoom(glyph,158);
-      lv_obj_center(glyph);
+      auto *badge=icon(row,&fieldListBadge);
+      lv_obj_align(badge,LV_ALIGN_LEFT_MID,24,0);
     }
     lv_obj_add_event_cb(list,[](lv_event_t *event){fadeListIcons(lv_event_get_target(event));},LV_EVENT_SCROLL,nullptr);
     positionMenu(list,listOffset);
     fadeListIcons(list);
     backArrow([](lv_event_t*){draw(View::Map);},navSand());
+    return;
+  }
+  if(next==View::Credits){
+    navLabel("Map credits",86,320,&nav_row);
+    navLabel("Map data from OpenStreetMap",155,330,&nav_text);
+    navLabel("Open Database License (ODbL)\nopenstreetmap.org/copyright",215,320,&lv_font_montserrat_16);
+    backArrow([](lv_event_t*){draw(View::Map);},navSand());
+    return;
+  }
+  if(next==View::NFCIntro){
+    lv_obj_align(icon(lv_scr_act(),&fieldBox),LV_ALIGN_TOP_MID,0,70);
+    navLabel("Tap to find",123,320,&nav_row);
+    navLabel("When you reach the Treasure Box, hold the NFC reader flat against its tag until the find appears.",177,304,&nav_text);
+    navAction("Got it",310,[](lv_event_t*){
+      prefs.putUChar("fieldNfcIntro",1);
+      animateBottom=true;
+      draw(View::Map);
+    });
+    backArrow([](lv_event_t*){active=-1;draw(View::Details);},navSand());
     return;
   }
   if(next==View::Compass){
@@ -668,8 +708,8 @@ static void draw(View next){
       northAngle=rawAngle;
       hasNorth=true;
       const float calibration[]={centerX,centerY,radiusX,radiusY,northAngle};
-      prefs.putBytes("fieldCompass",calibration,sizeof(calibration));
-      updateLabel(compassPrompt,"Compass calibration saved");
+      const bool saved=prefs.putBytes("fieldCompass",calibration,sizeof(calibration))==sizeof(calibration);
+      updateLabel(compassPrompt,saved?"Compass calibration saved":"Set for this session. Save failed.");
     });
     backArrow([](lv_event_t*){
       calibrating=false;
@@ -703,7 +743,9 @@ static void draw(View next){
     metric(&fieldTerrain,terrain,308,82);
     if(active<0){
       auto *begin=navAction("Begin Adventure",243,[](lv_event_t*){
-        active=selected;follow=true;scale=240;message[0]=0;animateBottom=true;draw(View::Map);
+        active=selected;follow=true;scale=240;message[0]=0;animateBottom=true;
+        lastAutoScanAt=millis()-autoScanGapMs;
+        draw(prefs.getUChar("fieldNfcIntro",0)?View::Map:View::NFCIntro);
       },289);
       lv_obj_set_style_radius(begin,4,0);
       lv_obj_set_style_bg_opa(begin,LV_OPA_COVER,0);
@@ -749,7 +791,9 @@ static void service(uint32_t now){
       if(page==FIELD_TRAILHEAD)draw(View::Map);
     }
   }
-  if(page!=FIELD_TRAILHEAD||now-compassAt<180)return;
+  if(page!=FIELD_TRAILHEAD)return;
+  serviceAutoScan(now);
+  if(now-compassAt<180)return;
   compassAt=now;
   if(!compassReady)compassReady=compassDiagnostic.begin_I2C(compassAddress,&Wire);
   if(compassReady){
