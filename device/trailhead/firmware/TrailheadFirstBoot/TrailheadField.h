@@ -283,6 +283,26 @@ static void scrollBody(const char *description,bool found){
 }
 
 static float facing(){return fmodf(rawAngle-northAngle+360.0f,360.0f);}
+static void dashGuide(lv_event_t *event){
+  const auto *points=static_cast<const lv_point_t *>(lv_event_get_user_data(event));
+  const float dx=points[1].x-points[0].x,dy=points[1].y-points[0].y;
+  const float length=hypotf(dx,dy);
+  if(length<1)return;
+  lv_draw_line_dsc_t style;
+  lv_draw_line_dsc_init(&style);
+  style.color=lv_color_hex(0x9a7324);
+  style.width=3;
+  style.opa=LV_OPA_COVER;
+  auto *layer=lv_event_get_draw_ctx(event);
+  auto pointAt=[&](float distance){
+    return lv_point_t{lv_coord_t(points[0].x+offsetX+lroundf(dx*distance/length)),
+                      lv_coord_t(points[0].y+offsetY+lroundf(dy*distance/length))};
+  };
+  for(float at=0;at<length;at+=9){
+    const auto start=pointAt(at),end=pointAt(fminf(at+4,length));
+    lv_draw_line(layer,&style,&start,&end);
+  }
+}
 static void moveRoute(){
   if(!routeLine||!routeShadow)return;
   if(walkingRoute.size()<2){
@@ -313,13 +333,11 @@ static void moveRoute(){
   endLink[0]=routeScreen.back();
   endLink[1]=atScale(mapX(box.longitude),mapY(box.latitude));
   if(bearingOnly)startLink[1]=endLink[1];
-  lv_line_set_points(startGuide,startLink,2);
-  lv_obj_set_pos(startGuide,offsetX,offsetY);
+  lv_obj_invalidate(startGuide);
   lv_obj_clear_flag(startGuide,LV_OBJ_FLAG_HIDDEN);
   if(bearingOnly)lv_obj_add_flag(endGuide,LV_OBJ_FLAG_HIDDEN);
   else{
-    lv_line_set_points(endGuide,endLink,2);
-    lv_obj_set_pos(endGuide,offsetX,offsetY);
+    lv_obj_invalidate(endGuide);
     lv_obj_clear_flag(endGuide,LV_OBJ_FLAG_HIDDEN);
   }
 }
@@ -485,15 +503,10 @@ static void drawMap(){
     lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_line_rounded(line,true,0);
   }
-  startGuide=lv_line_create(lv_scr_act());
-  endGuide=lv_line_create(lv_scr_act());
-  for(auto *line:{startGuide,endGuide}){
-    lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_line_color(line,lv_color_hex(0x9a7324),0);
-    lv_obj_set_style_line_width(line,3,0);
-    lv_obj_set_style_line_dash_width(line,4,0);
-    lv_obj_set_style_line_dash_gap(line,5,0);
-  }
+  startGuide=surface(lv_scr_act(),0,0,480,480,lv_color_black(),LV_OPA_TRANSP);
+  endGuide=surface(lv_scr_act(),0,0,480,480,lv_color_black(),LV_OPA_TRANSP);
+  lv_obj_add_event_cb(startGuide,dashGuide,LV_EVENT_DRAW_MAIN,startLink);
+  lv_obj_add_event_cb(endGuide,dashGuide,LV_EVENT_DRAW_MAIN,endLink);
   const uint8_t found=foundFlags();
   for(unsigned i=0;i<count;i++){
     auto *pin=target(lv_scr_act(),0,0,44,44,[](lv_event_t *e){
