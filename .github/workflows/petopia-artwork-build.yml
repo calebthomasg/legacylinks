@@ -1,4 +1,4 @@
-name: Build Dinglehopper Wi-Fi switch
+name: Build Dinglehopper Trailhead field UI
 on:
   pull_request:
     branches: [trailhead/compass-diagnostic-0.1.24]
@@ -39,15 +39,15 @@ jobs:
           g++ -std=c++11 -Wall -Wextra -Werror tests/test-petopia-adoption.cpp -o "$RUNNER_TEMP/petopia-adoption-test"
           "$RUNNER_TEMP/petopia-adoption-test"
           sh tools/build.sh
-          cp rebuilt/TrailheadFirstBoot.ino.bin "$RUNNER_TEMP/trailhead-0.1.30-app.bin"
+          cp rebuilt/TrailheadFirstBoot.ino.bin "$RUNNER_TEMP/trailhead-0.1.31-app.bin"
           cd "$RUNNER_TEMP"
-          test "$(wc -c < trailhead-0.1.30-app.bin)" -le 4194304
-          test "$(od -An -tx1 -N1 trailhead-0.1.30-app.bin | tr -d '[:space:]')" = e9
-          sha256sum trailhead-0.1.30-app.bin | tee trailhead-0.1.30-app.bin.sha256
+          test "$(wc -c < trailhead-0.1.31-app.bin)" -le 4194304
+          test "$(od -An -tx1 -N1 trailhead-0.1.31-app.bin | tr -d '[:space:]')" = e9
+          sha256sum trailhead-0.1.31-app.bin | tee trailhead-0.1.31-app.bin.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: dinglehopper-0.1.30-local-upload
+          name: dinglehopper-0.1.31-local-upload
           path: |
-            ${{ runner.temp }}/trailhead-0.1.30-app.bin
-            ${{ runner.temp }}/trailhead-0.1.30-app.bin.sha256
+            ${{ runner.temp }}/trailhead-0.1.31-app.bin
+            ${{ runner.temp }}/trailhead-0.1.31-app.bin.sha256
           if-no-files-found: error
