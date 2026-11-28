@@ -67,28 +67,31 @@ static unsigned preferredIndex=0;
 static uint8_t scheduledAction=0,retryCount=0;
 static uint32_t actionAt=0;
 static unsigned lastFailureReason=0;
-struct SavedNetwork {uint32_t magic;char ssid[33];char password[64];};
 constexpr uint32_t networkMagic=0x4c4c5731;
+struct SavedNetwork {
+ uint32_t magic;
+ char ssid[33];
+ char password[64];
+
+ bool valid() const {return magic==networkMagic && ssid[32]==0 && password[63]==0 && ssid[0];}
+};
 constexpr unsigned maxKnownNetworks=8;
 struct KnownNetworks { uint32_t magic; uint8_t count; SavedNetwork entries[maxKnownNetworks]; };
 static KnownNetworks knownNetworks={};
 
-static bool validNetwork(const SavedNetwork &n){
- return n.magic==networkMagic && n.ssid[32]==0 && n.password[63]==0 && n.ssid[0];
-}
 static void loadKnownNetworks(){
  KnownNetworks saved={};
  if(prefs.getBytesLength("wifiKnown")==sizeof(saved) &&
     prefs.getBytes("wifiKnown",&saved,sizeof(saved))==sizeof(saved) &&
     saved.magic==networkMagic && saved.count<=maxKnownNetworks){
   unsigned count=0;
-  for(unsigned i=0;i<saved.count;i++)if(validNetwork(saved.entries[i]))saved.entries[count++]=saved.entries[i];
+  for(unsigned i=0;i<saved.count;i++)if(saved.entries[i].valid())saved.entries[count++]=saved.entries[i];
   saved.count=count;
   if(count){knownNetworks=saved;return;}
  }
  SavedNetwork legacy={};
  if(prefs.getBytesLength("network")!=sizeof(legacy) ||
-    prefs.getBytes("network",&legacy,sizeof(legacy))!=sizeof(legacy) || !validNetwork(legacy)){
+    prefs.getBytes("network",&legacy,sizeof(legacy))!=sizeof(legacy) || !legacy.valid()){
   String ssid=prefs.getString("ssid",""),pass=prefs.getString("pass","");
   if(!ssid.length()||ssid.length()>32||pass.length()>63)return;
   legacy.magic=networkMagic;
