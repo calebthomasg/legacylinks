@@ -33,7 +33,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC,NFC_I2C_CHECK};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC,NFC_I2C_CHECK,FIELD_TRAILHEAD};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -189,9 +189,10 @@ static void initLVGL(){
 }
 static lv_obj_t* label(const char *text,int y,int width=330){auto *o=lv_label_create(lv_scr_act());lv_label_set_text(o,text);lv_obj_set_width(o,width);lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(o,blue(),0);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);return o;}
 static lv_obj_t* button(const char *text,int y,lv_event_cb_t cb,int width=240){auto *o=lv_btn_create(lv_scr_act());lv_obj_set_size(o,width,46);lv_obj_align(o,LV_ALIGN_TOP_MID,0,y);lv_obj_set_style_bg_color(o,blue(),0);lv_obj_set_style_text_color(o,sand(),0);lv_obj_set_style_radius(o,23,0);auto *l=lv_label_create(o);lv_label_set_text(l,text);lv_obj_center(l);lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,nullptr);return o;}
-static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
+static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_bg_grad_dir(lv_scr_act(),LV_GRAD_DIR_NONE,0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=FRAME_BYTES;artwork.data=artPixels;lv_img_cache_invalidate_src(&artwork);image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "PetopiaTestAssets.h"
+namespace trailheadField { static void show(); }
 #include "DialUI.h"
 #include "NfcI2cCheck.h"
 
@@ -221,7 +222,7 @@ static void showGpsDiagnostic() {
 }
 
 static void serviceGpsDiagnostic(uint32_t now) {
-  if (page != GPS_DIAGNOSTIC && page != COMPASS_DIAGNOSTIC) return;
+  if (page != GPS_DIAGNOSTIC && page != COMPASS_DIAGNOSTIC && page != FIELD_TRAILHEAD) return;
 
   if (!gpsDetected && now - gpsProbeAt >= 1000) {
     gpsProbeAt = now;
@@ -243,6 +244,7 @@ static void serviceGpsDiagnostic(uint32_t now) {
     }
   }
 
+  if (page == FIELD_TRAILHEAD) return;
   const uint32_t current = millis();
   if (current - gpsRenderAt < 250) return;
   gpsRenderAt = current;
@@ -667,6 +669,7 @@ static bool setWifiEnabled(bool enabled){
 #include "PetopiaFirstVisit.h"
 #include "PetopiaAssets.h"
 #include "DeviceSettings.h"
+#include "TrailheadField.h"
 
 static void serviceNetwork(uint32_t now){
  if(!wifiEnabled||!radioStarted)return;
@@ -752,8 +755,9 @@ void loop(){
  serviceGpsDiagnostic(now);
  serviceCompassDiagnostic(millis());
  nfcI2cCheck::service(millis());
- serviceCloudUpdates(now);
- petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
+ trailheadField::service(millis());
+ if(!trailheadField::downloading)serviceCloudUpdates(now);
+ petopia::serviceAssetUpdates(now,trailheadField::downloading||cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
  if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
  if(browsingNetworks && !cloudBusy && !otaEnabled && !scanning && !connecting && !scheduledAction && now-scanCompletedAt>=15000)scanRequested=true;
  serviceRequestedScan(browsingNetworks);
