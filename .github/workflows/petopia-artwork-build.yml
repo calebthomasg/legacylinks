@@ -1,7 +1,7 @@
-name: Build Dinglehopper compass diagnostic
+name: Build Dinglehopper NFC diagnostic
 on:
   pull_request:
-    branches: [trailhead/gps-diagnostic-0.1.23]
+    branches: [trailhead/compass-diagnostic-0.1.24]
     paths: [.github/workflows/petopia-artwork-build.yml]
 permissions:
   contents: read
@@ -20,6 +20,11 @@ jobs:
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32@3.0.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli lib install "Adafruit GPS Library@1.9.0" "Adafruit LIS3MDL@1.2.5"
+          git init "$RUNNER_TEMP/pn532"
+          git -C "$RUNNER_TEMP/pn532" fetch --depth=1 https://github.com/elechouse/PN532.git 8b05896a6616396392f0eac5af88a97c9733ebce
+          git -C "$RUNNER_TEMP/pn532" checkout --detach FETCH_HEAD
+          mkdir -p "$HOME/Arduino/libraries"
+          cp -r "$RUNNER_TEMP/pn532/PN532" "$RUNNER_TEMP/pn532/PN532_HSU" "$HOME/Arduino/libraries/"
           git init "$RUNNER_TEMP/lvgl"
           git -C "$RUNNER_TEMP/lvgl" fetch --depth=1 https://github.com/lvgl/lvgl.git 06e229cc7679c01119ca5d905a1f9dad96f475f0
           git -C "$RUNNER_TEMP/lvgl" checkout --detach FETCH_HEAD
@@ -39,15 +44,15 @@ jobs:
           g++ -std=c++11 -Wall -Wextra -Werror tests/test-petopia-adoption.cpp -o "$RUNNER_TEMP/petopia-adoption-test"
           "$RUNNER_TEMP/petopia-adoption-test"
           sh tools/build.sh
-          cp rebuilt/TrailheadFirstBoot.ino.bin "$RUNNER_TEMP/trailhead-0.1.24-app.bin"
+          cp rebuilt/TrailheadFirstBoot.ino.bin "$RUNNER_TEMP/trailhead-0.1.25-app.bin"
           cd "$RUNNER_TEMP"
-          test "$(wc -c < trailhead-0.1.24-app.bin)" -le 4194304
-          test "$(od -An -tx1 -N1 trailhead-0.1.24-app.bin | tr -d '[:space:]')" = e9
-          sha256sum trailhead-0.1.24-app.bin | tee trailhead-0.1.24-app.bin.sha256
+          test "$(wc -c < trailhead-0.1.25-app.bin)" -le 4194304
+          test "$(od -An -tx1 -N1 trailhead-0.1.25-app.bin | tr -d '[:space:]')" = e9
+          sha256sum trailhead-0.1.25-app.bin | tee trailhead-0.1.25-app.bin.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: dinglehopper-0.1.24-local-upload
+          name: dinglehopper-0.1.25-local-upload
           path: |
-            ${{ runner.temp }}/trailhead-0.1.24-app.bin
-            ${{ runner.temp }}/trailhead-0.1.24-app.bin.sha256
+            ${{ runner.temp }}/trailhead-0.1.25-app.bin
+            ${{ runner.temp }}/trailhead-0.1.25-app.bin.sha256
           if-no-files-found: error

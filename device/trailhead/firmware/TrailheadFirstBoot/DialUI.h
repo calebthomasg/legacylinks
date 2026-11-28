@@ -156,6 +156,7 @@ static void showSettings(){
   }
   navMenuRow(list,"GPS Diagnostic",[](lv_event_t*){showGpsDiagnostic();});
   navMenuRow(list,"Compass Diagnostic",[](lv_event_t*){showCompassDiagnostic();});
+  navMenuRow(list,"NFC Diagnostic",[](lv_event_t*){nfcDiagnostic::show();});
   positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
