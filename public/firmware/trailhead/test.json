@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.30",
+    "version": "0.1.31",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.30/trailhead-0.1.30-app.bin",
-    "size": 2152720,
-    "sha256": "46919c79411901fd0c2eaf840327682315b50b0ebe42c8f0c7b60e3d971b4f2f",
-    "notes": "Wi-Fi on/off, saved network reconnect, and a read-only Treasure Box NFC scan."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.31/trailhead-0.1.31-app.bin",
+    "size": 2174544,
+    "sha256": "ea409731e305554a53a45d61cbed03ad190af433205bec70bc32db73f740aaa0",
+    "notes": "Trailhead field test with a downloadable four-box map, live navigation, and local NFC finds."
   }
 }

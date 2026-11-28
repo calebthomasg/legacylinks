@@ -1,0 +1,16 @@
+{
+  "width": 768,
+  "height": 768,
+  "format": "rgb565-le",
+  "projection": "equirectangular",
+  "bounds": {
+    "west": -97.386,
+    "south": 33.032,
+    "east": -97.362,
+    "north": 33.052
+  },
+  "attribution": "\u00a9 OpenStreetMap contributors",
+  "license": "https://www.openstreetmap.org/copyright",
+  "source": "https://api.openstreetmap.org/api/0.6/map?bbox=-97.386,33.032,-97.362,33.052",
+  "sha256": "d41f03490d74413a8e09b8d7107703d1092953540096e31880404d663d41dae3"
+}
