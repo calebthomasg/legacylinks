@@ -192,7 +192,7 @@ static lv_obj_t* button(const char *text,int y,lv_event_cb_t cb,int width=240){a
 static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false;statusLabel=passwordBox=networkList=image=nullptr;lv_obj_clean(lv_scr_act());lv_obj_clear_flag(lv_scr_act(),LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(lv_scr_act(),sand(),0);lv_obj_set_style_bg_grad_dir(lv_scr_act(),LV_GRAD_DIR_NONE,0);lv_obj_set_style_text_font(lv_scr_act(),&lv_font_montserrat_16,0);}
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=FRAME_BYTES;artwork.data=artPixels;lv_img_cache_invalidate_src(&artwork);image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "PetopiaTestAssets.h"
-namespace trailheadField { static void show(); }
+namespace trailheadField { static void show(); static void showCompass(); }
 #include "DialUI.h"
 #include "NfcI2cCheck.h"
 
