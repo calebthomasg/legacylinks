@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.31",
+    "version": "0.1.32",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.31/trailhead-0.1.31-app.bin",
-    "size": 2174544,
-    "sha256": "ea409731e305554a53a45d61cbed03ad190af433205bec70bc32db73f740aaa0",
-    "notes": "Trailhead field test with a downloadable four-box map, live navigation, and local NFC finds."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.32/trailhead-0.1.32-app.bin",
+    "size": 2240496,
+    "sha256": "d0223d8e635e40d95c497ab35f84c643b8a289319db72059bc3b20f7af8fb044",
+    "notes": "Trailhead UI, supplied icons, compass direction, list gestures and offline route guidance."
   }
 }
