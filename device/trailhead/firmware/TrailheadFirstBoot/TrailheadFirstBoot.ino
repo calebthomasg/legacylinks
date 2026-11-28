@@ -22,6 +22,7 @@ static SilentLog diagnosticLog;
 #include "Display_ST7701.h"
 #include "I2C_Driver.h"
 #include <Adafruit_GPS.h>
+#include <Adafruit_LIS3MDL.h>
 #include "TCA9554PWR.h"
 #if CONFIG_ESP32S3_DATA_CACHE_LINE_SIZE != 64
 #error "Use the matching esp32-3.0.2-h SDK: 64-byte cache is required."
@@ -32,7 +33,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -99,6 +100,7 @@ namespace petopia {
 }
 static void showConnectionStatus();static void showPetopia();
 static void showGpsDiagnostic();
+static void showCompassDiagnostic();
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -138,6 +140,12 @@ static uint32_t gpsProbeAt = 0;
 static uint32_t gpsLastSentenceAt = 0;
 static uint32_t gpsRenderAt = 0;
 
+static void resetGpsDiagnostic() {
+  gpsDetected = false;
+  gpsReceivedPositionSentence = false;
+  gpsProbeAt = millis() - 1000;
+}
+
 static void showGpsDiagnostic() {
   clearPage(GPS_DIAGNOSTIC);
   navBackground();
@@ -146,13 +154,11 @@ static void showGpsDiagnostic() {
   navLabel("I2C address 0x10", 272, 280, &lv_font_montserrat_16);
   navLabel("For a fix, face the antenna up outside.", 302, 325, &lv_font_montserrat_16);
   backArrow([](lv_event_t*) { showSettings(); }, navSand());
-  gpsDetected = false;
-  gpsReceivedPositionSentence = false;
-  gpsProbeAt = millis() - 1000;
+  resetGpsDiagnostic();
 }
 
 static void serviceGpsDiagnostic(uint32_t now) {
-  if (page != GPS_DIAGNOSTIC) return;
+  if (page != GPS_DIAGNOSTIC && page != COMPASS_DIAGNOSTIC) return;
 
   if (!gpsDetected && now - gpsProbeAt >= 1000) {
     gpsProbeAt = now;
@@ -192,6 +198,62 @@ static void serviceGpsDiagnostic(uint32_t now) {
     updateLabel(statusLabel, position);
   }
 }
+
+static Adafruit_LIS3MDL compassDiagnostic;
+static constexpr uint8_t compassAddress = LIS3MDL_I2CADDR_DEFAULT;
+static bool compassDetected = false;
+static uint32_t compassSampleAt = 0;
+static lv_obj_t *compassStatus = nullptr;
+
+static void showCompassDiagnostic() {
+  clearPage(COMPASS_DIAGNOSTIC);
+  navBackground();
+  navTitle(6, "Compass Diagnostic");
+  compassStatus = navLabel("Checking magnetometer...", 106, 330, &nav_text);
+  statusLabel = navLabel("Checking GPS...", 221, 325, &lv_font_montserrat_16);
+  navLabel("Keep the sensor flat and turn it", 331, 325, &lv_font_montserrat_16);
+  backArrow([](lv_event_t*) { showSettings(); }, navSand());
+  compassDetected = false;
+  compassSampleAt = millis() - 1000;
+  resetGpsDiagnostic();
+}
+
+static void serviceCompassDiagnostic(uint32_t now) {
+  if (page != COMPASS_DIAGNOSTIC) return;
+  const uint32_t interval = compassDetected ? 200 : 1000;
+  if (now - compassSampleAt < interval) return;
+  compassSampleAt = now;
+
+  Wire.beginTransmission(compassAddress);
+  if (Wire.endTransmission() != 0) {
+    compassDetected = false;
+  } else if (!compassDetected) {
+    compassDetected = compassDiagnostic.begin_I2C(compassAddress, &Wire);
+  }
+
+  if (!compassDetected) {
+    updateLabel(compassStatus, "Magnetometer not detected\nCheck the STEMMA QT cable");
+    return;
+  }
+
+  sensors_event_t event{};
+  compassDiagnostic.getEvent(&event);
+  const auto &field = event.magnetic;
+  const float horizontal = hypotf(field.x, field.y);
+  if (!isfinite(horizontal) || !isfinite(field.z) || horizontal < 0.1f) {
+    updateLabel(compassStatus, "Magnetometer detected\nHeading unavailable");
+    return;
+  }
+
+  const float degrees = atan2f(field.y, field.x) * (180.0f / PI);
+  const int heading = (int(lroundf(degrees)) + 360) % 360;
+  char reading[144];
+  snprintf(reading, sizeof(reading),
+           "Magnetometer detected\nRaw heading %03d deg\nX %.1f  Y %.1f  Z %.1f uT",
+           heading, double(field.x), double(field.y), double(field.z));
+  updateLabel(compassStatus, reading);
+}
+
 // Wi-Fi names can contain arbitrary bytes. Keep the original for credentials
 // and substitute unsupported glyphs only in the displayed name.
 static void networkLabel(const String &ssid,const lv_font_t *font,char (&text)[33]){
@@ -559,6 +621,7 @@ void loop(){
  if(!cloudBusy)serviceNetwork(now);
  serviceHomeClock(now);
  serviceGpsDiagnostic(now);
+ serviceCompassDiagnostic(millis());
  serviceCloudUpdates(now);
  petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
  if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
