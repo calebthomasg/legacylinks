@@ -17,7 +17,7 @@ static void homeValues(char *date,char *clock,char *battery){
   snprintf(battery,32,"%s%s",level,batteryValid(mv)?"":" ?");
 }
 static void settingsAction(unsigned i){
-  if(i==0){wifiFromHome=false;networksFromStatus=false;showNetworks();return;}
+  if(i==0){wifiFromHome=false;networksFromStatus=false;showConnectionStatus();return;}
   if(i==1){showUpdates();return;}
   if(i==5){showSignal();return;}
   clearPage(PREVIEW);navBackground();navTitle(4,settingsNames[i]);

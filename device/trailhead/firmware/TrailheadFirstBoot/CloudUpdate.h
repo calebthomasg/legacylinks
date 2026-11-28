@@ -9,7 +9,7 @@
 #include <mbedtls/sha256.h>
 #include <cJSON.h>
 #include "ReleasePolicy.h"
-#define TRAILHEAD_VERSION "0.1.24"
+#define TRAILHEAD_VERSION "0.1.30"
 static const char *CATALOG_URL="https://www.legacylinks.io/firmware/trailhead/test.json";
 struct CloudRelease { char version[24],url[200],sha256[65],notes[161];uint32_t size; };
 struct CloudEvent { bool done,available,restart; char text[160];CloudRelease release; };

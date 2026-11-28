@@ -33,7 +33,7 @@ static SilentLog diagnosticLog;
 
 static constexpr uint32_t PIXELS=480*480, FRAME_BYTES=PIXELS*2;
 
-enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC};
+enum Page {OPEN,DASH,SETTINGS,NETWORKS,PASSWORD,UPDATES,LOCAL_UPDATES,SIGNAL,CONNECTION,PREVIEW,CLOCK_VIEW,PETOPIA_PLAY,PETOPIA_ASSETS,GPS_DIAGNOSTIC,COMPASS_DIAGNOSTIC,NFC_I2C_CHECK};
 static Preferences prefs;
 #include "HomeClock.h"
 #include "CloudUpdate.h"
@@ -61,38 +61,99 @@ static void recordDisconnect(unsigned reason){
 }
 static String pendingSSID,pendingPassword,wifiMessage="Choose a network to connect.";
 static bool saveAfterConnect=false,wasConnected=false,retrySaved=false,scanRequested=false,credentialsVerified=false;
+static bool wifiEnabled=true,radioStarted=false;
+static uint32_t nextPreferredAt=0;
+static unsigned preferredIndex=0;
 static uint8_t scheduledAction=0,retryCount=0;
 static uint32_t actionAt=0;
 static unsigned lastFailureReason=0;
-struct SavedNetwork {uint32_t magic;char ssid[33];char password[64];};
-static bool loadNetwork(String &ssid,String &password){
- SavedNetwork n={};
- if(prefs.getBytesLength("network")==sizeof(n)&&prefs.getBytes("network",&n,sizeof(n))==sizeof(n)&&n.magic==0x4c4c5731&&n.ssid[32]==0&&n.password[63]==0&&n.ssid[0]){ssid=n.ssid;password=n.password;return true;}
- ssid=prefs.getString("ssid","");password=prefs.getString("pass","");return ssid.length()>0&&ssid.length()<=32&&password.length()<=63;
+constexpr uint32_t networkMagic=0x4c4c5731;
+struct SavedNetwork {
+ uint32_t magic;
+ char ssid[33];
+ char password[64];
+
+ bool valid() const {return magic==networkMagic && ssid[32]==0 && password[63]==0 && ssid[0];}
+};
+constexpr unsigned maxKnownNetworks=8;
+struct KnownNetworks { uint32_t magic; uint8_t count; SavedNetwork entries[maxKnownNetworks]; };
+static KnownNetworks knownNetworks={};
+
+static void loadKnownNetworks(){
+ KnownNetworks saved={};
+ if(prefs.getBytesLength("wifiKnown")==sizeof(saved) &&
+    prefs.getBytes("wifiKnown",&saved,sizeof(saved))==sizeof(saved) &&
+    saved.magic==networkMagic && saved.count<=maxKnownNetworks){
+  unsigned count=0;
+  for(unsigned i=0;i<saved.count;i++)if(saved.entries[i].valid())saved.entries[count++]=saved.entries[i];
+  saved.count=count;
+  if(count){knownNetworks=saved;return;}
+ }
+ SavedNetwork legacy={};
+ if(prefs.getBytesLength("network")!=sizeof(legacy) ||
+    prefs.getBytes("network",&legacy,sizeof(legacy))!=sizeof(legacy) || !legacy.valid()){
+  String ssid=prefs.getString("ssid",""),pass=prefs.getString("pass","");
+  if(!ssid.length()||ssid.length()>32||pass.length()>63)return;
+  legacy.magic=networkMagic;
+  ssid.toCharArray(legacy.ssid,sizeof(legacy.ssid));
+  pass.toCharArray(legacy.password,sizeof(legacy.password));
+ }
+ knownNetworks.magic=networkMagic;
+ knownNetworks.count=1;
+ knownNetworks.entries[0]=legacy;
+}
+static bool loadNetwork(String &ssid,String &password,unsigned index=0){
+ if(index>=knownNetworks.count)return false;
+ ssid=knownNetworks.entries[index].ssid;
+ password=knownNetworks.entries[index].password;
+ return true;
+}
+static int knownNetworkIndex(const String &ssid){
+ for(unsigned i=0;i<knownNetworks.count;i++)if(ssid==knownNetworks.entries[i].ssid)return int(i);
+ return -1;
+}
+static bool rememberNetwork(const String &ssid,const String &password){
+ if(knownNetworks.count && ssid==knownNetworks.entries[0].ssid && password==knownNetworks.entries[0].password)return true;
+ KnownNetworks updated={};
+ updated.magic=networkMagic;
+ updated.count=1;
+ SavedNetwork &first=updated.entries[0];
+ first.magic=networkMagic;
+ ssid.toCharArray(first.ssid,sizeof(first.ssid));
+ password.toCharArray(first.password,sizeof(first.password));
+ for(unsigned i=0;i<knownNetworks.count && updated.count<maxKnownNetworks;i++)
+  if(ssid!=knownNetworks.entries[i].ssid)updated.entries[updated.count++]=knownNetworks.entries[i];
+ if(prefs.putBytes("wifiKnown",&updated,sizeof(updated))!=sizeof(updated))return false;
+ knownNetworks=updated;
+ return true;
 }
 static void cancelNetwork(){
  attemptArmed.store(false);attemptFailed.store(false);
  WiFi.setAutoReconnect(false);esp_wifi_scan_stop();esp_wifi_disconnect();WiFi.scanDelete();
- scanning=false;connecting=false;scheduledAction=0;saveAfterConnect=false;wasConnected=false;retrySaved=false;scanRequested=false;pendingPassword="";wifiMessage="Choose a network to connect.";
+ scanning=false;connecting=false;scheduledAction=0;saveAfterConnect=false;wasConnected=false;retrySaved=false;scanRequested=false;nextPreferredAt=0;pendingPassword="";wifiMessage="Choose a network to connect.";
 }
 static void requestConnection(String ssid,String password,bool save,bool automatic=false){
  cancelNetwork();connectionCycleStarted=millis();attemptsUsed=0;lastConnectValid=false;pendingSSID=ssid;pendingPassword=password;saveAfterConnect=save;scheduledAction=2;actionAt=millis()+1000;retryCount=0;retrySaved=automatic;scanRequested=false;wifiMessage="Preparing connection...";
 }
 // Scanning must never cancel an established or pending connection.
 static bool requestScan(){
- if(connecting||scheduledAction==2||scanning||scheduledAction==1)return false;
+ if(!wifiEnabled||!radioStarted||connecting||scheduledAction==2||scanning||scheduledAction==1)return false;
  WiFi.scanDelete();scheduledAction=1;actionAt=millis()+350;return true;
 }
 static void serviceRequestedScan(bool viewingNetworks){
  if(!viewingNetworks){scanRequested=false;return;}
  if(scanRequested){if(scanning||scheduledAction==1)scanRequested=false;else if(requestScan())scanRequested=false;}
 }
-static bool retryStoredNetwork(){
- String ssid,password;if(!loadNetwork(ssid,password))return false;
- requestConnection(ssid,password,false,true);return true;
+static bool tryPreferredNetwork(unsigned index){
+ String ssid,password;
+ if(!wifiEnabled||!radioStarted||!loadNetwork(ssid,password,index))return false;
+ preferredIndex=index;
+ requestConnection(ssid,password,false,true);
+ return true;
 }
+static bool retryStoredNetwork(){return tryPreferredNetwork(0);}
 static Page page=OPEN;
-static void startRadio();static void showOpen();static void showDashboard();static void showSettings();static void showNetworks();static void showPassword();static void showUpdates();static void showLocalUpdates();static void showSignal();static void refreshSignal();
+static void startRadio();static bool setWifiEnabled(bool enabled);static void showOpen();static void showDashboard();static void showSettings();static void showNetworks();static void showPassword();static void showUpdates();static void showLocalUpdates();static void showSignal();static void refreshSignal();
 namespace petopia {
  static const char *artworkUpdateSummary();
  static bool artworkInstallBusy();
@@ -101,6 +162,7 @@ namespace petopia {
 static void showConnectionStatus();static void showPetopia();
 static void showGpsDiagnostic();
 static void showCompassDiagnostic();
+namespace nfcI2cCheck { static void show(); }
 static lv_color_t blue(){return lv_color_hex(0x0f1d3a);}static lv_color_t sand(){return lv_color_hex(0xf5f1e6);}
 static void flush(lv_disp_drv_t *d,const lv_area_t *a,lv_color_t *c){
  if(rgbActive)LCD_addWindow(a->x1,a->y1,a->x2,a->y2,(uint8_t*)c);
@@ -131,6 +193,7 @@ static void clearPage(Page next){page=next;if(next!=NETWORKS)scanRequested=false
 static void showImage(lv_obj_t *parent){artwork.header.cf=LV_IMG_CF_TRUE_COLOR;artwork.header.w=480;artwork.header.h=480;artwork.data_size=FRAME_BYTES;artwork.data=artPixels;lv_img_cache_invalidate_src(&artwork);image=lv_img_create(parent);lv_img_set_src(image,&artwork);lv_obj_center(image);}
 #include "PetopiaTestAssets.h"
 #include "DialUI.h"
+#include "NfcI2cCheck.h"
 
 static Adafruit_GPS gpsDiagnostic(&Wire);
 static constexpr uint8_t gpsAddress = 0x10;
@@ -284,14 +347,14 @@ static lv_obj_t *connectionName=nullptr;
 static void refreshConnectionStatus(){
  const bool online=WiFi.status()==WL_CONNECTED;
  const bool joining=connecting||scheduledAction==2;
- updateLabel(statusLabel,online?"Connected":joining?"Connecting...":"Not connected");
+ updateLabel(statusLabel,!wifiEnabled?"Wi-Fi off":online?"Connected":joining?"Connecting...":"Not connected");
  if(online){
   char name[33];networkLabel(WiFi.SSID(),&lv_font_montserrat_16,name);
   String details=name;
   if(!credentialsVerified)details+="\nNetwork settings not saved";
   updateLabel(connectionName,details.c_str());
  }else{
-  updateLabel(connectionName,joining?"":wifiMessage.c_str());
+  updateLabel(connectionName,joining||!wifiEnabled?"":wifiMessage.c_str());
  }
 }
 static void showConnectionStatus(){
@@ -299,10 +362,27 @@ static void showConnectionStatus(){
  statusLabel=navLabel("",120,320,&nav_row);
  connectionName=navLabel("",172,310,&lv_font_montserrat_16);
  refreshConnectionStatus();
- navAction("Choose network",279,[](lv_event_t*){
+ navLabel("Wi-Fi",225,150,&nav_text);
+ auto *wifiSwitch=lv_switch_create(lv_scr_act());
+ lv_obj_set_size(wifiSwitch,64,30);
+ lv_obj_set_pos(wifiSwitch,295,221);
+ if(wifiEnabled)lv_obj_add_state(wifiSwitch,LV_STATE_CHECKED);
+ lv_obj_add_event_cb(wifiSwitch,[](lv_event_t *event){
+  auto *control=static_cast<lv_obj_t *>(lv_event_get_target(event));
+  if(!setWifiEnabled(lv_obj_has_state(control,LV_STATE_CHECKED))){
+   if(wifiEnabled)lv_obj_add_state(control,LV_STATE_CHECKED);
+   else lv_obj_clear_state(control,LV_STATE_CHECKED);
+   refreshConnectionStatus();
+   updateLabel(connectionName,wifiMessage.c_str());
+   return;
+  }
+  showConnectionStatus();
+ },LV_EVENT_VALUE_CHANGED,nullptr);
+ auto *choose=navAction("Choose network",292,[](lv_event_t*){
   networksFromStatus=true;
   showNetworks();
  });
+ if(!wifiEnabled)lv_obj_add_state(choose,LV_STATE_DISABLED);
  backArrow([](lv_event_t*){if(wifiFromHome)showDashboard();else showSettings();},navSand());
 }
 // Diagnostics reads existing station data; it never scans or changes radio settings.
@@ -331,7 +411,7 @@ static void showSignal(){
  for(int i=0;i<4;i++){auto *bar=lv_obj_create(lv_scr_act());signalBars[i]=bar;lv_obj_remove_style_all(bar);lv_obj_set_size(bar,26,14+i*12);lv_obj_set_pos(bar,170+i*36,178-(14+i*12));lv_obj_set_style_radius(bar,4,0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);lv_obj_clear_flag(bar,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);}
  signalReading=navLabel("",195,340,&nav_text);signalDetails=navLabel("",230,320,&lv_font_montserrat_16);
  navLabel("Signal levels are approximate",302,300,&lv_font_montserrat_16);
- navAction("Retry saved Wi-Fi",337,[](lv_event_t*){if(!retryStoredNetwork())wifiMessage="No saved network";showConnectionStatus();},230);
+ navAction("Retry saved Wi-Fi",337,[](lv_event_t*){if(wifiEnabled&&!retryStoredNetwork())wifiMessage="No saved network";showConnectionStatus();},230);
  backArrow([](lv_event_t*){showSettings();},navSand());refreshSignal();
 }
 // Keep the original SSID for connecting. Rows carry stable indices, not label text.
@@ -386,6 +466,7 @@ static void populateNetworks(int found){
  positionMenu(networkList,nextFocus*rowHeight);
 }
 static void showNetworks(){
+ if(!wifiEnabled){showConnectionStatus();return;}
  clearPage(NETWORKS);navBackground();navTitle(2,"Wi-Fi Networks");
  statusLabel=navLabel("",83,300,&lv_font_montserrat_16);
  networkList=navMenu();
@@ -433,7 +514,7 @@ static void showPassword(){
  lv_obj_set_style_text_color(arrow,navSand(),0);lv_obj_center(arrow);
  statusLabel=navLabel("Password",87,280,&lv_font_montserrat_16);
  passwordBox=lv_textarea_create(lv_scr_act());lv_obj_set_style_bg_color(passwordBox,sand(),0);lv_obj_set_style_text_color(passwordBox,blue(),0);lv_obj_set_size(passwordBox,280,44);lv_obj_set_pos(passwordBox,100,110);lv_textarea_set_one_line(passwordBox,true);lv_textarea_set_password_mode(passwordBox,true);lv_textarea_set_max_length(passwordBox,63);
- String storedSSID,storedPassword;if(loadNetwork(storedSSID,storedPassword)&&storedSSID==selectedSSID){lv_textarea_set_text(passwordBox,storedPassword.c_str());lv_label_set_text(statusLabel,"Saved password");}
+ String storedSSID,storedPassword;const int index=knownNetworkIndex(selectedSSID);if(index>=0&&loadNetwork(storedSSID,storedPassword,unsigned(index))){lv_textarea_set_text(passwordBox,storedPassword.c_str());lv_label_set_text(statusLabel,"Saved password");}
  for(int i=0;i<30;i++){
   auto *key=lv_btn_create(lv_scr_act());keyButtons[i]=key;
   lv_obj_set_size(key,48,42);lv_obj_set_pos(key,81+(i%6)*54,166+(i/6)*48);
@@ -540,14 +621,47 @@ static void serviceCloudUpdates(uint32_t now){
   if(startCloudJob(false)){checked=true;lastCheck=now;if(page==UPDATES)showUpdates();}
  }
 }
-static bool radioStarted=false;
 static void startRadio(){
- if(radioStarted)return;
- WiFi.onEvent([](WiFiEvent_t e,WiFiEventInfo_t info){
-  if(e==ARDUINO_EVENT_WIFI_STA_DISCONNECTED){recordDisconnect(info.wifi_sta_disconnected.reason);diagnosticLog.printf("Wi-Fi disconnect reason: %u\n",unsigned(info.wifi_sta_disconnected.reason));}
- });
- WiFi.mode(WIFI_STA);WiFi.setAutoReconnect(false);radioStarted=true;initOTA();
- String ssid,password;credentialsVerified=loadNetwork(ssid,password);if(credentialsVerified)requestConnection(ssid,password,false,true);else wifiMessage="Choose a network to connect.";
+ if(!wifiEnabled||radioStarted)return;
+ if(!WiFi.mode(WIFI_STA)){wifiMessage="Wi-Fi could not start";return;}
+ static bool initialized=false;
+ WiFi.setAutoReconnect(false);
+ radioStarted=true;
+ if(initialized)server.begin();
+ else{
+  WiFi.onEvent([](WiFiEvent_t e,WiFiEventInfo_t info){
+   if(e==ARDUINO_EVENT_WIFI_STA_DISCONNECTED){recordDisconnect(info.wifi_sta_disconnected.reason);diagnosticLog.printf("Wi-Fi disconnect reason: %u\n",unsigned(info.wifi_sta_disconnected.reason));}
+  });
+  initOTA();
+  initialized=true;
+ }
+ credentialsVerified=knownNetworks.count>0;
+ if(!retryStoredNetwork())wifiMessage="Choose a network to connect.";
+}
+static bool setWifiEnabled(bool enabled){
+ if(enabled==wifiEnabled)return true;
+ if(cloudBusy||petopia::artworkInstallBusy()||uploadAllowed||rebootPending){
+  wifiMessage="Wait for the update to finish";
+  return false;
+ }
+ if(enabled){
+  wifiEnabled=true;
+  startRadio();
+  if(!radioStarted){wifiEnabled=false;return false;}
+ }else{
+  otaEnabled=false;
+  cancelNetwork();
+  if(!WiFi.mode(WIFI_OFF)){
+   wifiMessage="Wi-Fi could not turn off";
+   retryStoredNetwork();
+   return false;
+  }
+  server.stop();
+  radioStarted=false;
+  wifiEnabled=false;
+ }
+ prefs.putBool("wifiEnabled",wifiEnabled);
+ return true;
 }
 #include "Petopia.h"
 #include "PetopiaFirstVisit.h"
@@ -555,6 +669,9 @@ static void startRadio(){
 #include "DeviceSettings.h"
 
 static void serviceNetwork(uint32_t now){
+ if(!wifiEnabled||!radioStarted)return;
+ if(nextPreferredAt && int32_t(now-nextPreferredAt)>=0 && page!=NETWORKS && page!=PASSWORD &&
+    !scanning && !connecting && !scheduledAction)retryStoredNetwork();
  if(scheduledAction&&int32_t(now-actionAt)>=0){
   uint8_t action=scheduledAction;scheduledAction=0;disconnectReason.store(0);
   if(action==1){
@@ -573,7 +690,10 @@ static void serviceNetwork(uint32_t now){
  if(connecting&&WiFi.status()==WL_CONNECTED){
   attemptArmed.store(false);attemptFailed.store(false);lastConnectMs=now-connectionCycleStarted;lastConnectAttempts=attemptsUsed;lastConnectValid=true;
   connecting=false;wasConnected=true;wifiMessage="Connected";
-  if(saveAfterConnect){SavedNetwork n={};n.magic=0x4c4c5731;pendingSSID.toCharArray(n.ssid,sizeof(n.ssid));pendingPassword.toCharArray(n.password,sizeof(n.password));size_t count=prefs.putBytes("network",&n,sizeof(n));diagnosticLog.println(count==sizeof(n)?"Network saved":"ERROR: network save failed");String verifySSID,verifyPassword;credentialsVerified=count==sizeof(n)&&loadNetwork(verifySSID,verifyPassword)&&verifySSID==pendingSSID&&verifyPassword==pendingPassword; if(!credentialsVerified)wifiMessage="Connected; settings save failed";}
+  if(saveAfterConnect||retrySaved){
+   credentialsVerified=rememberNetwork(pendingSSID,pendingPassword);
+   if(!credentialsVerified)wifiMessage="Connected; settings save failed";
+  }
   saveAfterConnect=false;pendingPassword="";retryCount=0;
  }
  if(connecting&&(attemptFailed.exchange(false)||now-connectStarted>=30000)){
@@ -582,11 +702,15 @@ static void serviceNetwork(uint32_t now){
   // means the driver ended its attempt. Ignore the resulting local event.
   if(now-connectStarted>=30000)esp_wifi_disconnect();
   if(retrySaved&&retryCount<2&&!scanRequested){retryCount++;scheduledAction=2;actionAt=now+1000*retryCount;}
-  else {saveAfterConnect=false;pendingPassword="";retrySaved=false;wifiMessage=String("Connection failed; reason ")+lastFailureReason+"\nRetry saved Wi-Fi in Settings";}
+  else if(!retrySaved||scanRequested||!tryPreferredNetwork(preferredIndex+1)){
+   if(retrySaved&&!scanRequested)nextPreferredAt=now+30000;
+   saveAfterConnect=false;pendingPassword="";retrySaved=false;
+   wifiMessage=String("Connection failed; reason ")+lastFailureReason;
+  }
  }
  if(wasConnected&&!scanning&&scheduledAction!=1&&WiFi.status()!=WL_CONNECTED){
-  wasConnected=false;wifiMessage=String("Connection lost; reason ")+disconnectReason.load();String ssid,password;
-  if(retryCount<3&&loadNetwork(ssid,password)){requestConnection(ssid,password,false,true);retryCount=0;actionAt=now+1000;}
+  wasConnected=false;wifiMessage=String("Connection lost; reason ")+disconnectReason.load();
+  retryStoredNetwork();
  }
 }
 void setup(){
@@ -599,12 +723,17 @@ void setup(){
  unsigned previous=prefs.getUChar("greeting",255);
  greetingIndex=previous<count?(previous+1+esp_random()%(count-1))%count:esp_random()%count;
  prefs.putUChar("greeting",greetingIndex);
+ wifiEnabled=prefs.getBool("wifiEnabled",true);
+ loadKnownNetworks();
  startHomeClock();
  initLVGL();Set_Backlight(brightness);
  showOpen();
 }
 void loop(){
- uint32_t now=millis();if(!radioStarted&&now>1500)startRadio();if(rebootPending&&int32_t(now-rebootAt)>=0)ESP.restart();
+ uint32_t now=millis();
+ static uint32_t radioRetryAt=1500;
+ if(wifiEnabled&&!radioStarted&&int32_t(now-radioRetryAt)>=0){radioRetryAt=now+1000;startRadio();}
+ if(rebootPending&&int32_t(now-rebootAt)>=0)ESP.restart();
  if(!rebootPending&&radioStarted&&!cloudBusy)server.handleClient();
  if(otaEnabled&&!uploadAllowed&&now-otaStarted>600000){otaEnabled=false;if(page==LOCAL_UPDATES)showLocalUpdates();}
 
@@ -622,6 +751,7 @@ void loop(){
  serviceHomeClock(now);
  serviceGpsDiagnostic(now);
  serviceCompassDiagnostic(millis());
+ nfcI2cCheck::service(millis());
  serviceCloudUpdates(now);
  petopia::serviceAssetUpdates(now,cloudBusy||otaEnabled||uploadAllowed||rebootPending||connecting||scanning||scheduledAction);
  if(page==UPDATES && cloudArtworkStatus)updateLabel(cloudArtworkStatus,petopia::artworkUpdateSummary());
