@@ -2,12 +2,12 @@
   "schema": 1,
   "channel": "test",
   "release": {
-    "version": "0.1.22",
+    "version": "0.1.30",
     "hardware": "waveshare-esp32s3-touch-lcd-2.8c",
     "layout": "trailhead-16m-ota4m-v1",
-    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.22/trailhead-0.1.22-app.bin",
-    "size": 2107984,
-    "sha256": "a1c14e02986c6826c6c2456bf95466af4927ddf1173f8737db217a91f70f834c",
-    "notes": "Petopia artwork now installs automatically over Wi-Fi. No manual microSD file copying."
+    "url": "https://www.legacylinks.io/firmware/trailhead/releases/0.1.30/trailhead-0.1.30-app.bin",
+    "size": 2152720,
+    "sha256": "46919c79411901fd0c2eaf840327682315b50b0ebe42c8f0c7b60e3d971b4f2f",
+    "notes": "Wi-Fi on/off, saved network reconnect, and a read-only Treasure Box NFC scan."
   }
 }
