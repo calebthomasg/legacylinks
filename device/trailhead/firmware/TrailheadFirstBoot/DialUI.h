@@ -155,6 +155,7 @@ static void showSettings(){
     if(i==1 && cloudAvailable)updateDot(row,310,23);
   }
   navMenuRow(list,"GPS Diagnostic",[](lv_event_t*){showGpsDiagnostic();});
+  navMenuRow(list,"Compass Diagnostic",[](lv_event_t*){showCompassDiagnostic();});
   positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
