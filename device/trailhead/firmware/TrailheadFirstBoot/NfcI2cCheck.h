@@ -21,9 +21,20 @@ static uint32_t lastPoll = 0;
 static uint32_t scanStarted = 0;
 static uint8_t target = 0;
 static char uid[30]{};
+using ScanResult = void (*)(const char *value, const char *status);
+static ScanResult scanResult = nullptr;
 static uint8_t tagData[(256 - 4) * 4]{};
 static size_t tagSize = 0;
 static size_t tagCapacity = 0;
+static bool beginScan(ScanResult callback = nullptr) {
+  if (phase != Phase::Idle) return false;
+  command = Command::Sam;
+  phase = Phase::Probe;
+  tagSize = tagCapacity = 0;
+  uid[0] = '\0';
+  scanResult = callback;
+  return true;
+}
 
 // Read the ready byte and a complete frame in one I2C transaction.
 static Packet readFrame(uint8_t *frame, size_t size) {
@@ -49,10 +60,20 @@ static bool decodeReply(const uint8_t *frame, size_t size, Command expected, siz
 
 static void finish(const char *message) {
   phase = Phase::Idle;
-  updateLabel(reading, message);
+  if (auto result = scanResult) {
+    scanResult = nullptr;
+    result(nullptr, message);
+  } else updateLabel(reading, message);
 }
 
-static void finishTag(const char *detail) {
+static void finishTag(const char *detail, bool hasValue = false) {
+  if (scanResult && hasValue) {
+    auto result = scanResult;
+    scanResult = nullptr;
+    phase = Phase::Idle;
+    result(detail, "Tag detected");
+    return;
+  }
   char message[250];
   snprintf(message, sizeof(message), "Tag detected\nUID %s\n%s", uid, detail);
   finish(message);
@@ -69,12 +90,7 @@ static void show() {
   navTitle(6, "NFC I2C Check");
   reading = navLabel("Tap Scan tag or Check reader", 130, 350, &nav_text);
   navAction("Scan tag", 290, [](lv_event_t *) {
-    if (phase != Phase::Idle) return;
-    command = Command::Sam;
-    phase = Phase::Probe;
-    tagSize = tagCapacity = 0;
-    uid[0] = '\0';
-    updateLabel(reading, "Waiting for tag...");
+    if (beginScan()) updateLabel(reading, "Waiting for tag...");
   });
   navAction("Check reader", 346, [](lv_event_t *) {
     if (phase != Phase::Idle) return;
@@ -182,7 +198,8 @@ static void inspectTagData() {
     if (length > tagSize - pos) break;
     if (type == 0x03) {
       char value[200];
-      finishTag(formatRecord(tagData + pos, length, value, sizeof(value)) ? value : "No readable NDEF URL or text");
+      const bool hasValue = formatRecord(tagData + pos, length, value, sizeof(value));
+      finishTag(hasValue ? value : "No readable NDEF URL or text", hasValue);
       return;
     }
     pos += length;
@@ -255,7 +272,7 @@ static void handleReply(const uint8_t *payload, size_t size, uint32_t now) {
 }
 
 static void service(uint32_t now) {
-  if (page != NFC_I2C_CHECK || phase == Phase::Idle) return;
+  if (phase == Phase::Idle || (page != NFC_I2C_CHECK && !scanResult)) return;
   if (phase == Phase::Probe) {
     Wire.beginTransmission(address);
     const uint8_t error = Wire.endTransmission();
