@@ -7,7 +7,7 @@ constexpr uint32_t replyTimeoutMs = 500;
 constexpr uint8_t request[] = {0x00, 0x00, 0xff, 0x02, 0xfe, 0xd4, 0x02, 0x2a, 0x00};
 constexpr uint8_t ack[] = {0x00, 0x00, 0xff, 0x00, 0xff, 0x00};
 
-enum class Phase { Idle, Send, Ack, Reply };
+enum class Phase { Idle, Probe, Send, Ack, Reply };
 enum class Packet { Waiting, Ready, Invalid };
 
 static lv_obj_t *reading = nullptr;
@@ -49,7 +49,7 @@ static void show() {
   reading = navLabel("Tap Check reader", 139, 340, &nav_text);
   navAction("Check reader", 294, [](lv_event_t *) {
     if (phase == Phase::Idle) {
-      phase = Phase::Send;
+      phase = Phase::Probe;
       updateLabel(reading, "Checking PN532...");
     }
   });
@@ -58,13 +58,27 @@ static void show() {
 
 static void service(uint32_t now) {
   if (page != NFC_I2C_CHECK || phase == Phase::Idle) return;
+  if (phase == Phase::Probe) {
+    // Send only the I2C address, before sending the PN532 command frame.
+    Wire.beginTransmission(address);
+    const uint8_t error = Wire.endTransmission();
+    if (error) {
+      char message[80];
+      snprintf(message, sizeof(message), "No address ACK at 0x24\nWire error %u", unsigned(error));
+      finish(message);
+      return;
+    }
+    updateLabel(reading, "Address 0x24 answered");
+    phase = Phase::Send;
+    return;
+  }
   if (phase == Phase::Send) {
     Wire.beginTransmission(address);
     const size_t sent = Wire.write(request, sizeof(request));
     const uint8_t error = Wire.endTransmission();
     if (error || sent != sizeof(request)) {
       char message[80];
-      snprintf(message, sizeof(message), "I2C write failed at 0x24\nWire error %u", unsigned(error));
+      snprintf(message, sizeof(message), "0x24 answered\nCommand write error %u", unsigned(error));
       finish(message);
       return;
     }
@@ -74,7 +88,7 @@ static void service(uint32_t now) {
   }
 
   if (now - phaseStarted >= replyTimeoutMs) {
-    finish(phase == Phase::Ack ? "No PN532 acknowledgement" : "No PN532 firmware reply");
+    finish(phase == Phase::Ack ? "0x24 answered\nNo PN532 command ACK" : "0x24 answered\nNo PN532 firmware reply");
     return;
   }
   if (now - lastPoll < pollIntervalMs) return;
