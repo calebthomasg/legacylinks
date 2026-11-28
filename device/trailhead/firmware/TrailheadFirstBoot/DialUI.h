@@ -65,6 +65,7 @@ static void homeTap(lv_event_t *e){
   if(i==0)return;
   if(i==4){settingsOffset=112;wifiFromHome=false;showSettings();return;}
   if(i==2){wifiFromHome=true;showConnectionStatus();return;}
+  if(i==6){trailheadField::show();return;}
   if(i==7){showPetopia();return;}
   if(i==1 || i==3 || i==5) {
     showDemoMenu(i);
@@ -156,6 +157,8 @@ static void showSettings(){
   }
   navMenuRow(list,"GPS Diagnostic",[](lv_event_t*){showGpsDiagnostic();});
   navMenuRow(list,"Compass Diagnostic",[](lv_event_t*){showCompassDiagnostic();});
+  navMenuRow(list,"Trailhead Compass",[](lv_event_t*){trailheadField::showCompass();});
+  navMenuRow(list,"NFC I2C Check",[](lv_event_t*){nfcI2cCheck::show();});
   positionMenu(list,offset);
   backArrow([](lv_event_t*){showDashboard();},navSand());
 }
