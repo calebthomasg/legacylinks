@@ -16,14 +16,17 @@ void esp_wifi_scan_stop(){}void esp_wifi_disconnect(){WiFi.state=WL_DISCONNECTED
 static int displayedScanResult=0;
 static void populateNetworks(int found){displayedScanResult=found;}
 static bool scanning=false,connecting=false;static uint32_t connectStarted=0;
+enum Page { DASH, NETWORKS, PASSWORD };
+static Page page=DASH;
 // SOURCE_HELPERS
 // SOURCE_SERVICE
 
 void step(uint32_t t){clockMs=t;serviceNetwork(t);}
 void startSaved(uint32_t t){clockMs=t;assert(retryStoredNetwork());step(t+1000);assert(connecting&&attemptArmed);}
 int main(){
+ radioStarted=true;
  clockMs=0;requestConnection("Home","validpass",true);step(999);assert(WiFi.starts==0);step(1000);assert(connecting&&attemptsUsed==1);
- assert(!requestScan()&&prefs.getBytesLength("network")==0);
+ assert(!requestScan()&&prefs.getBytesLength("wifiKnown")==0);
  WiFi.state=WL_CONNECTED;step(1500);assert(lastConnectMs==1500&&lastConnectAttempts==1&&!attemptArmed);
  String ssid,password;assert(loadNetwork(ssid,password)&&password=="validpass");
  // Explicit driver failure retries at +1s, without waiting for the 30s watchdog.
@@ -35,7 +38,8 @@ int main(){
  startSaved(10000);recordDisconnect(204);step(11500);step(12500);
  recordDisconnect(15);step(13000);assert(actionAt==15000&&retryCount==2);step(15000);
  recordDisconnect(2);step(15500);assert(!connecting&&scheduledAction==0&&!retrySaved&&!attemptArmed&&wifiMessage.find("reason 2")!=std::string::npos);
- step(100000);assert(attemptsUsed==3);assert(loadNetwork(ssid,password)&&password=="validpass");
+ step(40000);assert(attemptsUsed==3 && nextPreferredAt==45500);
+ step(45500);assert(scheduledAction==2 && actionAt==46500);assert(loadNetwork(ssid,password)&&password=="validpass");
  // Cancellation and delayed locally-generated reason 8 must not trigger retries.
  startSaved(110000);cancelNetwork();recordDisconnect(8);step(112000);assert(!connecting&&scheduledAction==0&&!attemptFailed);
  clockMs=113000;retryStoredNetwork();recordDisconnect(8);step(114000);recordDisconnect(8);step(114500);assert(connecting&&retryCount==0);
@@ -52,5 +56,21 @@ int main(){
  WiFi.scanResult=-2;step(164350);assert(!scanning&&displayedScanResult==-2);
  // Millisecond wraparound keeps backoff and elapsed timing correct.
  cancelNetwork();clockMs=0xfffffff0u;retryStoredNetwork();step(984);assert(connecting);WiFi.state=WL_CONNECTED;step(1484);assert(lastConnectMs==1500);
+ // Import the previous single-network record when upgrading an existing device.
+ prefs.data.clear();knownNetworks={};
+ SavedNetwork old={};old.magic=networkMagic;strcpy(old.ssid,"Legacy");strcpy(old.password,"legacy123");
+ prefs.putBytes("network",&old,sizeof(old));loadKnownNetworks();
+ assert(loadNetwork(ssid,password)&&ssid=="Legacy"&&password=="legacy123");
+ assert(rememberNetwork("Home","validpass")&&knownNetworks.count==2);
+ knownNetworks={};loadKnownNetworks();assert(loadNetwork(ssid,password)&&ssid=="Home");
+ assert(loadNetwork(ssid,password,1)&&ssid=="Legacy");
+ // When the preferred network fails, fall back and remember the one that works.
+ startSaved(200000);recordDisconnect(204);step(201100);step(202100);
+ recordDisconnect(204);step(202200);step(204200);
+ recordDisconnect(204);step(204300);assert(scheduledAction==2&&preferredIndex==1&&pendingSSID=="Legacy");
+ step(205300);WiFi.state=WL_CONNECTED;step(205400);
+ assert(loadNetwork(ssid,password)&&ssid=="Legacy");
+ cancelNetwork();wifiEnabled=false;assert(!retryStoredNetwork()&&!requestScan());
+ step(300000);assert(!scanning&&!connecting&&scheduledAction==0);
  std::cout<<"PASS: early failure retry, 1s/2s backoff, 3-attempt bound, 30s watchdog, cancellation/late local event, saved credentials, failed replacement preservation, scan exclusion, connected scanning, scan priority, reconnect recovery, elapsed/attempt metrics and millis wraparound\n";
 }
